@@ -1,4 +1,4 @@
-/// Desktop — root layout: wallpaper + window area + taskbar + launcher overlay + notifications.
+/// Desktop — root layout with CSS Grid: header · sidebar · window area · taskbar.
 use dioxus::prelude::*;
 
 use fsd_conductor::ConductorApp;
@@ -7,8 +7,11 @@ use fsd_settings::SettingsApp;
 use fsd_store::StoreApp;
 use fsd_studio::StudioApp;
 
+use crate::app_shell::{AppMode, AppShell, LayoutA, LayoutC};
+use crate::header::{Breadcrumb, ShellHeader};
 use crate::launcher::{AppLauncher, LauncherState};
-use crate::notification::{NotificationKind, NotificationManager, NotificationStack};
+use crate::notification::{NotificationManager, NotificationStack};
+use crate::sidebar::{ShellSidebar, SidebarSection, default_sidebar_sections};
 use crate::taskbar::{default_apps, AppEntry, Taskbar};
 use crate::wallpaper::Wallpaper;
 use crate::window::{Window, WindowId, WindowManager};
@@ -17,13 +20,27 @@ use crate::window_frame::WindowFrame;
 /// Root desktop component.
 #[component]
 pub fn Desktop() -> Element {
-    let wallpaper       = use_signal(Wallpaper::default);
-    let mut wm          = use_signal(WindowManager::default);
-    let mut apps        = use_signal(default_apps);
-    let mut launcher    = use_signal(LauncherState::default);
-    let mut notifs      = use_signal(NotificationManager::default);
+    let wallpaper           = use_signal(Wallpaper::default);
+    let mut wm              = use_signal(WindowManager::default);
+    let mut apps            = use_signal(default_apps);
+    let mut launcher        = use_signal(LauncherState::default);
+    let mut notifs          = use_signal(NotificationManager::default);
+    let mut sidebar_collapsed = use_signal(|| false);
+    let sidebar_sections: Signal<Vec<SidebarSection>> = use_signal(default_sidebar_sections);
 
     let bg = wallpaper.read().to_css_background();
+
+    // ── Sidebar collapsed toggle ─────────────────────────────────────────────
+    let on_sidebar_toggle = move |_: ()| {
+        let v = *sidebar_collapsed.read();
+        *sidebar_collapsed.write() = !v;
+    };
+
+    // ── Sidebar app select ───────────────────────────────────────────────────
+    let on_sidebar_select = move |app_id: String| {
+        open_app(&mut wm, &mut apps, &app_id);
+        launcher.write().close();
+    };
 
     // ── Taskbar launch callback ──────────────────────────────────────────────
     let on_taskbar_launch = move |app_id: String| {
@@ -40,54 +57,95 @@ pub fn Desktop() -> Element {
         open_app(&mut wm, &mut apps, &app_id);
         launcher.write().close();
     };
-
-    let on_launcher_query = move |q: String| {
-        launcher.write().query = q;
-    };
-
-    let on_launcher_close = move |_: ()| {
-        launcher.write().close();
-    };
+    let on_launcher_query = move |q: String| { launcher.write().query = q; };
+    let on_launcher_close = move |_: ()| { launcher.write().close(); };
 
     // ── Window manager callbacks ─────────────────────────────────────────────
     let on_close_window = move |id: WindowId| {
         wm.write().close(id);
-        // Remove from app tracking so running-indicator clears
         for app in apps.write().iter_mut() {
             app.windows.retain(|&wid| wid != id);
         }
     };
-
-    let on_focus_window = move |id: WindowId| {
-        wm.write().focus(id);
-    };
-
-    let on_minimize_window = move |id: WindowId| {
-        wm.write().minimize(id);
-    };
-
-    let on_maximize_window = move |id: WindowId| {
-        wm.write().maximize(id);
-    };
+    let on_focus_window    = move |id: WindowId| { wm.write().focus(id); };
+    let on_minimize_window = move |id: WindowId| { wm.write().minimize(id); };
+    let on_maximize_window = move |id: WindowId| { wm.write().maximize(id); };
 
     // ── Notification dismiss ─────────────────────────────────────────────────
-    let on_dismiss_notif = move |id: u64| {
-        notifs.write().dismiss(id);
-    };
+    let on_dismiss_notif = move |id: u64| { notifs.write().dismiss(id); };
 
+    // ── Derived state ────────────────────────────────────────────────────────
     let launcher_state = launcher.read().clone();
     let notif_items    = notifs.read().items().to_vec();
     let app_list       = apps.read().clone();
+    let collapsed      = *sidebar_collapsed.read();
+    let col_width      = if collapsed { "48px" } else { "240px" };
+
+    // Active sidebar item from the focused window
+    let active_app_id = wm.read()
+        .windows()
+        .iter()
+        .filter(|w| !w.minimized)
+        .max_by_key(|w| w.z_index)
+        .and_then(|w| w.title_key.strip_prefix("app-").map(String::from))
+        .unwrap_or_default();
+
+    // Breadcrumbs from focused window
+    let breadcrumbs = wm.read()
+        .windows()
+        .iter()
+        .filter(|w| !w.minimized)
+        .max_by_key(|w| w.z_index)
+        .map(|w| {
+            let label = w.title_key.trim_start_matches("app-");
+            let label = match label {
+                "conductor" => "Conductor",
+                "store"     => "Store",
+                "studio"    => "Studio",
+                "settings"  => "Settings",
+                "profile"   => "Profile",
+                other       => other,
+            };
+            vec![Breadcrumb::new(label)]
+        })
+        .unwrap_or_else(|| vec![Breadcrumb::new("Desktop")]);
 
     rsx! {
         div {
             id: "fsd-desktop",
-            style: "width: 100vw; height: 100vh; display: flex; flex-direction: column; overflow: hidden; {bg}",
+            style: "
+                width: 100vw; height: 100vh; overflow: hidden;
+                display: grid;
+                grid-template-areas: 'header header' 'sidebar main' 'taskbar taskbar';
+                grid-template-rows: 60px 1fr 48px;
+                grid-template-columns: {col_width} 1fr;
+                {bg}
+            ",
 
-            // ── Window area ──────────────────────────────────────────────────
+            // ── Header ───────────────────────────────────────────────────────
+            div { style: "grid-area: header;",
+                ShellHeader {
+                    breadcrumbs,
+                    user_name: "Admin".into(),
+                    user_avatar: None,
+                }
+            }
+
+            // ── Sidebar ───────────────────────────────────────────────────────
+            div { style: "grid-area: sidebar; overflow: hidden;",
+                ShellSidebar {
+                    sections: sidebar_sections.read().clone(),
+                    active_id: active_app_id,
+                    collapsed,
+                    on_select: on_sidebar_select,
+                    on_toggle: on_sidebar_toggle,
+                }
+            }
+
+            // ── Window area ───────────────────────────────────────────────────
             div {
                 id: "fsd-window-area",
-                style: "flex: 1; position: relative; overflow: hidden;",
+                style: "grid-area: main; position: relative; overflow: hidden;",
 
                 for window in wm.read().windows().iter().filter(|w| !w.minimized).cloned().collect::<Vec<_>>() {
                     WindowFrame {
@@ -97,19 +155,20 @@ pub fn Desktop() -> Element {
                         on_focus: on_focus_window,
                         on_minimize: on_minimize_window,
                         on_maximize: on_maximize_window,
-
                         AppWindowContent { title_key: window.title_key.clone() }
                     }
                 }
             }
 
-            // ── Taskbar ──────────────────────────────────────────────────────
-            Taskbar {
-                apps: app_list.clone(),
-                on_launch: on_taskbar_launch,
+            // ── Taskbar ───────────────────────────────────────────────────────
+            div { style: "grid-area: taskbar;",
+                Taskbar {
+                    apps: app_list.clone(),
+                    on_launch: on_taskbar_launch,
+                }
             }
 
-            // ── App Launcher overlay ─────────────────────────────────────────
+            // ── App Launcher overlay ──────────────────────────────────────────
             if launcher_state.open {
                 AppLauncher {
                     apps: app_list,
@@ -120,7 +179,7 @@ pub fn Desktop() -> Element {
                 }
             }
 
-            // ── Notification stack ───────────────────────────────────────────
+            // ── Notification stack ────────────────────────────────────────────
             NotificationStack {
                 notifications: notif_items,
                 on_dismiss: on_dismiss_notif,
@@ -131,9 +190,7 @@ pub fn Desktop() -> Element {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/// Opens or focuses an app window. Restores a minimized window via focus().
 fn open_app(wm: &mut Signal<WindowManager>, apps: &mut Signal<Vec<AppEntry>>, app_id: &str) {
-    // If already open (or minimized), focus it (focus() also restores minimized)
     let existing_id = apps
         .read()
         .iter()
@@ -150,23 +207,41 @@ fn open_app(wm: &mut Signal<WindowManager>, apps: &mut Signal<Vec<AppEntry>>, ap
     let win_id = window.id;
     wm.write().open(window);
 
-    // Track window ID so the taskbar running-indicator dot appears
     if let Some(app) = apps.write().iter_mut().find(|a| a.id == app_id) {
         app.windows.push(win_id);
     }
-
     tracing::info!("Opened app: {}", app_id);
 }
 
-/// Dispatches the correct app component based on the window's title_key.
+/// Wraps each app in the appropriate layout (A / B / C).
 #[component]
 fn AppWindowContent(title_key: String) -> Element {
     match title_key.as_str() {
-        "app-conductor" => rsx! { ConductorApp {} },
-        "app-store"     => rsx! { StoreApp {} },
-        "app-studio"    => rsx! { StudioApp {} },
-        "app-settings"  => rsx! { SettingsApp {} },
-        "app-profile"   => rsx! { ProfileApp {} },
+        "app-conductor" => rsx! {
+            AppShell { mode: AppMode::Window,
+                ConductorApp {}
+            }
+        },
+        "app-store" => rsx! {
+            AppShell { mode: AppMode::Window,
+                LayoutA { StoreApp {} }
+            }
+        },
+        "app-studio" => rsx! {
+            AppShell { mode: AppMode::Window,
+                LayoutA { StudioApp {} }
+            }
+        },
+        "app-settings" => rsx! {
+            AppShell { mode: AppMode::Window,
+                SettingsApp {}
+            }
+        },
+        "app-profile" => rsx! {
+            AppShell { mode: AppMode::Window,
+                LayoutC { ProfileApp {} }
+            }
+        },
         _ => rsx! {
             div {
                 style: "color: var(--fsn-color-text-muted, #94a3b8); font-size: 13px; \

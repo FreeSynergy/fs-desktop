@@ -60,6 +60,34 @@ Desktop does NOT import Node-internal crates directly.
 
 All dialogs and views are `Window` objects. See `fsd-shell/src/window.rs`.
 
+## Layout System (E1 + E2)
+
+### Shell Layout (fsd-shell)
+CSS Grid desktop with four areas: `header | sidebar | main | taskbar`.
+
+```
+grid-template-areas: 'header header' 'sidebar main' 'taskbar taskbar';
+grid-template-rows:  60px 1fr 48px;
+grid-template-columns: {sidebar_width} 1fr;
+```
+
+- **ShellHeader** (`header.rs`): Brand + Breadcrumbs + AvatarMenu (60px)
+- **ShellSidebar** (`sidebar.rs`): App navigation, collapsible 240px → 48px
+- **Taskbar** (`taskbar.rs`): Slots via `TaskbarLauncherBtn`, `TaskbarSeparator`, `TaskbarApps`, `SystemTray`, `Clock`
+- **WindowFrame** (`window_frame.rs`): Glassmorphism (backdrop-filter + rgba bg)
+
+### App Layouts (app_shell.rs)
+- `AppShell` — root wrapper, injects transition CSS, 3 modes: `Window | Standalone | Tui`
+- `ScreenWrapper` — max-width + padding + scroll
+- `LayoutA` — full-width column (fsd-store, fsd-studio)
+- `LayoutB` — sidebar (master) + detail pane (fsd-conductor, fsd-settings)
+- `LayoutC` — centered card (fsd-profile, login)
+
+Page transitions: `.fsd-page-enter` (slideInRight), `.fsd-page-fade` (fadeInUp). Respects `prefers-reduced-motion`.
+
+### SplitView (`split_view.rs`)
+Resizable horizontal split: `SplitState::Collapsed | Half | FullRight`. Drag handle + double-click to cycle.
+
 ## Service Roles
 
 Extended MIME-type system for functions (not files). See `fsd-settings/src/service_roles.rs`.

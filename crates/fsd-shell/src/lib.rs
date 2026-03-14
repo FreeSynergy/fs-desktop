@@ -1,16 +1,24 @@
+pub mod app_shell;
 pub mod desktop;
+pub mod header;
 pub mod launcher;
 pub mod multiwindow;
 pub mod notification;
+pub mod sidebar;
+pub mod split_view;
 pub mod taskbar;
 pub mod wallpaper;
 pub mod window;
 pub mod window_frame;
 
+pub use app_shell::{AppMode, AppShell, LayoutA, LayoutB, LayoutC, ScreenWrapper};
 pub use desktop::Desktop;
+pub use header::{Breadcrumb, ShellHeader};
 pub use launcher::{AppLauncher, LauncherState};
 pub use multiwindow::{MultiwindowHandle, use_multiwindow};
 pub use notification::{Notification, NotificationKind, NotificationManager, NotificationStack};
+pub use sidebar::{ShellSidebar, SidebarSection, SidebarNavItem};
+pub use split_view::{SplitState, SplitView};
 pub use taskbar::Taskbar;
 pub use window::{Window, WindowButton, WindowContent, WindowId, WindowManager, WindowSize};
 pub use window_frame::WindowFrame;

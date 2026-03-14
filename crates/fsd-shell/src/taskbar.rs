@@ -67,37 +67,19 @@ pub fn Taskbar(apps: Vec<AppEntry>, on_launch: EventHandler<String>) -> Element 
             class: "fsd-taskbar",
             style: "display: flex; align-items: center; height: 48px; background: var(--fsn-color-bg-sidebar); padding: 0 8px; gap: 4px;",
 
-            // App launcher button
-            button {
-                class: "fsd-taskbar__launcher",
-                style: "font-size: 20px; background: none; border: none; cursor: pointer; color: var(--fsn-color-text-inverse);",
-                title: "App Launcher",
-                onclick: move |_| on_launch.call("launcher".into()),
-                "⊞"
+            TaskbarLauncherBtn {
+                on_click: move |_| on_launch.call("launcher".into())
             }
-
-            // Divider
-            div { style: "width: 1px; height: 32px; background: var(--fsn-color-border-default); margin: 0 4px;" }
-
-            // Pinned + running apps
-            for app in &apps {
-                TaskbarApp {
-                    key: "{app.id}",
-                    app: app.clone(),
-                    on_click: {
-                        let id = app.id.clone();
-                        move |_| on_launch.call(id.clone())
-                    }
+            TaskbarSeparator {}
+            TaskbarApps {
+                apps: apps.clone(),
+                on_launch: {
+                    let on_launch = on_launch.clone();
+                    move |id| on_launch.call(id)
                 }
             }
-
-            // Spacer
             div { style: "flex: 1;" }
-
-            // System tray area
             SystemTray {}
-
-            // Clock
             Clock {}
         }
     }
@@ -167,6 +149,46 @@ fn Clock() -> Element {
             span {
                 style: "font-size: 10px; color: var(--fsn-color-text-muted, #94a3b8); line-height: 1.2;",
                 "{date_str}"
+            }
+        }
+    }
+}
+
+/// Launcher button slot — opens the App Launcher overlay.
+#[component]
+pub fn TaskbarLauncherBtn(on_click: EventHandler<MouseEvent>) -> Element {
+    rsx! {
+        button {
+            class: "fsd-taskbar__launcher",
+            style: "font-size: 20px; background: none; border: none; cursor: pointer; \
+                    color: var(--fsn-color-text-inverse); padding: 4px 8px;",
+            title: "App Launcher",
+            onclick: on_click,
+            "⊞"
+        }
+    }
+}
+
+/// Visual separator between taskbar slots.
+#[component]
+pub fn TaskbarSeparator() -> Element {
+    rsx! {
+        div { style: "width: 1px; height: 32px; background: var(--fsn-color-border-default); margin: 0 4px;" }
+    }
+}
+
+/// The running apps slot — all pinned + open apps.
+#[component]
+pub fn TaskbarApps(apps: Vec<AppEntry>, on_launch: EventHandler<String>) -> Element {
+    rsx! {
+        for app in &apps {
+            TaskbarApp {
+                key: "{app.id}",
+                app: app.clone(),
+                on_click: {
+                    let id = app.id.clone();
+                    move |_| on_launch.call(id.clone())
+                }
             }
         }
     }

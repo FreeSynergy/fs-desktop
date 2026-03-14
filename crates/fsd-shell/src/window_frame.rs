@@ -38,8 +38,9 @@ pub fn WindowFrame(props: WindowFrameProps) -> Element {
         format!(
             "position: absolute; left: 0; top: 0; width: 100%; height: 100%; \
              display: flex; flex-direction: column; \
-             background: var(--fsn-color-bg-panel, #1e293b); \
-             border: 1px solid var(--fsn-color-border-default, #334155); \
+             background: rgba(15, 23, 42, 0.80); \
+             backdrop-filter: blur(16px) saturate(180%); -webkit-backdrop-filter: blur(16px) saturate(180%); \
+             border: 1px solid rgba(255, 255, 255, 0.10); \
              box-shadow: 0 8px 32px rgba(0,0,0,0.6); \
              z-index: 9999;"
         )
@@ -47,8 +48,9 @@ pub fn WindowFrame(props: WindowFrameProps) -> Element {
         format!(
             "position: absolute; left: {}px; top: {}px; width: {}; min-height: {}; \
              display: flex; flex-direction: column; \
-             background: var(--fsn-color-bg-panel, #1e293b); \
-             border: 1px solid var(--fsn-color-border-default, #334155); \
+             background: rgba(15, 23, 42, 0.80); \
+             backdrop-filter: blur(16px) saturate(180%); -webkit-backdrop-filter: blur(16px) saturate(180%); \
+             border: 1px solid rgba(255, 255, 255, 0.10); \
              border-radius: 8px; \
              box-shadow: 0 8px 32px rgba(0,0,0,0.6); \
              z-index: {};",
