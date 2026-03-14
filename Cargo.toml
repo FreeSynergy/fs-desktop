@@ -1,0 +1,65 @@
+[workspace]
+members = [
+    "crates/fsd-shell",
+    "crates/fsd-conductor",
+    "crates/fsd-store",
+    "crates/fsd-studio",
+    "crates/fsd-settings",
+    "crates/fsd-profile",
+    "crates/fsd-app",
+]
+resolver = "2"
+
+[workspace.package]
+version    = "0.1.0"
+edition    = "2021"
+license    = "MIT"
+authors    = ["FreeSynergy.Net"]
+repository = "https://github.com/FreeSynergy/Desktop"
+
+# ── Shared dependency versions ────────────────────────────────────────────────
+[workspace.dependencies]
+
+# Internal Desktop crates
+fsd-shell     = { path = "crates/fsd-shell" }
+fsd-conductor = { path = "crates/fsd-conductor" }
+fsd-store     = { path = "crates/fsd-store" }
+fsd-studio    = { path = "crates/fsd-studio" }
+fsd-settings  = { path = "crates/fsd-settings" }
+fsd-profile   = { path = "crates/fsd-profile" }
+
+# FreeSynergy.Lib — shared libraries
+fsn-types          = { path = "../FreeSynergy.Lib/fsn-types" }
+fsn-error          = { path = "../FreeSynergy.Lib/fsn-error" }
+fsn-config         = { path = "../FreeSynergy.Lib/fsn-config" }
+fsn-i18n           = { path = "../FreeSynergy.Lib/fsn-i18n" }
+fsn-theme          = { path = "../FreeSynergy.Lib/fsn-theme" }
+fsn-help           = { path = "../FreeSynergy.Lib/fsn-help" }
+fsn-health         = { path = "../FreeSynergy.Lib/fsn-health" }
+fsn-store          = { path = "../FreeSynergy.Lib/fsn-store" }
+fsn-container      = { path = "../FreeSynergy.Lib/fsn-container" }
+fsn-plugin-sdk     = { path = "../FreeSynergy.Lib/fsn-plugin-sdk" }
+fsn-auth           = { path = "../FreeSynergy.Lib/fsn-auth" }
+fsn-core           = { path = "../FreeSynergy.Lib/fsn-core" }
+
+# UI — Dioxus (Desktop + Web + TUI via single codebase)
+dioxus = { version = "0.6", default-features = false }
+
+# Serialization
+serde      = { version = "1",   features = ["derive"] }
+serde_json = { version = "1" }
+toml       = { version = "0.8", features = ["preserve_order"] }
+
+# Async
+tokio = { version = "1", features = ["full"] }
+
+# Error handling
+anyhow    = { version = "1" }
+thiserror = { version = "2" }
+
+# HTTP
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+
+# Logging
+tracing            = { version = "0.1" }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

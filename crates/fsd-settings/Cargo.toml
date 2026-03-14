@@ -1,0 +1,30 @@
+[package]
+name        = "fsd-settings"
+description = "FreeSynergy Desktop – Settings: appearance, language, service roles, accounts"
+version.workspace   = true
+edition.workspace   = true
+license.workspace   = true
+
+[lib]
+name = "fsd_settings"
+path = "src/lib.rs"
+
+[[bin]]
+name = "fsd-settings"
+path = "src/main.rs"
+
+[features]
+default  = ["desktop"]
+desktop  = ["dioxus/desktop"]
+web      = ["dioxus/web"]
+
+[dependencies]
+fsn-theme  = { workspace = true }
+fsn-i18n   = { workspace = true }
+fsn-config = { workspace = true }
+fsn-error  = { workspace = true }
+dioxus     = { workspace = true }
+serde      = { workspace = true }
+toml       = { workspace = true }
+anyhow     = { workspace = true }
+tracing    = { workspace = true }

@@ -1,0 +1,31 @@
+[package]
+name        = "fsd-studio"
+description = "FreeSynergy Desktop – Studio: plugin, module and i18n creator"
+version.workspace   = true
+edition.workspace   = true
+license.workspace   = true
+
+[lib]
+name = "fsd_studio"
+path = "src/lib.rs"
+
+[[bin]]
+name = "fsd-studio"
+path = "src/main.rs"
+
+[features]
+default  = ["desktop"]
+desktop  = ["dioxus/desktop"]
+web      = ["dioxus/web"]
+
+[dependencies]
+fsn-plugin-sdk = { workspace = true }
+fsn-i18n       = { workspace = true }
+fsn-error      = { workspace = true }
+dioxus         = { workspace = true }
+serde          = { workspace = true }
+serde_json     = { workspace = true }
+toml           = { workspace = true }
+tokio          = { workspace = true }
+anyhow         = { workspace = true }
+tracing        = { workspace = true }

@@ -1,0 +1,31 @@
+[package]
+name        = "fsd-conductor"
+description = "FreeSynergy Desktop – Conductor: container, service and bot management"
+version.workspace   = true
+edition.workspace   = true
+license.workspace   = true
+
+[lib]
+name = "fsd_conductor"
+path = "src/lib.rs"
+
+[[bin]]
+name = "fsd-conductor"
+path = "src/main.rs"
+
+[features]
+default  = ["desktop"]
+desktop  = ["dioxus/desktop"]
+web      = ["dioxus/web"]
+
+[dependencies]
+fsn-container = { workspace = true }
+fsn-health    = { workspace = true }
+fsn-i18n      = { workspace = true }
+fsn-error     = { workspace = true }
+dioxus        = { workspace = true }
+serde         = { workspace = true }
+serde_json    = { workspace = true }
+tokio         = { workspace = true }
+anyhow        = { workspace = true }
+tracing       = { workspace = true }

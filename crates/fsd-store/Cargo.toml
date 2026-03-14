@@ -1,0 +1,30 @@
+[package]
+name        = "fsd-store"
+description = "FreeSynergy Desktop – Store: package manager (discovery, install, updates)"
+version.workspace   = true
+edition.workspace   = true
+license.workspace   = true
+
+[lib]
+name = "fsd_store"
+path = "src/lib.rs"
+
+[[bin]]
+name = "fsd-store"
+path = "src/main.rs"
+
+[features]
+default  = ["desktop"]
+desktop  = ["dioxus/desktop"]
+web      = ["dioxus/web"]
+
+[dependencies]
+fsn-store  = { workspace = true }
+fsn-i18n   = { workspace = true }
+fsn-error  = { workspace = true }
+dioxus     = { workspace = true }
+serde      = { workspace = true }
+serde_json = { workspace = true }
+tokio      = { workspace = true }
+anyhow     = { workspace = true }
+tracing    = { workspace = true }
