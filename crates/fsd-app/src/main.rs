@@ -1,10 +1,16 @@
 use tracing_subscriber::EnvFilter;
 
 fn main() {
-    // Initialize tracing
+    // Initialize tracing first so the panic hook can use it.
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
         .init();
+
+    // Global panic handler — logs the panic via tracing before unwinding.
+    std::panic::set_hook(Box::new(|info| {
+        tracing::error!("PANIC: {info}");
+        // TODO: surface via NotificationBus once available
+    }));
 
     tracing::info!("Starting FreeSynergy.Desktop");
 

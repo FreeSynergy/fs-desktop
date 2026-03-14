@@ -7,6 +7,7 @@ members = [
     "crates/fsd-settings",
     "crates/fsd-profile",
     "crates/fsd-app",
+    "crates/fsd-showcase",
 ]
 resolver = "2"
 
@@ -27,6 +28,7 @@ fsd-store     = { path = "crates/fsd-store" }
 fsd-studio    = { path = "crates/fsd-studio" }
 fsd-settings  = { path = "crates/fsd-settings" }
 fsd-profile   = { path = "crates/fsd-profile" }
+fsd-showcase  = { path = "crates/fsd-showcase" }
 
 # FreeSynergy.Lib — shared libraries
 fsn-types          = { path = "../FreeSynergy.Lib/fsn-types" }
