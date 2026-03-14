@@ -1,15 +1,15 @@
 /// Log viewer — shows live or recent logs for a container.
 use dioxus::prelude::*;
+use fsn_container::PodmanClient;
 
-/// Log entry with timestamp and message.
+/// Log entry with severity level.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LogEntry {
-    pub timestamp: String,
     pub level: LogLevel,
     pub message: String,
 }
 
-/// Log severity level.
+/// Log severity level — detected from common log prefixes.
 #[derive(Clone, Debug, PartialEq)]
 pub enum LogLevel {
     Info,
@@ -27,15 +27,54 @@ impl LogLevel {
             Self::Debug => "var(--fsn-color-text-muted)",
         }
     }
+
+    fn detect(line: &str) -> Self {
+        let l = line.to_ascii_lowercase();
+        if l.contains("error") || l.contains("err]") || l.contains("fatal") || l.contains("panic") {
+            Self::Error
+        } else if l.contains("warn") || l.contains("wrn]") {
+            Self::Warn
+        } else if l.contains("debug") || l.contains("dbg]") || l.contains("trace") {
+            Self::Debug
+        } else {
+            Self::Info
+        }
+    }
 }
 
-/// Live log viewer component.
+/// Live log viewer component — polls the last 200 lines every 3 seconds.
 #[component]
 pub fn LogViewer(service: String) -> Element {
-    let entries = use_signal(Vec::<LogEntry>::new);
-    let follow = use_signal(|| true);
+    let mut entries = use_signal(Vec::<LogEntry>::new);
+    let mut follow  = use_signal(|| true);
 
-    // TODO: stream logs from fsn-container via use_resource + tokio channel
+    use_future({
+        let service = service.clone();
+        move || {
+            let service = service.clone();
+            async move {
+                if service.is_empty() {
+                    return;
+                }
+                loop {
+                    if let Ok(client) = PodmanClient::new() {
+                        if let Ok(lines) = client.logs(&service, Some(200)).await {
+                            let new_entries: Vec<LogEntry> = lines
+                                .into_iter()
+                                .filter(|l| !l.is_empty())
+                                .map(|line| LogEntry {
+                                    level: LogLevel::detect(&line),
+                                    message: line,
+                                })
+                                .collect();
+                            entries.set(new_entries);
+                        }
+                    }
+                    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                }
+            }
+        }
+    });
 
     rsx! {
         div {
@@ -51,13 +90,15 @@ pub fn LogViewer(service: String) -> Element {
                 label { style: "display: flex; align-items: center; gap: 4px; font-size: 13px;",
                     input {
                         r#type: "checkbox",
-                        checked: "{follow.read()}",
+                        checked: *follow.read(),
+                        oninput: move |e| follow.set(e.checked()),
                     }
                     "Follow"
                 }
 
                 button {
                     style: "padding: 4px 8px; background: var(--fsn-color-bg-surface); border: 1px solid var(--fsn-color-border-default); border-radius: 4px; cursor: pointer; font-size: 12px;",
+                    onclick: move |_| entries.set(vec![]),
                     "Clear"
                 }
             }
@@ -67,12 +108,11 @@ pub fn LogViewer(service: String) -> Element {
                 style: "flex: 1; overflow-y: auto; padding: 8px 0; font-family: var(--fsn-font-mono); font-size: 12px;",
 
                 if entries.read().is_empty() {
-                    if service.is_empty() {
-                        div { style: "color: var(--fsn-color-text-muted); padding: 16px;",
+                    div {
+                        style: "color: var(--fsn-color-text-muted); padding: 16px;",
+                        if service.is_empty() {
                             "Select a service to view its logs."
-                        }
-                    } else {
-                        div { style: "color: var(--fsn-color-text-muted); padding: 16px;",
+                        } else {
                             "No logs yet for {service}."
                         }
                     }
@@ -80,9 +120,8 @@ pub fn LogViewer(service: String) -> Element {
 
                 for entry in entries.read().iter() {
                     div {
-                        style: "display: flex; gap: 12px; padding: 2px 0; color: {entry.level.color()};",
-                        span { style: "color: var(--fsn-color-text-muted); white-space: nowrap;", "{entry.timestamp}" }
-                        span { "{entry.message}" }
+                        style: "padding: 2px 0; color: {entry.level.color()}; word-break: break-all;",
+                        "{entry.message}"
                     }
                 }
             }

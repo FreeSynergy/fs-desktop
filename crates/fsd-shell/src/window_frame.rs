@@ -8,6 +8,8 @@ pub struct WindowFrameProps {
     pub window: Window,
     pub on_close: EventHandler<WindowId>,
     pub on_focus: EventHandler<WindowId>,
+    pub on_minimize: EventHandler<WindowId>,
+    pub on_maximize: EventHandler<WindowId>,
     pub children: Element,
 }
 
@@ -32,16 +34,27 @@ pub fn WindowFrame(props: WindowFrameProps) -> Element {
 
     let (left, top) = *position.read();
 
-    let frame_style = format!(
-        "position: absolute; left: {}px; top: {}px; width: {}; min-height: {}; \
-         display: flex; flex-direction: column; \
-         background: var(--fsn-color-bg-panel, #1e293b); \
-         border: 1px solid var(--fsn-color-border-default, #334155); \
-         border-radius: 8px; \
-         box-shadow: 0 8px 32px rgba(0,0,0,0.6); \
-         z-index: {};",
-        left, top, w_css, h_css, win.z_index
-    );
+    let frame_style = if win.maximized {
+        format!(
+            "position: absolute; left: 0; top: 0; width: 100%; height: 100%; \
+             display: flex; flex-direction: column; \
+             background: var(--fsn-color-bg-panel, #1e293b); \
+             border: 1px solid var(--fsn-color-border-default, #334155); \
+             box-shadow: 0 8px 32px rgba(0,0,0,0.6); \
+             z-index: 9999;"
+        )
+    } else {
+        format!(
+            "position: absolute; left: {}px; top: {}px; width: {}; min-height: {}; \
+             display: flex; flex-direction: column; \
+             background: var(--fsn-color-bg-panel, #1e293b); \
+             border: 1px solid var(--fsn-color-border-default, #334155); \
+             border-radius: 8px; \
+             box-shadow: 0 8px 32px rgba(0,0,0,0.6); \
+             z-index: {};",
+            left, top, w_css, h_css, win.z_index
+        )
+    };
 
     rsx! {
         div {
@@ -62,11 +75,12 @@ pub fn WindowFrame(props: WindowFrameProps) -> Element {
                 onmousedown: move |evt: MouseEvent| {
                     evt.stop_propagation();
                     props.on_focus.call(id);
-                    let data = evt.data();
-                    let client = data.client_coordinates();
-                    let (px, py) = *position.read();
-                    // Store offset so the window follows the cursor correctly
-                    drag_offset.set(Some((client.x - px, client.y - py)));
+                    if !props.window.maximized {
+                        let data = evt.data();
+                        let client = data.client_coordinates();
+                        let (px, py) = *position.read();
+                        drag_offset.set(Some((client.x - px, client.y - py)));
+                    }
                 },
                 onmousemove: move |evt: MouseEvent| {
                     if let Some((ox, oy)) = *drag_offset.read() {
@@ -93,6 +107,8 @@ pub fn WindowFrame(props: WindowFrameProps) -> Element {
                 WindowControls {
                     closable: win.closable,
                     on_close: move |_| props.on_close.call(id),
+                    on_minimize: move |_| props.on_minimize.call(id),
+                    on_maximize: move |_| props.on_maximize.call(id),
                 }
             }
 
@@ -132,27 +148,38 @@ pub fn WindowFrame(props: WindowFrameProps) -> Element {
     }
 }
 
-/// The three window control buttons (minimize placeholder + close).
+/// The three window control buttons (minimize, maximize, close).
 #[component]
-fn WindowControls(closable: bool, on_close: EventHandler<MouseEvent>) -> Element {
+fn WindowControls(
+    closable: bool,
+    on_close: EventHandler<MouseEvent>,
+    on_minimize: EventHandler<MouseEvent>,
+    on_maximize: EventHandler<MouseEvent>,
+) -> Element {
     rsx! {
         div {
             style: "display: flex; align-items: center; gap: 6px;",
 
-            // Minimize (placeholder — minimise to taskbar not yet wired)
+            // Minimize → hide to taskbar
             button {
                 style: "width: 12px; height: 12px; border-radius: 50%; \
                         background: #f59e0b; border: none; cursor: pointer; padding: 0;",
                 title: "Minimize",
-                onclick: move |evt: MouseEvent| evt.stop_propagation(),
+                onclick: move |evt| {
+                    evt.stop_propagation();
+                    on_minimize.call(evt);
+                },
             }
 
-            // Maximize (placeholder)
+            // Maximize / restore
             button {
                 style: "width: 12px; height: 12px; border-radius: 50%; \
                         background: #22c55e; border: none; cursor: pointer; padding: 0;",
                 title: "Maximize",
-                onclick: move |evt: MouseEvent| evt.stop_propagation(),
+                onclick: move |evt| {
+                    evt.stop_propagation();
+                    on_maximize.call(evt);
+                },
             }
 
             // Close
@@ -208,29 +235,5 @@ fn WindowFooterButton(button: WindowButton, on_close: EventHandler<bool>) -> Ele
                 "{label_key}"
             }
         },
-    }
-}
-
-/// Convenience: render all windows from the given manager.
-/// `children` is a closure mapping WindowId → Element.
-pub fn render_windows(
-    manager: &WindowManager,
-    on_close: EventHandler<WindowId>,
-    on_focus: EventHandler<WindowId>,
-) -> Element {
-    rsx! {
-        for window in manager.windows() {
-            WindowFrame {
-                key: "{window.id.0}",
-                window: window.clone(),
-                on_close: on_close,
-                on_focus: on_focus,
-                // Placeholder content — apps inject their own via AppRegistry
-                div {
-                    style: "color: var(--fsn-color-text-muted, #94a3b8); font-size: 13px;",
-                    "Loading…"
-                }
-            }
-        }
     }
 }

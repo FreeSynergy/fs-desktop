@@ -62,6 +62,10 @@ pub struct Window {
     pub help_topic: Option<String>,
     pub z_index: u32,
     pub visible: bool,
+    /// Hidden to taskbar — not rendered, but not closed.
+    pub minimized: bool,
+    /// Fills the full window area.
+    pub maximized: bool,
 }
 
 impl Window {
@@ -76,6 +80,8 @@ impl Window {
             help_topic: None,
             z_index: 0,
             visible: true,
+            minimized: false,
+            maximized: false,
         }
     }
 
@@ -113,10 +119,30 @@ impl WindowManager {
         self.windows.retain(|w| w.id != id);
     }
 
+    /// Bring window to front. Also restores a minimized window.
     pub fn focus(&mut self, id: WindowId) {
         let max_z = self.windows.len() as u32;
         if let Some(w) = self.windows.iter_mut().find(|w| w.id == id) {
             w.z_index = max_z;
+            w.minimized = false;
+        }
+    }
+
+    /// Minimize window to taskbar (hidden but not closed).
+    pub fn minimize(&mut self, id: WindowId) {
+        if let Some(w) = self.windows.iter_mut().find(|w| w.id == id) {
+            w.minimized = true;
+            w.maximized = false;
+        }
+    }
+
+    /// Toggle maximized state.
+    pub fn maximize(&mut self, id: WindowId) {
+        if let Some(w) = self.windows.iter_mut().find(|w| w.id == id) {
+            w.maximized = !w.maximized;
+            if w.maximized {
+                w.minimized = false;
+            }
         }
     }
 

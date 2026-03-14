@@ -1,5 +1,6 @@
 /// Service list — shows all running/stopped containers with actions.
 use dioxus::prelude::*;
+use fsn_container::{ContainerInfo, HealthStatus, PodmanClient, RunState};
 
 /// A single service entry displayed in the list.
 #[derive(Clone, Debug, PartialEq)]
@@ -11,6 +12,18 @@ pub struct ServiceEntry {
     pub ports: Vec<String>,
 }
 
+impl From<ContainerInfo> for ServiceEntry {
+    fn from(c: ContainerInfo) -> Self {
+        Self {
+            name: c.name,
+            image: c.image,
+            status: ServiceStatus::from(&c.state),
+            health: HealthDisplay::from(&c.health),
+            ports: vec![],
+        }
+    }
+}
+
 /// Container runtime status.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ServiceStatus {
@@ -18,6 +31,16 @@ pub enum ServiceStatus {
     Stopped,
     Restarting,
     Error(String),
+}
+
+impl From<&RunState> for ServiceStatus {
+    fn from(s: &RunState) -> Self {
+        match s {
+            RunState::Running             => Self::Running,
+            RunState::Exited | RunState::Stopped | RunState::Created | RunState::Paused => Self::Stopped,
+            RunState::Unknown             => Self::Error("unknown".into()),
+        }
+    }
 }
 
 impl ServiceStatus {
@@ -49,6 +72,17 @@ pub enum HealthDisplay {
     Unknown,
 }
 
+impl From<&HealthStatus> for HealthDisplay {
+    fn from(h: &HealthStatus) -> Self {
+        match h {
+            HealthStatus::Healthy   => Self::Ok,
+            HealthStatus::Unhealthy => Self::Failed,
+            HealthStatus::Starting  => Self::Degraded,
+            HealthStatus::None      => Self::Unknown,
+        }
+    }
+}
+
 impl HealthDisplay {
     pub fn icon(&self) -> &str {
         match self {
@@ -69,11 +103,52 @@ impl HealthDisplay {
     }
 }
 
+/// Container lifecycle action.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ServiceAction {
+    Start,
+    Stop,
+    Restart,
+}
+
 /// Service list component — renders all services with start/stop/restart buttons.
 #[component]
 pub fn ServiceList(mut selected: Signal<Option<String>>) -> Element {
-    // TODO: load from fsn-container via use_resource
-    let services = use_signal(Vec::<ServiceEntry>::new);
+    let mut services: Signal<Vec<ServiceEntry>> = use_signal(Vec::new);
+    let mut error: Signal<Option<String>> = use_signal(|| None);
+
+    // Poll Podman every 5 seconds
+    use_future(move || async move {
+        loop {
+            match PodmanClient::new() {
+                Ok(client) => match client.list(true).await {
+                    Ok(list) => {
+                        services.set(list.into_iter().map(ServiceEntry::from).collect());
+                        error.set(None);
+                    }
+                    Err(e) => error.set(Some(format!("Failed to list containers: {e}"))),
+                },
+                Err(e) => error.set(Some(format!("Cannot connect to Podman: {e}"))),
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        }
+    });
+
+    // Action handler: start/stop/restart then refresh
+    let on_action = move |(name, action): (String, ServiceAction)| {
+        spawn(async move {
+            let Ok(client) = PodmanClient::new() else { return };
+            match action {
+                ServiceAction::Start   => { let _ = client.start(&name).await; }
+                ServiceAction::Stop    => { let _ = client.stop(&name, None).await; }
+                ServiceAction::Restart => { let _ = client.restart(&name).await; }
+            }
+            // Refresh immediately after action
+            if let Ok(list) = client.list(true).await {
+                services.set(list.into_iter().map(ServiceEntry::from).collect());
+            }
+        });
+    };
 
     rsx! {
         div {
@@ -86,6 +161,14 @@ pub fn ServiceList(mut selected: Signal<Option<String>>) -> Element {
                 button {
                     style: "background: var(--fsn-color-primary); color: white; border: none; padding: 8px 16px; border-radius: var(--fsn-radius-md); cursor: pointer;",
                     "Install Service"
+                }
+            }
+
+            // Connection error
+            if let Some(err) = error.read().as_deref() {
+                div {
+                    style: "color: var(--fsn-color-error); background: rgba(239,68,68,0.1); border: 1px solid var(--fsn-color-error); border-radius: 6px; padding: 12px; margin-bottom: 16px; font-size: 13px;",
+                    "{err}"
                 }
             }
 
@@ -112,8 +195,13 @@ pub fn ServiceList(mut selected: Signal<Option<String>>) -> Element {
                     }
 
                     tbody {
-                        for svc in services.read().iter() {
-                            ServiceRow { service: svc.clone(), selected }
+                        for svc in services.read().iter().cloned().collect::<Vec<_>>() {
+                            ServiceRow {
+                                key: "{svc.name}",
+                                service: svc,
+                                selected,
+                                on_action,
+                            }
                         }
                     }
                 }
@@ -124,7 +212,11 @@ pub fn ServiceList(mut selected: Signal<Option<String>>) -> Element {
 
 /// A single row in the service table.
 #[component]
-fn ServiceRow(service: ServiceEntry, mut selected: Signal<Option<String>>) -> Element {
+fn ServiceRow(
+    service: ServiceEntry,
+    mut selected: Signal<Option<String>>,
+    on_action: EventHandler<(String, ServiceAction)>,
+) -> Element {
     let name = service.name.clone();
     rsx! {
         tr {
@@ -148,15 +240,25 @@ fn ServiceRow(service: ServiceEntry, mut selected: Signal<Option<String>>) -> El
                 "{service.ports.join(\", \")}"
             }
             td { style: "padding: 12px 8px; text-align: right;",
-                ServiceActions { name: service.name.clone(), status: service.status.clone() }
+                ServiceActions {
+                    name: service.name.clone(),
+                    status: service.status.clone(),
+                    selected,
+                    on_action,
+                }
             }
         }
     }
 }
 
-/// Start/Stop/Restart buttons for a service.
+/// Start/Stop/Restart + Logs buttons for a service.
 #[component]
-fn ServiceActions(name: String, status: ServiceStatus) -> Element {
+fn ServiceActions(
+    name: String,
+    status: ServiceStatus,
+    mut selected: Signal<Option<String>>,
+    on_action: EventHandler<(String, ServiceAction)>,
+) -> Element {
     rsx! {
         div {
             style: "display: flex; gap: 4px; justify-content: flex-end;",
@@ -165,7 +267,10 @@ fn ServiceActions(name: String, status: ServiceStatus) -> Element {
                 button {
                     style: "padding: 4px 8px; background: var(--fsn-color-success); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;",
                     title: "Start",
-                    // TODO: call fsn-container start
+                    onclick: {
+                        let name = name.clone();
+                        move |_| on_action.call((name.clone(), ServiceAction::Start))
+                    },
                     "▶"
                 }
             }
@@ -174,18 +279,31 @@ fn ServiceActions(name: String, status: ServiceStatus) -> Element {
                 button {
                     style: "padding: 4px 8px; background: var(--fsn-color-error); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;",
                     title: "Stop",
+                    onclick: {
+                        let name = name.clone();
+                        move |_| on_action.call((name.clone(), ServiceAction::Stop))
+                    },
                     "■"
                 }
                 button {
                     style: "padding: 4px 8px; background: var(--fsn-color-warning); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;",
                     title: "Restart",
+                    onclick: {
+                        let name = name.clone();
+                        move |_| on_action.call((name.clone(), ServiceAction::Restart))
+                    },
                     "↺"
                 }
             }
 
+            // Select service for log view
             button {
                 style: "padding: 4px 8px; background: var(--fsn-color-bg-surface); border: 1px solid var(--fsn-color-border-default); border-radius: 4px; cursor: pointer; font-size: 12px;",
                 title: "Logs",
+                onclick: {
+                    let name = name.clone();
+                    move |_| *selected.write() = Some(name.clone())
+                },
                 "≡"
             }
         }
