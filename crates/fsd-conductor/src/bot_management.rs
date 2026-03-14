@@ -55,7 +55,7 @@ impl BotAction {
 }
 
 /// A single bot definition.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Bot {
     /// Unique name for this bot.
     pub name: String,
@@ -149,22 +149,105 @@ impl AddBotForm {
     }
 }
 
+// ── Bot row child component ───────────────────────────────────────────────────
+
+#[component]
+fn BotRow(
+    idx: usize,
+    bot: Bot,
+    mut bots: Signal<Vec<Bot>>,
+    mut status_msg: Signal<Option<String>>,
+) -> Element {
+    let trigger_label = bot.trigger.label();
+    let action_label  = bot.action.label();
+    let opacity       = if bot.enabled { "1" } else { "0.55" };
+
+    rsx! {
+        div {
+            key: "{idx}",
+            style: "display: flex; align-items: center; gap: 12px; padding: 12px 14px; \
+                    background: var(--fsn-color-bg-surface); border-radius: var(--fsn-radius-md); \
+                    margin-bottom: 8px; border: 1px solid var(--fsn-color-border-default); \
+                    opacity: {opacity};",
+
+            // Toggle
+            input {
+                r#type: "checkbox",
+                checked: bot.enabled,
+                style: "cursor: pointer; width: 16px; height: 16px; flex-shrink: 0;",
+                onchange: move |_| {
+                    // `bot.enabled` is the value at render time — flip it.
+                    bots.write()[idx].enabled = !bot.enabled;
+                    save_bots(bots, status_msg);
+                },
+            }
+
+            // Info
+            div { style: "flex: 1; min-width: 0;",
+                div { style: "font-weight: 500; font-size: 14px;", "{bot.name}" }
+                if !bot.description.is_empty() {
+                    div {
+                        style: "font-size: 12px; color: var(--fsn-color-text-muted); margin-top: 2px;",
+                        "{bot.description}"
+                    }
+                }
+                div { style: "display: flex; gap: 8px; margin-top: 4px;",
+                    span {
+                        style: "font-size: 11px; padding: 2px 8px; border-radius: 9999px; \
+                                background: var(--fsn-color-bg-overlay); color: var(--fsn-color-text-muted);",
+                        "⏱ {trigger_label}"
+                    }
+                    span {
+                        style: "font-size: 11px; padding: 2px 8px; border-radius: 9999px; \
+                                background: var(--fsn-color-bg-overlay); color: var(--fsn-color-text-muted);",
+                        "▶ {action_label}"
+                    }
+                }
+            }
+
+            // Delete
+            button {
+                style: "color: var(--fsn-color-error); background: none; border: none; \
+                        cursor: pointer; font-size: 18px; flex-shrink: 0;",
+                onclick: move |_| {
+                    bots.write().remove(idx);
+                    save_bots(bots, status_msg);
+                },
+                "✕"
+            }
+        }
+    }
+}
+
+fn save_bots(bots: Signal<Vec<Bot>>, mut status_msg: Signal<Option<String>>) {
+    match BotsConfig::save(&*bots.read()) {
+        Ok(()) => status_msg.set(None),
+        Err(e) => status_msg.set(Some(format!("Save error: {e}"))),
+    }
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 /// Bot management tab — list, add, toggle, and remove bots.
 #[component]
 pub fn BotManagement() -> Element {
-    let mut bots = use_signal(BotsConfig::load);
-    let mut show_add = use_signal(|| false);
-    let mut form = use_signal(AddBotForm::default);
-    let mut status_msg: Signal<Option<String>> = use_signal(|| None);
+    let mut bots       = use_signal(BotsConfig::load);
+    let mut show_add   = use_signal(|| false);
+    let mut form       = use_signal(AddBotForm::default);
+    let mut status_msg = use_signal(|| Option::<String>::None);
 
-    let save = move || {
-        match BotsConfig::save(&bots.read()) {
-            Ok(()) => *status_msg.write() = None,
-            Err(e) => *status_msg.write() = Some(format!("Save error: {e}")),
-        }
-    };
+    let showing_add   = *show_add.read();
+    let is_empty      = bots.read().is_empty();
+    let add_btn_label = if showing_add { "Cancel" } else { "+ Add Bot" };
+    let show_interval = form.read().trigger_kind == "interval";
+    let is_command    = form.read().action_kind == "command";
+    let form_valid    = form.read().is_valid();
+    let svc_label     = if is_command { "Command" } else { "Service name" };
+    let svc_hint      = if is_command { "e.g. /usr/bin/fsn sync" } else { "e.g. zentinel" };
+    let save_err      = status_msg.read().clone();
+
+    // Collect snapshot so the for loop doesn't hold a signal read guard.
+    let bot_list: Vec<Bot> = bots.read().clone();
 
     rsx! {
         div {
@@ -185,16 +268,15 @@ pub fn BotManagement() -> Element {
                     style: "padding: 8px 16px; background: var(--fsn-color-primary); color: white; \
                             border: none; border-radius: var(--fsn-radius-md); cursor: pointer;",
                     onclick: move |_| {
-                        let cur = *show_add.read();
-                        *show_add.write() = !cur;
-                        *form.write() = AddBotForm::default();
+                        show_add.set(!showing_add);
+                        form.set(AddBotForm::default());
                     },
-                    if *show_add.read() { "Cancel" } else { "+ Add Bot" }
+                    "{add_btn_label}"
                 }
             }
 
             // Add-bot form
-            if *show_add.read() {
+            if showing_add {
                 div {
                     style: "padding: 16px; background: var(--fsn-color-bg-surface); \
                             border-radius: var(--fsn-radius-md); border: 1px solid var(--fsn-color-border-default); \
@@ -206,18 +288,22 @@ pub fn BotManagement() -> Element {
                         div {
                             label { style: "display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px;", "Name" }
                             input {
-                                r#type: "text", placeholder: "e.g. auto-restart-proxy",
+                                r#type: "text",
+                                placeholder: "e.g. auto-restart-proxy",
                                 value: "{form.read().name}",
-                                style: "width: 100%; padding: 6px 10px; border: 1px solid var(--fsn-color-border-default); border-radius: var(--fsn-radius-md); font-size: 13px;",
+                                style: "width: 100%; padding: 6px 10px; border: 1px solid var(--fsn-color-border-default); \
+                                        border-radius: var(--fsn-radius-md); font-size: 13px;",
                                 oninput: move |e| form.write().name = e.value(),
                             }
                         }
                         div {
                             label { style: "display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px;", "Description" }
                             input {
-                                r#type: "text", placeholder: "Optional",
+                                r#type: "text",
+                                placeholder: "Optional",
                                 value: "{form.read().description}",
-                                style: "width: 100%; padding: 6px 10px; border: 1px solid var(--fsn-color-border-default); border-radius: var(--fsn-radius-md); font-size: 13px;",
+                                style: "width: 100%; padding: 6px 10px; border: 1px solid var(--fsn-color-border-default); \
+                                        border-radius: var(--fsn-radius-md); font-size: 13px;",
                                 oninput: move |e| form.write().description = e.value(),
                             }
                         }
@@ -227,20 +313,23 @@ pub fn BotManagement() -> Element {
                         div {
                             label { style: "display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px;", "Trigger" }
                             select {
-                                style: "width: 100%; padding: 6px 10px; border: 1px solid var(--fsn-color-border-default); border-radius: var(--fsn-radius-md); font-size: 13px;",
+                                style: "width: 100%; padding: 6px 10px; border: 1px solid var(--fsn-color-border-default); \
+                                        border-radius: var(--fsn-radius-md); font-size: 13px;",
                                 onchange: move |e| form.write().trigger_kind = e.value(),
                                 option { value: "", "— select —" }
                                 option { value: "startup", "On startup" }
                                 option { value: "interval", "Interval" }
                             }
                         }
-                        if form.read().trigger_kind == "interval" {
+                        if show_interval {
                             div {
                                 label { style: "display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px;", "Every (seconds)" }
                                 input {
-                                    r#type: "number", placeholder: "300",
+                                    r#type: "number",
+                                    placeholder: "300",
                                     value: "{form.read().interval_secs}",
-                                    style: "width: 100%; padding: 6px 10px; border: 1px solid var(--fsn-color-border-default); border-radius: var(--fsn-radius-md); font-size: 13px;",
+                                    style: "width: 100%; padding: 6px 10px; border: 1px solid var(--fsn-color-border-default); \
+                                            border-radius: var(--fsn-radius-md); font-size: 13px;",
                                     oninput: move |e| form.write().interval_secs = e.value(),
                                 }
                             }
@@ -251,7 +340,8 @@ pub fn BotManagement() -> Element {
                         div {
                             label { style: "display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px;", "Action" }
                             select {
-                                style: "width: 100%; padding: 6px 10px; border: 1px solid var(--fsn-color-border-default); border-radius: var(--fsn-radius-md); font-size: 13px;",
+                                style: "width: 100%; padding: 6px 10px; border: 1px solid var(--fsn-color-border-default); \
+                                        border-radius: var(--fsn-radius-md); font-size: 13px;",
                                 onchange: move |e| form.write().action_kind = e.value(),
                                 option { value: "", "— select —" }
                                 option { value: "start", "Start container" }
@@ -263,28 +353,30 @@ pub fn BotManagement() -> Element {
                         div {
                             label {
                                 style: "display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px;",
-                                if form.read().action_kind == "command" { "Command" } else { "Service name" }
+                                "{svc_label}"
                             }
                             input {
                                 r#type: "text",
-                                placeholder: if form.read().action_kind == "command" { "e.g. /usr/bin/fsn sync" } else { "e.g. zentinel" },
+                                placeholder: "{svc_hint}",
                                 value: "{form.read().service_or_cmd}",
-                                style: "width: 100%; padding: 6px 10px; border: 1px solid var(--fsn-color-border-default); border-radius: var(--fsn-radius-md); font-size: 13px;",
+                                style: "width: 100%; padding: 6px 10px; border: 1px solid var(--fsn-color-border-default); \
+                                        border-radius: var(--fsn-radius-md); font-size: 13px;",
                                 oninput: move |e| form.write().service_or_cmd = e.value(),
                             }
                         }
                     }
 
                     button {
-                        disabled: !form.read().is_valid(),
+                        disabled: !form_valid,
                         style: "padding: 8px 20px; background: var(--fsn-color-primary); color: white; \
                                 border: none; border-radius: var(--fsn-radius-md); cursor: pointer;",
                         onclick: move |_| {
-                            if let Some(bot) = form.read().build_bot() {
+                            let built = form.read().build_bot();
+                            if let Some(bot) = built {
                                 bots.write().push(bot);
-                                save();
-                                *show_add.write() = false;
-                                *form.write() = AddBotForm::default();
+                                save_bots(bots, status_msg);
+                                show_add.set(false);
+                                form.set(AddBotForm::default());
                             }
                         },
                         "Add Bot"
@@ -292,8 +384,8 @@ pub fn BotManagement() -> Element {
                 }
             }
 
-            // Bot list
-            if bots.read().is_empty() {
+            // Bot list — empty state
+            if is_empty {
                 div {
                     style: "text-align: center; padding: 40px; background: var(--fsn-color-bg-surface); \
                             border-radius: var(--fsn-radius-md); border: 1px dashed var(--fsn-color-border-default);",
@@ -304,69 +396,19 @@ pub fn BotManagement() -> Element {
                 }
             }
 
-            for (idx, bot) in bots.read().iter().enumerate() {
-                {
-                    let bot = bot.clone();
-                    let trigger_label = bot.trigger.label();
-                    let action_label = bot.action.label();
-                    let enabled = bot.enabled;
-                    rsx! {
-                        div {
-                            key: "{idx}",
-                            style: "display: flex; align-items: center; gap: 12px; padding: 12px 14px; \
-                                    background: var(--fsn-color-bg-surface); border-radius: var(--fsn-radius-md); \
-                                    margin-bottom: 8px; border: 1px solid var(--fsn-color-border-default); \
-                                    opacity: {if enabled { \"1\" } else { \"0.55\" }};",
-
-                            // Toggle
-                            input {
-                                r#type: "checkbox",
-                                checked: enabled,
-                                style: "cursor: pointer; width: 16px; height: 16px; flex-shrink: 0;",
-                                onchange: move |_| {
-                                    bots.write()[idx].enabled = !bots.read()[idx].enabled;
-                                    save();
-                                },
-                            }
-
-                            // Info
-                            div { style: "flex: 1; min-width: 0;",
-                                div { style: "font-weight: 500; font-size: 14px;", "{bot.name}" }
-                                if !bot.description.is_empty() {
-                                    div { style: "font-size: 12px; color: var(--fsn-color-text-muted); margin-top: 2px;",
-                                        "{bot.description}"
-                                    }
-                                }
-                                div { style: "display: flex; gap: 8px; margin-top: 4px;",
-                                    span {
-                                        style: "font-size: 11px; padding: 2px 8px; border-radius: 9999px; \
-                                                background: var(--fsn-color-bg-overlay); color: var(--fsn-color-text-muted);",
-                                        "⏱ {trigger_label}"
-                                    }
-                                    span {
-                                        style: "font-size: 11px; padding: 2px 8px; border-radius: 9999px; \
-                                                background: var(--fsn-color-bg-overlay); color: var(--fsn-color-text-muted);",
-                                        "▶ {action_label}"
-                                    }
-                                }
-                            }
-
-                            // Delete
-                            button {
-                                style: "color: var(--fsn-color-error); background: none; border: none; \
-                                        cursor: pointer; font-size: 18px; flex-shrink: 0;",
-                                onclick: move |_| {
-                                    bots.write().remove(idx);
-                                    save();
-                                },
-                                "✕"
-                            }
-                        }
-                    }
+            // Bot list — rows
+            for (idx, bot) in bot_list.into_iter().enumerate() {
+                BotRow {
+                    key: "{idx}",
+                    idx,
+                    bot,
+                    bots,
+                    status_msg,
                 }
             }
 
-            if let Some(msg) = status_msg.read().as_deref() {
+            // Save error
+            if let Some(msg) = save_err {
                 p { style: "font-size: 12px; color: var(--fsn-color-error); margin-top: 8px;", "{msg}" }
             }
         }
