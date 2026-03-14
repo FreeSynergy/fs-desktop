@@ -1,5 +1,6 @@
 pub mod app;
 pub mod module_builder;
+pub mod ollama;
 pub mod plugin_builder;
 pub mod i18n_editor;
 
