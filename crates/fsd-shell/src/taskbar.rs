@@ -1,4 +1,5 @@
 /// Taskbar — KDE-like panel always visible at the bottom of the screen.
+use chrono::Local;
 use dioxus::prelude::*;
 
 use crate::window::{WindowId, WindowManager};
@@ -139,15 +140,34 @@ fn SystemTray() -> Element {
     }
 }
 
-/// Clock display in the taskbar.
+/// Clock display in the taskbar — updates every second.
 #[component]
 fn Clock() -> Element {
-    // TODO: use use_future + chrono for live clock updates
+    let mut time_str = use_signal(|| Local::now().format("%H:%M").to_string());
+    let mut date_str = use_signal(|| Local::now().format("%d.%m.%Y").to_string());
+
+    // Refresh every second
+    use_future(move || async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            time_str.set(Local::now().format("%H:%M").to_string());
+            date_str.set(Local::now().format("%d.%m.%Y").to_string());
+        }
+    });
+
     rsx! {
         div {
             class: "fsd-clock",
-            style: "color: var(--fsn-color-text-inverse); font-size: 13px; padding: 0 12px; min-width: 60px; text-align: center;",
-            "12:00"
+            style: "display: flex; flex-direction: column; align-items: center; \
+                    color: var(--fsn-color-text-inverse, #e2e8f0); padding: 0 12px; min-width: 72px;",
+            span {
+                style: "font-size: 13px; font-weight: 600; line-height: 1.2;",
+                "{time_str}"
+            }
+            span {
+                style: "font-size: 10px; color: var(--fsn-color-text-muted, #94a3b8); line-height: 1.2;",
+                "{date_str}"
+            }
         }
     }
 }
