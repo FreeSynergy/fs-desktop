@@ -78,7 +78,7 @@ pub fn SplitView(props: SplitViewProps) -> Element {
                         let x = evt.data().client_coordinates().x;
                         drag_start.set(Some((x, *master_px.read())));
                     },
-                    ondblclick: move |_| on_change.call(SplitState::Collapsed),
+                    ondoubleclick: move |_| on_change.call(SplitState::Collapsed),
                 }
             }
 

@@ -1,7 +1,7 @@
 /// WindowFrame — renders an open window with titlebar, controls, and drag support.
 use dioxus::prelude::*;
 
-use crate::window::{Window, WindowButton, WindowId, WindowManager, WindowSize};
+use crate::window::{Window, WindowButton, WindowId, WindowSize};
 
 #[derive(Props, Clone, PartialEq)]
 pub struct WindowFrameProps {

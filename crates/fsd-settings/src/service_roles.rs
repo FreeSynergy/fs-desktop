@@ -73,7 +73,7 @@ struct PartialSettings {
 
 /// Load service role assignments from `~/.config/fsn/settings.toml`.
 pub fn load_role_assignments() -> ServiceRoleConfig {
-    let path = settings_toml_path();
+    let path = crate::config_path("settings.toml");
     let content = std::fs::read_to_string(&path).unwrap_or_default();
     let parsed: PartialSettings = toml::from_str(&content).unwrap_or_default();
     ServiceRoleConfig { assignments: parsed.service_roles }
@@ -84,7 +84,7 @@ pub fn load_role_assignments() -> ServiceRoleConfig {
 /// Only updates the `[service_roles]` section; all other keys are preserved
 /// by a round-trip through a generic TOML value.
 pub fn save_role_assignments(config: &ServiceRoleConfig) -> Result<(), String> {
-    let path = settings_toml_path();
+    let path = crate::config_path("settings.toml");
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
@@ -103,11 +103,6 @@ pub fn save_role_assignments(config: &ServiceRoleConfig) -> Result<(), String> {
 
     let out = toml::to_string_pretty(&doc).map_err(|e| e.to_string())?;
     std::fs::write(&path, out).map_err(|e| e.to_string())
-}
-
-fn settings_toml_path() -> PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
-    PathBuf::from(home).join(".config").join("fsn").join("settings.toml")
 }
 
 // ── ServiceRoleRegistry ───────────────────────────────────────────────────────
@@ -180,7 +175,7 @@ fn modules_dir() -> PathBuf {
         return PathBuf::from(dir);
     }
     // Check settings for local store path.
-    let settings_content = std::fs::read_to_string(settings_toml_path()).unwrap_or_default();
+    let settings_content = std::fs::read_to_string(crate::config_path("settings.toml")).unwrap_or_default();
     if let Ok(v) = toml::from_str::<toml::Value>(&settings_content) {
         if let Some(stores) = v.get("stores").and_then(|s| s.as_array()) {
             for store in stores {
@@ -217,7 +212,7 @@ fn walkdir_toml(dir: &std::path::Path) -> Vec<PathBuf> {
 /// Service Roles settings component.
 #[component]
 pub fn ServiceRoles() -> Element {
-    let mut config   = use_signal(load_role_assignments);
+    let config   = use_signal(load_role_assignments);
     let registry     = use_signal(ServiceRoleRegistry::build);
     let mut save_msg = use_signal(|| Option::<String>::None);
 

@@ -234,7 +234,7 @@ pub fn BotManagement() -> Element {
     let mut bots       = use_signal(BotsConfig::load);
     let mut show_add   = use_signal(|| false);
     let mut form       = use_signal(AddBotForm::default);
-    let mut status_msg = use_signal(|| Option::<String>::None);
+    let status_msg = use_signal(|| Option::<String>::None);
 
     let showing_add   = *show_add.read();
     let is_empty      = bots.read().is_empty();

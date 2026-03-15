@@ -1,5 +1,6 @@
 /// Settings — root component: all settings sections in one place.
 use dioxus::prelude::*;
+use fsn_components::SidebarNavBtn;
 
 use crate::appearance::AppearanceSettings;
 use crate::language::LanguageSettings;
@@ -49,7 +50,7 @@ const ALL_SECTIONS: &[SettingsSection] = &[
 /// Root Settings component.
 #[component]
 pub fn SettingsApp() -> Element {
-    let active = use_signal(|| SettingsSection::Appearance);
+    let mut active = use_signal(|| SettingsSection::Appearance);
 
     rsx! {
         div {
@@ -63,9 +64,15 @@ pub fn SettingsApp() -> Element {
                 h2 { style: "margin: 0 0 16px 8px; font-size: 16px;", "Settings" }
 
                 for section in ALL_SECTIONS {
-                    SettingsNavItem {
-                        section: (*section).clone(),
-                        active,
+                    SidebarNavBtn {
+                        key: "{section.label()}",
+                        label: section.label().to_string(),
+                        icon:  section.icon().to_string(),
+                        is_active: *active.read() == *section,
+                        on_click: {
+                            let s = (*section).clone();
+                            move |_| active.set(s.clone())
+                        }
                     }
                 }
             }
@@ -85,21 +92,3 @@ pub fn SettingsApp() -> Element {
     }
 }
 
-#[component]
-fn SettingsNavItem(section: SettingsSection, mut active: Signal<SettingsSection>) -> Element {
-    let is_active = *active.read() == section;
-    let bg      = if is_active { "var(--fsn-color-bg-overlay)" } else { "transparent" };
-    let color   = if is_active { "var(--fsn-color-primary)" } else { "var(--fsn-color-text-primary)" };
-    let weight  = if is_active { "600" } else { "400" };
-    rsx! {
-        button {
-            style: "display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 12px; border: none; border-radius: var(--fsn-radius-md); cursor: pointer; font-size: 14px; text-align: left; background: {bg}; color: {color}; font-weight: {weight};",
-            onclick: {
-                let section = section.clone();
-                move |_| *active.write() = section.clone()
-            },
-            span { "{section.icon()}" }
-            span { "{section.label()}" }
-        }
-    }
-}

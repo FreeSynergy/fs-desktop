@@ -3,8 +3,6 @@
 /// Providers are stored in `~/.config/fsn/accounts.toml`. Each entry holds the
 /// provider name, discovery URL, and client ID; tokens themselves are never
 /// stored here — they are negotiated at runtime via fsn-auth.
-use std::path::PathBuf;
-
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -32,9 +30,8 @@ struct AccountsConfig {
 }
 
 impl AccountsConfig {
-    fn path() -> PathBuf {
-        let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
-        PathBuf::from(home).join(".config").join("fsn").join("accounts.toml")
+    fn path() -> std::path::PathBuf {
+        crate::config_path("accounts.toml")
     }
 
     fn load() -> Vec<OidcProvider> {

@@ -1,6 +1,12 @@
-/// Desktop settings — taskbar position, autostart, window behavior.
+/// Desktop settings — taskbar position, display mode, autostart.
+use std::path::PathBuf;
+
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
+
+use crate::config_path;
+
+// ── TaskbarPosition ────────────────────────────────────────────────────────────
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
@@ -23,11 +29,88 @@ impl TaskbarPosition {
     }
 }
 
+// ── DisplayMode ────────────────────────────────────────────────────────────────
+
+/// Preferred rendering mode for the desktop.
+/// Saved to `~/.config/fsn/desktop.toml` and applied on the next launch.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum DisplayMode {
+    /// Native OS window (Dioxus desktop).
+    #[default]
+    Window,
+    /// Browser / web server (Dioxus web).
+    Web,
+    /// Terminal UI (Dioxus TUI).
+    Tui,
+}
+
+impl DisplayMode {
+    pub fn label(&self) -> &str {
+        match self {
+            Self::Window => "Window",
+            Self::Web    => "Web",
+            Self::Tui    => "TUI",
+        }
+    }
+
+    pub fn description(&self) -> &str {
+        match self {
+            Self::Window => "Native OS window (default)",
+            Self::Web    => "Browser / web server",
+            Self::Tui    => "Terminal UI",
+        }
+    }
+
+    pub fn icon(&self) -> &str {
+        match self {
+            Self::Window => "🖥",
+            Self::Web    => "🌐",
+            Self::Tui    => "⬛",
+        }
+    }
+}
+
+// ── DesktopConfig ──────────────────────────────────────────────────────────────
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct DesktopConfig {
+    #[serde(default)]
+    pub taskbar_pos:  TaskbarPosition,
+    #[serde(default)]
+    pub display_mode: DisplayMode,
+}
+
+impl DesktopConfig {
+    pub fn load() -> Self {
+        let path = desktop_toml_path();
+        std::fs::read_to_string(&path)
+            .ok()
+            .and_then(|s| toml::from_str(&s).ok())
+            .unwrap_or_default()
+    }
+
+    pub fn save(&self) {
+        let path = desktop_toml_path();
+        if let Some(dir) = path.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        if let Ok(text) = toml::to_string_pretty(self) {
+            let _ = std::fs::write(&path, text);
+        }
+    }
+}
+
+fn desktop_toml_path() -> PathBuf {
+    config_path("desktop.toml")
+}
+
+// ── DesktopSettings component ─────────────────────────────────────────────────
+
 /// Desktop behavior settings component.
 #[component]
 pub fn DesktopSettings() -> Element {
-    let mut taskbar_pos = use_signal(TaskbarPosition::default);
-    let _autostart: Signal<Vec<String>> = use_signal(Vec::new);
+    let config = use_signal(DesktopConfig::load);
 
     rsx! {
         div {
@@ -36,26 +119,33 @@ pub fn DesktopSettings() -> Element {
 
             h3 { style: "margin-top: 0;", "Desktop" }
 
+            // Display Mode
             div { style: "margin-bottom: 24px;",
-                label { style: "display: block; font-weight: 500; margin-bottom: 8px;", "Taskbar Position" }
-                div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 8px;",
-                    TaskbarPosBtn { pos: TaskbarPosition::Bottom, current: taskbar_pos }
-                    TaskbarPosBtn { pos: TaskbarPosition::Top,    current: taskbar_pos }
-                    TaskbarPosBtn { pos: TaskbarPosition::Left,   current: taskbar_pos }
-                    TaskbarPosBtn { pos: TaskbarPosition::Right,  current: taskbar_pos }
+                label { style: "display: block; font-weight: 500; margin-bottom: 4px;", "Display Mode" }
+                p { style: "font-size: 13px; color: var(--fsn-color-text-muted); margin: 0 0 8px;",
+                    "Takes effect on the next launch."
+                }
+                div { style: "display: flex; flex-direction: column; gap: 6px;",
+                    for mode in [DisplayMode::Window, DisplayMode::Web, DisplayMode::Tui] {
+                        DisplayModeBtn { mode: mode.clone(), config }
+                    }
                 }
             }
 
+            // Taskbar Position
             div { style: "margin-bottom: 24px;",
-                label { style: "display: block; font-weight: 500; margin-bottom: 8px;", "Autostart Apps" }
-                p { style: "font-size: 13px; color: var(--fsn-color-text-muted);",
-                    "Apps in this list open automatically when the desktop starts."
+                label { style: "display: block; font-weight: 500; margin-bottom: 8px;", "Taskbar Position" }
+                div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 8px;",
+                    TaskbarPosBtn { pos: TaskbarPosition::Bottom, config }
+                    TaskbarPosBtn { pos: TaskbarPosition::Top,    config }
+                    TaskbarPosBtn { pos: TaskbarPosition::Left,   config }
+                    TaskbarPosBtn { pos: TaskbarPosition::Right,  config }
                 }
-                // TODO: app picker for autostart
             }
 
             button {
                 style: "padding: 8px 24px; background: var(--fsn-color-primary); color: white; border: none; border-radius: var(--fsn-radius-md); cursor: pointer;",
+                onclick: move |_| config.read().save(),
                 "Save"
             }
         }
@@ -63,14 +153,35 @@ pub fn DesktopSettings() -> Element {
 }
 
 #[component]
-fn TaskbarPosBtn(pos: TaskbarPosition, mut current: Signal<TaskbarPosition>) -> Element {
-    let is_active = *current.read() == pos;
+fn DisplayModeBtn(mode: DisplayMode, config: Signal<DesktopConfig>) -> Element {
+    let is_active = config.read().display_mode == mode;
+    let border = if is_active { "var(--fsn-color-primary)" } else { "var(--fsn-color-border-default)" };
+    let weight = if is_active { "600" } else { "400" };
+    rsx! {
+        button {
+            style: "display: flex; align-items: center; gap: 10px; padding: 10px 14px; \
+                    border-radius: var(--fsn-radius-md); border: 2px solid {border}; \
+                    cursor: pointer; background: var(--fsn-color-bg-surface); \
+                    text-align: left; font-weight: {weight};",
+            onclick: move |_| config.write().display_mode = mode.clone(),
+            span { style: "font-size: 18px;", "{mode.icon()}" }
+            div {
+                span { style: "display: block; font-size: 14px;", "{mode.label()}" }
+                span { style: "display: block; font-size: 12px; color: var(--fsn-color-text-muted);", "{mode.description()}" }
+            }
+        }
+    }
+}
+
+#[component]
+fn TaskbarPosBtn(pos: TaskbarPosition, config: Signal<DesktopConfig>) -> Element {
+    let is_active = config.read().taskbar_pos == pos;
     let border = if is_active { "var(--fsn-color-primary)" } else { "var(--fsn-color-border-default)" };
     let label  = pos.label();
     rsx! {
         button {
             style: "padding: 10px; border-radius: var(--fsn-radius-md); border: 2px solid {border}; cursor: pointer; background: var(--fsn-color-bg-surface);",
-            onclick: move |_| *current.write() = pos.clone(),
+            onclick: move |_| config.write().taskbar_pos = pos.clone(),
             "{label}"
         }
     }

@@ -1,5 +1,6 @@
 /// Store — root component: package browser, installed list, and updates.
 use dioxus::prelude::*;
+use fsn_components::TabBtn;
 use fsn_store::StoreClient;
 
 use crate::browser::PackageBrowser;
@@ -16,13 +17,13 @@ pub enum StoreTab {
 /// Root Store component.
 #[component]
 pub fn StoreApp() -> Element {
-    let active_tab = use_signal(|| StoreTab::Browse);
+    let mut active_tab = use_signal(|| StoreTab::Browse);
     let mut search = use_signal(String::new);
 
     // Catalog versions for update detection — (id, version) pairs
     let catalog_versions: Signal<Vec<(String, String)>> = use_signal(Vec::new);
     {
-        let mut catalog_versions = catalog_versions.clone();
+        let catalog_versions = catalog_versions.clone();
         use_future(move || {
             let mut catalog_versions = catalog_versions.clone();
             async move {
@@ -60,9 +61,9 @@ pub fn StoreApp() -> Element {
             // Tab bar
             div {
                 style: "display: flex; border-bottom: 1px solid var(--fsn-color-border-default);",
-                StoreTabBtn { label: "Browse",    tab: StoreTab::Browse,     active: active_tab }
-                StoreTabBtn { label: "Installed", tab: StoreTab::Installed,  active: active_tab }
-                StoreTabBtn { label: "Updates",   tab: StoreTab::Updates,    active: active_tab }
+                TabBtn { label: "Browse",    is_active: *active_tab.read() == StoreTab::Browse,    on_click: move |_| active_tab.set(StoreTab::Browse) }
+                TabBtn { label: "Installed", is_active: *active_tab.read() == StoreTab::Installed, on_click: move |_| active_tab.set(StoreTab::Installed) }
+                TabBtn { label: "Updates",   is_active: *active_tab.read() == StoreTab::Updates,   on_click: move |_| active_tab.set(StoreTab::Updates) }
             }
 
             // Content
@@ -168,18 +169,3 @@ fn UpdatesList(catalog_versions: Vec<(String, String)>) -> Element {
     }
 }
 
-// ── StoreTabBtn ───────────────────────────────────────────────────────────────
-
-#[component]
-fn StoreTabBtn(label: &'static str, tab: StoreTab, mut active: Signal<StoreTab>) -> Element {
-    let is_active = *active.read() == tab;
-    let bg     = if is_active { "var(--fsn-color-bg-base)" } else { "transparent" };
-    let border = if is_active { "var(--fsn-color-primary)" } else { "transparent" };
-    rsx! {
-        button {
-            style: "padding: 10px 20px; border: none; cursor: pointer; font-size: 14px; background: {bg}; border-bottom: 2px solid {border};",
-            onclick: move |_| *active.write() = tab.clone(),
-            "{label}"
-        }
-    }
-}

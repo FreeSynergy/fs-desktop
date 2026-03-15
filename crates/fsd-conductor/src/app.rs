@@ -1,5 +1,6 @@
 /// Conductor — main app component for container/service/bot management.
 use dioxus::prelude::*;
+use fsn_components::SidebarNavBtn;
 
 use crate::bot_management::BotManagement;
 use crate::dep_graph::DependencyGraph;
@@ -50,7 +51,7 @@ const ALL_SECTIONS: &[ConductorSection] = &[
 /// Root component of the Conductor app.
 #[component]
 pub fn ConductorApp() -> Element {
-    let active = use_signal(|| ConductorSection::Services);
+    let mut active = use_signal(|| ConductorSection::Services);
     let selected_service: Signal<Option<String>> = use_signal(|| None);
 
     rsx! {
@@ -74,9 +75,16 @@ pub fn ConductorApp() -> Element {
                 }
 
                 for section in ALL_SECTIONS {
-                    ConductorNavBtn {
-                        section: (*section).clone(),
-                        active,
+                    SidebarNavBtn {
+                        key: "{section.label()}",
+                        label: section.label().to_string(),
+                        icon:  section.icon().to_string(),
+                        is_active: *active.read() == *section,
+                        left_border: true,
+                        on_click: {
+                            let s = (*section).clone();
+                            move |_| active.set(s.clone())
+                        }
                     }
                 }
             }
@@ -102,25 +110,3 @@ pub fn ConductorApp() -> Element {
     }
 }
 
-/// A single nav button in the Conductor sidebar.
-#[component]
-fn ConductorNavBtn(
-    section: ConductorSection,
-    mut active: Signal<ConductorSection>,
-) -> Element {
-    let is_active = *active.read() == section;
-    let bg     = if is_active { "var(--fsn-color-bg-overlay, #1e293b)" } else { "transparent" };
-    let color  = if is_active { "var(--fsn-color-primary, #06b6d4)" } else { "var(--fsn-color-text-primary, #e2e8f0)" };
-    let border = if is_active { "2px solid var(--fsn-color-primary, #06b6d4)" } else { "2px solid transparent" };
-    rsx! {
-        button {
-            style: "display: flex; align-items: center; gap: 10px; width: 100%; \
-                    padding: 8px 12px; border: none; border-left: {border}; border-radius: 6px; \
-                    cursor: pointer; font-size: 14px; text-align: left; \
-                    background: {bg}; color: {color}; margin-bottom: 2px;",
-            onclick: move |_| *active.write() = section.clone(),
-            span { style: "font-size: 16px;", "{section.icon()}" }
-            span { "{section.label()}" }
-        }
-    }
-}

@@ -2,7 +2,7 @@
 use chrono::Local;
 use dioxus::prelude::*;
 
-use crate::window::{WindowId, WindowManager};
+use crate::window::WindowId;
 
 /// A registered application that can appear in the taskbar.
 #[derive(Clone, Debug, PartialEq)]

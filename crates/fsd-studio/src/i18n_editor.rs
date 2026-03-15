@@ -14,7 +14,7 @@ pub struct I18nEntry {
 pub fn I18nEditor() -> Element {
     let entries = use_signal(Vec::<I18nEntry>::new);
     let selected_lang = use_signal(|| "de".to_string());
-    let mut selected_category = use_signal(|| "actions".to_string());
+    let selected_category = use_signal(|| "actions".to_string());
 
     rsx! {
         div {

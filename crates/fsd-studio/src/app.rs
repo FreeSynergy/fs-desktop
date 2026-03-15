@@ -1,5 +1,6 @@
 /// Studio — root component: module builder, plugin builder, i18n editor.
 use dioxus::prelude::*;
+use fsn_components::TabBtn;
 
 use crate::module_builder::ModuleBuilder;
 use crate::plugin_builder::PluginBuilder;
@@ -15,7 +16,7 @@ pub enum StudioTab {
 /// Root Studio component.
 #[component]
 pub fn StudioApp() -> Element {
-    let active_tab = use_signal(|| StudioTab::Modules);
+    let mut active_tab = use_signal(|| StudioTab::Modules);
 
     rsx! {
         div {
@@ -34,9 +35,9 @@ pub fn StudioApp() -> Element {
             // Tab bar
             div {
                 style: "display: flex; border-bottom: 1px solid var(--fsn-color-border-default);",
-                StudioTabBtn { label: "Module Builder", tab: StudioTab::Modules,  active: active_tab }
-                StudioTabBtn { label: "Plugin Builder", tab: StudioTab::Plugins,  active: active_tab }
-                StudioTabBtn { label: "i18n Editor",    tab: StudioTab::I18n,     active: active_tab }
+                TabBtn { label: "Module Builder", is_active: *active_tab.read() == StudioTab::Modules, on_click: move |_| active_tab.set(StudioTab::Modules) }
+                TabBtn { label: "Plugin Builder", is_active: *active_tab.read() == StudioTab::Plugins, on_click: move |_| active_tab.set(StudioTab::Plugins) }
+                TabBtn { label: "i18n Editor",    is_active: *active_tab.read() == StudioTab::I18n,    on_click: move |_| active_tab.set(StudioTab::I18n) }
             }
 
             // Content
@@ -52,16 +53,3 @@ pub fn StudioApp() -> Element {
     }
 }
 
-#[component]
-fn StudioTabBtn(label: &'static str, tab: StudioTab, mut active: Signal<StudioTab>) -> Element {
-    let is_active = *active.read() == tab;
-    let bg     = if is_active { "var(--fsn-color-bg-base)" } else { "transparent" };
-    let border = if is_active { "var(--fsn-color-primary)" } else { "transparent" };
-    rsx! {
-        button {
-            style: "padding: 10px 20px; border: none; cursor: pointer; font-size: 14px; background: {bg}; border-bottom: 2px solid {border};",
-            onclick: move |_| *active.write() = tab.clone(),
-            "{label}"
-        }
-    }
-}

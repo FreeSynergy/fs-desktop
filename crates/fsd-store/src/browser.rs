@@ -18,7 +18,7 @@ pub fn PackageBrowser(search: String) -> Element {
 
     // Fetch on mount — re-runs when component remounts
     {
-        let mut packages = packages.clone();
+        let packages = packages.clone();
         use_future(move || {
             let mut packages = packages.clone();
             async move {

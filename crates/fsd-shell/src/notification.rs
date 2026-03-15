@@ -1,6 +1,4 @@
 /// Notification / Toast system — ephemeral messages stacked in the top-right corner.
-use std::time::Duration;
-
 use dioxus::prelude::*;
 
 /// Severity level of a notification.

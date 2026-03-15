@@ -1,8 +1,6 @@
 /// Window system — all dialogs and views are Window objects.
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use dioxus::prelude::*;
-
 static NEXT_WINDOW_ID: AtomicU64 = AtomicU64::new(1);
 
 /// Unique identifier for an open window.

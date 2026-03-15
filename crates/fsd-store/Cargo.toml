@@ -15,11 +15,12 @@ path = "src/main.rs"
 
 [features]
 default  = ["desktop"]
-desktop  = ["dioxus/desktop"]
-web      = ["dioxus/web"]
+desktop  = ["dioxus/desktop", "fsn-components/desktop"]
+web      = ["dioxus/web",     "fsn-components/web"]
 
 [dependencies]
-fsn-store  = { workspace = true }
+fsn-store      = { workspace = true }
+fsn-components = { workspace = true }
 fsn-i18n   = { workspace = true }
 fsn-error  = { workspace = true }
 dioxus     = { workspace = true }
