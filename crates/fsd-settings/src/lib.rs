@@ -7,7 +7,7 @@ pub mod desktop_settings;
 
 pub use app::SettingsApp;
 pub use service_roles::{ServiceRoles, ServiceRole, KNOWN_ROLES};
-pub use desktop_settings::{DesktopConfig, DisplayMode};
+pub use desktop_settings::{DesktopConfig, DisplayMode, SidebarConfig, SidebarPosition, TaskbarPosition};
 
 /// Returns the path to a named config file in `~/.config/fsn/`.
 ///

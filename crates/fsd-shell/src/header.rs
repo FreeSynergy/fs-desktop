@@ -1,4 +1,4 @@
-/// ShellHeader — 60px fixed header with breadcrumbs and user avatar menu.
+/// ShellHeader — 60px fixed header with menu bar, breadcrumbs and user avatar menu.
 use dioxus::prelude::*;
 
 /// A single breadcrumb entry.
@@ -14,29 +14,108 @@ impl Breadcrumb {
     }
 }
 
+/// A menu item descriptor for the menu bar.
+#[derive(Clone, PartialEq, Debug)]
+pub struct MenuItem {
+    pub label: &'static str,
+    pub items: Vec<MenuAction>,
+}
+
+/// A single action in a menu dropdown.
+#[derive(Clone, PartialEq, Debug)]
+pub enum MenuAction {
+    Action { label: &'static str, shortcut: Option<&'static str>, id: &'static str },
+    Separator,
+}
+
+fn default_menu() -> Vec<MenuItem> {
+    vec![
+        MenuItem {
+            label: "FreeSynergy",
+            items: vec![
+                MenuAction::Action { label: "About FreeSynergy…",    shortcut: None,          id: "about" },
+                MenuAction::Action { label: "Settings",              shortcut: Some("Ctrl+,"), id: "settings" },
+                MenuAction::Separator,
+                MenuAction::Action { label: "Quit",                  shortcut: Some("Ctrl+Q"), id: "quit" },
+            ],
+        },
+        MenuItem {
+            label: "File",
+            items: vec![
+                MenuAction::Action { label: "New Project",   shortcut: Some("Ctrl+N"), id: "new-project" },
+                MenuAction::Action { label: "Open Project…", shortcut: None,           id: "open-project" },
+                MenuAction::Separator,
+                MenuAction::Action { label: "Export…", shortcut: None, id: "export" },
+                MenuAction::Action { label: "Import…", shortcut: None, id: "import" },
+            ],
+        },
+        MenuItem {
+            label: "View",
+            items: vec![
+                MenuAction::Action { label: "Toggle Sidebar",  shortcut: Some("Ctrl+B"), id: "toggle-sidebar" },
+                MenuAction::Action { label: "Fullscreen",      shortcut: Some("F11"),    id: "fullscreen" },
+            ],
+        },
+        MenuItem {
+            label: "Services",
+            items: vec![
+                MenuAction::Action { label: "Start All",            shortcut: None,           id: "start-all" },
+                MenuAction::Action { label: "Stop All",             shortcut: None,           id: "stop-all" },
+                MenuAction::Separator,
+                MenuAction::Action { label: "Install Service…",     shortcut: Some("Ctrl+I"), id: "install-service" },
+                MenuAction::Action { label: "Open Store",           shortcut: Some("Ctrl+S"), id: "open-store" },
+            ],
+        },
+        MenuItem {
+            label: "Help",
+            items: vec![
+                MenuAction::Action { label: "Help",            shortcut: Some("F1"), id: "help" },
+                MenuAction::Action { label: "Keyboard Shortcuts", shortcut: None,   id: "shortcuts" },
+                MenuAction::Separator,
+                MenuAction::Action { label: "Report a Bug…",  shortcut: None,       id: "report-bug" },
+            ],
+        },
+    ]
+}
+
 /// Shell header component.
 #[component]
 pub fn ShellHeader(
     breadcrumbs: Vec<Breadcrumb>,
     user_name: String,
     user_avatar: Option<String>,
+    #[props(default)]
+    on_menu_action: Option<EventHandler<String>>,
 ) -> Element {
     rsx! {
         header {
             class: "fsd-header",
-            style: "display: flex; align-items: center; height: 60px; padding: 0 16px; gap: 16px; \
-                    background: var(--fsn-color-bg-sidebar, #0f172a); \
-                    border-bottom: 1px solid var(--fsn-color-border-default, #334155); \
+            style: "display: flex; align-items: center; height: 60px; padding: 0 8px 0 16px; gap: 8px; \
+                    background: var(--fsn-bg-sidebar, #0a0f1a); \
+                    border-bottom: 1px solid var(--fsn-border, rgba(148,170,200,0.18)); \
                     z-index: 100; flex-shrink: 0;",
 
             // Brand
             div {
                 style: "display: flex; align-items: center; flex-shrink: 0; \
-                        padding-right: 16px; border-right: 1px solid var(--fsn-color-border-default, #334155);",
+                        padding-right: 12px; border-right: 1px solid var(--fsn-border);",
                 span {
-                    style: "font-size: 15px; font-weight: 700; color: var(--fsn-color-primary, #06b6d4); \
+                    style: "font-size: 14px; font-weight: 700; color: var(--fsn-primary); \
                             white-space: nowrap; letter-spacing: -0.01em;",
                     "FreeSynergy"
+                }
+            }
+
+            // Menu bar
+            MenuBar {
+                menus: default_menu(),
+                on_action: {
+                    let on_menu_action = on_menu_action.clone();
+                    move |id: String| {
+                        if let Some(handler) = &on_menu_action {
+                            handler.call(id);
+                        }
+                    }
                 }
             }
 
@@ -47,6 +126,116 @@ pub fn ShellHeader(
 
             // User avatar menu
             AvatarMenu { user_name, user_avatar }
+        }
+    }
+}
+
+// ── Menu Bar ──────────────────────────────────────────────────────────────────
+
+#[component]
+fn MenuBar(menus: Vec<MenuItem>, on_action: EventHandler<String>) -> Element {
+    let mut open_idx: Signal<Option<usize>> = use_signal(|| None);
+
+    rsx! {
+        nav {
+            class: "fsd-menubar",
+            style: "display: flex; align-items: center; gap: 2px; flex-shrink: 0;",
+            for (idx, menu) in menus.iter().enumerate() {
+                MenuBarItem {
+                    key: "{menu.label}",
+                    menu: menu.clone(),
+                    is_open: *open_idx.read() == Some(idx),
+                    on_toggle: {
+                        move |_| {
+                            let current = *open_idx.read();
+                            *open_idx.write() = if current == Some(idx) { None } else { Some(idx) };
+                        }
+                    },
+                    on_close: move |_| *open_idx.write() = None,
+                    on_action: on_action.clone(),
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn MenuBarItem(
+    menu: MenuItem,
+    is_open: bool,
+    on_toggle: EventHandler<MouseEvent>,
+    on_close: EventHandler<()>,
+    on_action: EventHandler<String>,
+) -> Element {
+    let bg = if is_open { "var(--fsn-bg-elevated)" } else { "transparent" };
+    rsx! {
+        div { style: "position: relative;",
+            button {
+                style: "background: {bg}; border: none; cursor: pointer; padding: 4px 10px; \
+                        border-radius: var(--fsn-radius-sm); font-size: 13px; \
+                        color: var(--fsn-text-secondary); white-space: nowrap; \
+                        transition: background 150ms ease;",
+                onclick: on_toggle,
+                "{menu.label}"
+            }
+            if is_open {
+                MenuDropdown {
+                    items: menu.items.clone(),
+                    on_close,
+                    on_action,
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn MenuDropdown(
+    items: Vec<MenuAction>,
+    on_close: EventHandler<()>,
+    on_action: EventHandler<String>,
+) -> Element {
+    rsx! {
+        div {
+            style: "position: absolute; top: calc(100% + 4px); left: 0; \
+                    background: var(--fsn-bg-elevated); \
+                    border: 1px solid var(--fsn-border); border-radius: var(--fsn-radius-md); \
+                    min-width: 200px; z-index: 500; padding: 4px 0; \
+                    box-shadow: var(--fsn-shadow);",
+            // Close backdrop
+            div {
+                style: "position: fixed; inset: 0; z-index: -1;",
+                onclick: move |_| on_close.call(()),
+            }
+            for item in &items {
+                match item {
+                    MenuAction::Separator => rsx! {
+                        hr { style: "border: none; border-top: 1px solid var(--fsn-border); margin: 4px 0;" }
+                    },
+                    MenuAction::Action { label, shortcut, id } => {
+                        let id_owned = id.to_string();
+                        rsx! {
+                            button {
+                                style: "display: flex; align-items: center; justify-content: space-between; \
+                                        width: 100%; padding: 6px 16px; background: none; border: none; \
+                                        cursor: pointer; font-size: 13px; text-align: left; \
+                                        color: var(--fsn-text-primary); gap: 24px;",
+                                onclick: move |_| {
+                                    on_action.call(id_owned.clone());
+                                    on_close.call(());
+                                },
+                                span { "{label}" }
+                                if let Some(sc) = shortcut {
+                                    span {
+                                        style: "font-size: 11px; color: var(--fsn-text-muted); flex-shrink: 0;",
+                                        "{sc}"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

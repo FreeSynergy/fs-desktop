@@ -4,6 +4,16 @@ use dioxus::prelude::*;
 
 use crate::window::WindowId;
 
+/// Homarr Dashboard Icons CDN base URL.
+pub const DASHBOARD_ICONS_BASE: &str =
+    "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg";
+
+/// Returns the CDN URL for a Homarr Dashboard Icon.
+/// `icon_name` must be the slug as it appears in the dashboard-icons repo (e.g. "kanidm").
+pub fn homarr_icon_url(icon_name: &str) -> String {
+    format!("{}/{}.svg", DASHBOARD_ICONS_BASE, icon_name)
+}
+
 /// A registered application that can appear in the taskbar.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AppEntry {
@@ -11,8 +21,13 @@ pub struct AppEntry {
     pub id: String,
     /// i18n key for the display name.
     pub label_key: String,
-    /// Icon name or SVG path.
+    /// Fallback emoji/text icon shown when no icon_url is available.
     pub icon: String,
+    /// Optional icon URL (e.g. Homarr CDN SVG or local path).
+    /// When set, `icon` is used as the `alt` text.
+    pub icon_url: Option<String>,
+    /// Optional group key for app launcher organisation.
+    pub group: Option<String>,
     /// Whether this app is pinned to the taskbar permanently.
     pub pinned: bool,
     /// Open window IDs belonging to this app (empty = not running).
@@ -23,53 +38,30 @@ impl AppEntry {
     pub fn is_running(&self) -> bool {
         !self.windows.is_empty()
     }
+
+    /// Convenience constructor: no icon URL, no group.
+    pub fn new(id: impl Into<String>, label_key: impl Into<String>, icon: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            label_key: label_key.into(),
+            icon: icon.into(),
+            icon_url: None,
+            group: None,
+            pinned: false,
+            windows: vec![],
+        }
+    }
 }
 
 /// Builds the default pinned apps list.
 pub fn default_apps() -> Vec<AppEntry> {
     vec![
-        AppEntry {
-            id: "conductor".into(),
-            label_key: "app-conductor".into(),
-            icon: "⚙".into(),
-            pinned: true,
-            windows: vec![],
-        },
-        AppEntry {
-            id: "store".into(),
-            label_key: "app-store".into(),
-            icon: "📦".into(),
-            pinned: true,
-            windows: vec![],
-        },
-        AppEntry {
-            id: "studio".into(),
-            label_key: "app-studio".into(),
-            icon: "🔧".into(),
-            pinned: true,
-            windows: vec![],
-        },
-        AppEntry {
-            id: "settings".into(),
-            label_key: "app-settings".into(),
-            icon: "⚙".into(),
-            pinned: true,
-            windows: vec![],
-        },
-        AppEntry {
-            id: "ai".into(),
-            label_key: "app-ai".into(),
-            icon: "🤖".into(),
-            pinned: true,
-            windows: vec![],
-        },
-        AppEntry {
-            id: "help".into(),
-            label_key: "app-help".into(),
-            icon: "❓".into(),
-            pinned: true,
-            windows: vec![],
-        },
+        AppEntry { id: "conductor".into(), label_key: "Conductor".into(), icon: "⚙".into(), icon_url: None, group: Some("System".into()), pinned: true, windows: vec![] },
+        AppEntry { id: "store".into(),     label_key: "Store".into(),     icon: "📦".into(), icon_url: None, group: Some("System".into()), pinned: true, windows: vec![] },
+        AppEntry { id: "studio".into(),    label_key: "Studio".into(),    icon: "🔧".into(), icon_url: None, group: Some("System".into()), pinned: true, windows: vec![] },
+        AppEntry { id: "settings".into(),  label_key: "Settings".into(),  icon: "⚙".into(), icon_url: None, group: Some("System".into()), pinned: true, windows: vec![] },
+        AppEntry { id: "ai".into(),        label_key: "AI".into(),        icon: "🤖".into(), icon_url: None, group: Some("System".into()), pinned: true, windows: vec![] },
+        AppEntry { id: "help".into(),      label_key: "Help".into(),      icon: "❓".into(), icon_url: None, group: Some("System".into()), pinned: true, windows: vec![] },
     ]
 }
 

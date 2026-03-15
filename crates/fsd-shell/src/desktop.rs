@@ -3,12 +3,12 @@ use dioxus::prelude::*;
 
 use fsd_conductor::ConductorApp;
 use fsd_profile::ProfileApp;
-use fsd_settings::SettingsApp;
+use fsd_settings::{DesktopConfig, SettingsApp, SidebarPosition};
 use fsd_store::StoreApp;
 use fsd_studio::StudioApp;
 
 use crate::ai_view::AiApp;
-use crate::app_shell::{AppMode, AppShell, LayoutA, LayoutC};
+use crate::app_shell::{AppMode, AppShell, GLOBAL_CSS, LayoutA, LayoutC};
 use crate::help_view::HelpApp;
 use crate::header::{Breadcrumb, ShellHeader};
 use crate::launcher::{AppLauncher, LauncherState};
@@ -22,12 +22,13 @@ use crate::window_frame::WindowFrame;
 /// Root desktop component.
 #[component]
 pub fn Desktop() -> Element {
+    let cfg                 = use_signal(DesktopConfig::load);
     let wallpaper           = use_signal(Wallpaper::default);
     let mut wm              = use_signal(WindowManager::default);
     let mut apps            = use_signal(default_apps);
     let mut launcher        = use_signal(LauncherState::default);
     let mut notifs          = use_signal(NotificationManager::default);
-    let mut sidebar_collapsed = use_signal(|| false);
+    let mut sidebar_collapsed = use_signal(|| cfg.read().sidebar.default_collapsed);
     let sidebar_sections: Signal<Vec<SidebarSection>> = use_signal(default_sidebar_sections);
 
     let bg = wallpaper.read().to_css_background();
@@ -81,7 +82,33 @@ pub fn Desktop() -> Element {
     let notif_items    = notifs.read().items().to_vec();
     let app_list       = apps.read().clone();
     let collapsed      = *sidebar_collapsed.read();
-    let col_width      = if collapsed { "48px" } else { "240px" };
+    let sidebar_cfg    = cfg.read().sidebar.clone();
+    let expanded_width = format!("{}px", sidebar_cfg.width);
+    let col_width      = if collapsed { "48px" } else { expanded_width.as_str() };
+
+    // Grid layout adapts to sidebar position
+    let (grid_areas, grid_cols, grid_rows) = match sidebar_cfg.position {
+        SidebarPosition::Left => (
+            "'header header' 'sidebar main' 'taskbar taskbar'".to_string(),
+            format!("{col_width} 1fr"),
+            "60px 1fr 48px".to_string(),
+        ),
+        SidebarPosition::Right => (
+            "'header header' 'main sidebar' 'taskbar taskbar'".to_string(),
+            format!("1fr {col_width}"),
+            "60px 1fr 48px".to_string(),
+        ),
+        SidebarPosition::Top => (
+            "'header' 'sidebar' 'main' 'taskbar'".to_string(),
+            "1fr".to_string(),
+            format!("60px {col_width} 1fr 48px"),
+        ),
+        SidebarPosition::Bottom => (
+            "'header' 'main' 'sidebar' 'taskbar'".to_string(),
+            "1fr".to_string(),
+            format!("60px 1fr {col_width} 48px"),
+        ),
+    };
 
     // Active sidebar item from the focused window
     let active_app_id = wm.read()
@@ -115,14 +142,19 @@ pub fn Desktop() -> Element {
         .unwrap_or_else(|| vec![Breadcrumb::new("Desktop")]);
 
     rsx! {
+        // Inject Midnight Blue theme variables at the root — ensures CSS vars are
+        // available before any component renders (no FOUC for background colour).
+        style { "{GLOBAL_CSS}" }
+
         div {
             id: "fsd-desktop",
             style: "
                 width: 100vw; height: 100vh; overflow: hidden;
                 display: grid;
-                grid-template-areas: 'header header' 'sidebar main' 'taskbar taskbar';
-                grid-template-rows: 60px 1fr 48px;
-                grid-template-columns: {col_width} 1fr;
+                grid-template-areas: {grid_areas};
+                grid-template-rows: {grid_rows};
+                grid-template-columns: {grid_cols};
+                background: var(--fsn-bg-base);
                 {bg}
             ",
 

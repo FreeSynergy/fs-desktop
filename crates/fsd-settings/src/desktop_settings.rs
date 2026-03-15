@@ -71,6 +71,57 @@ impl DisplayMode {
     }
 }
 
+// ── SidebarPosition ────────────────────────────────────────────────────────────
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum SidebarPosition {
+    #[default]
+    Left,
+    Right,
+    Top,
+    Bottom,
+}
+
+impl SidebarPosition {
+    pub fn label(&self) -> &str {
+        match self {
+            Self::Left   => "Left",
+            Self::Right  => "Right",
+            Self::Top    => "Top",
+            Self::Bottom => "Bottom",
+        }
+    }
+}
+
+// ── SidebarConfig ──────────────────────────────────────────────────────────────
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SidebarConfig {
+    #[serde(default)]
+    pub position: SidebarPosition,
+    #[serde(default = "default_true")]
+    pub collapsible: bool,
+    #[serde(default)]
+    pub default_collapsed: bool,
+    #[serde(default = "default_sidebar_width")]
+    pub width: u32,
+}
+
+fn default_true() -> bool { true }
+fn default_sidebar_width() -> u32 { 240 }
+
+impl Default for SidebarConfig {
+    fn default() -> Self {
+        Self {
+            position: SidebarPosition::Left,
+            collapsible: true,
+            default_collapsed: false,
+            width: 240,
+        }
+    }
+}
+
 // ── DesktopConfig ──────────────────────────────────────────────────────────────
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -79,6 +130,8 @@ pub struct DesktopConfig {
     pub taskbar_pos:  TaskbarPosition,
     #[serde(default)]
     pub display_mode: DisplayMode,
+    #[serde(default)]
+    pub sidebar: SidebarConfig,
 }
 
 impl DesktopConfig {
@@ -143,6 +196,20 @@ pub fn DesktopSettings() -> Element {
                 }
             }
 
+            // Sidebar Position
+            div { style: "margin-bottom: 24px;",
+                label { style: "display: block; font-weight: 500; margin-bottom: 8px;", "Sidebar Position" }
+                div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 8px;",
+                    SidebarPosBtn { pos: SidebarPosition::Left,   config }
+                    SidebarPosBtn { pos: SidebarPosition::Right,  config }
+                    SidebarPosBtn { pos: SidebarPosition::Top,    config }
+                    SidebarPosBtn { pos: SidebarPosition::Bottom, config }
+                }
+            }
+
+            // Sidebar collapse default
+            SidebarCollapseToggle { config }
+
             button {
                 style: "padding: 8px 24px; background: var(--fsn-color-primary); color: white; border: none; border-radius: var(--fsn-radius-md); cursor: pointer;",
                 onclick: move |_| config.read().save(),
@@ -180,8 +247,41 @@ fn TaskbarPosBtn(pos: TaskbarPosition, config: Signal<DesktopConfig>) -> Element
     let label  = pos.label();
     rsx! {
         button {
-            style: "padding: 10px; border-radius: var(--fsn-radius-md); border: 2px solid {border}; cursor: pointer; background: var(--fsn-color-bg-surface);",
+            style: "padding: 10px; border-radius: var(--fsn-radius-md); border: 2px solid {border}; cursor: pointer; \
+                    background: var(--fsn-color-bg-surface); color: var(--fsn-text-primary);",
             onclick: move |_| config.write().taskbar_pos = pos.clone(),
+            "{label}"
+        }
+    }
+}
+
+#[component]
+fn SidebarCollapseToggle(config: Signal<DesktopConfig>) -> Element {
+    let checked = config.read().sidebar.default_collapsed;
+    rsx! {
+        div { style: "margin-bottom: 24px; display: flex; align-items: center; gap: 10px;",
+            input {
+                r#type: "checkbox",
+                checked,
+                onchange: move |evt| config.write().sidebar.default_collapsed = evt.checked(),
+            }
+            label { style: "font-size: 14px; color: var(--fsn-text-primary);",
+                "Start with sidebar collapsed"
+            }
+        }
+    }
+}
+
+#[component]
+fn SidebarPosBtn(pos: SidebarPosition, config: Signal<DesktopConfig>) -> Element {
+    let is_active = config.read().sidebar.position == pos;
+    let border = if is_active { "var(--fsn-color-primary)" } else { "var(--fsn-color-border-default)" };
+    let label  = pos.label();
+    rsx! {
+        button {
+            style: "padding: 10px; border-radius: var(--fsn-radius-md); border: 2px solid {border}; cursor: pointer; \
+                    background: var(--fsn-color-bg-surface); color: var(--fsn-text-primary);",
+            onclick: move |_| config.write().sidebar.position = pos.clone(),
             "{label}"
         }
     }

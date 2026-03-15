@@ -27,11 +27,12 @@ fn main() {
                     .with_window(
                         dioxus::desktop::WindowBuilder::new()
                             .with_title("FreeSynergy.Desktop")
+                            .with_decorations(true)
                             .with_inner_size(dioxus::desktop::LogicalSize::new(1280.0_f64, 800.0_f64))
+                            .with_min_inner_size(dioxus::desktop::LogicalSize::new(800.0_f64, 600.0_f64))
                             .with_resizable(true),
                     )
-                    // Allow opening additional native windows from within the app.
-                    .with_background_color((15, 20, 36, 255)),
+                    .with_background_color((12, 18, 34, 255)),
             )
             .launch(fsd_shell::Desktop);
     }
