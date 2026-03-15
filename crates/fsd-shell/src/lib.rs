@@ -1,6 +1,8 @@
+pub mod ai_view;
 pub mod app_shell;
 pub mod desktop;
 pub mod header;
+pub mod help_view;
 pub mod launcher;
 pub mod multiwindow;
 pub mod notification;
@@ -11,9 +13,11 @@ pub mod wallpaper;
 pub mod window;
 pub mod window_frame;
 
+pub use ai_view::AiApp;
 pub use app_shell::{AppMode, AppShell, LayoutA, LayoutB, LayoutC, ScreenWrapper};
 pub use desktop::Desktop;
 pub use header::{Breadcrumb, ShellHeader};
+pub use help_view::HelpApp;
 pub use launcher::{AppLauncher, LauncherState};
 pub use multiwindow::{MultiwindowHandle, use_multiwindow};
 pub use notification::{Notification, NotificationKind, NotificationManager, NotificationStack};

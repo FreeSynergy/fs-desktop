@@ -32,6 +32,8 @@ pub fn default_sidebar_sections() -> Vec<SidebarSection> {
             items: vec![
                 SidebarNavItem { id: "settings".into(), label: "Settings".into(), icon: "⚙".into() },
                 SidebarNavItem { id: "profile".into(),  label: "Profile".into(),  icon: "👤".into() },
+                SidebarNavItem { id: "ai".into(),       label: "AI Assistant".into(), icon: "🤖".into() },
+                SidebarNavItem { id: "help".into(),     label: "Help".into(),     icon: "❓".into() },
             ],
         },
     ]

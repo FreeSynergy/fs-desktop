@@ -7,7 +7,9 @@ use fsd_settings::SettingsApp;
 use fsd_store::StoreApp;
 use fsd_studio::StudioApp;
 
+use crate::ai_view::AiApp;
 use crate::app_shell::{AppMode, AppShell, LayoutA, LayoutC};
+use crate::help_view::HelpApp;
 use crate::header::{Breadcrumb, ShellHeader};
 use crate::launcher::{AppLauncher, LauncherState};
 use crate::notification::{NotificationManager, NotificationStack};
@@ -104,6 +106,8 @@ pub fn Desktop() -> Element {
                 "studio"    => "Studio",
                 "settings"  => "Settings",
                 "profile"   => "Profile",
+                "ai"        => "AI Assistant",
+                "help"      => "Help",
                 other       => other,
             };
             vec![Breadcrumb::new(label)]
@@ -240,6 +244,16 @@ fn AppWindowContent(title_key: String) -> Element {
         "app-profile" => rsx! {
             AppShell { mode: AppMode::Window,
                 LayoutC { ProfileApp {} }
+            }
+        },
+        "app-ai" => rsx! {
+            AppShell { mode: AppMode::Window,
+                LayoutA { AiApp {} }
+            }
+        },
+        "app-help" => rsx! {
+            AppShell { mode: AppMode::Window,
+                LayoutA { HelpApp {} }
             }
         },
         _ => rsx! {

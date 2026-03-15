@@ -56,6 +56,20 @@ pub fn default_apps() -> Vec<AppEntry> {
             pinned: true,
             windows: vec![],
         },
+        AppEntry {
+            id: "ai".into(),
+            label_key: "app-ai".into(),
+            icon: "🤖".into(),
+            pinned: true,
+            windows: vec![],
+        },
+        AppEntry {
+            id: "help".into(),
+            label_key: "app-help".into(),
+            icon: "❓".into(),
+            pinned: true,
+            windows: vec![],
+        },
     ]
 }
 
