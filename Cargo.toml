@@ -24,7 +24,7 @@ repository = "https://github.com/FreeSynergy/Desktop"
 [workspace.dependencies]
 
 # Internal Desktop crates
-fsd-shell     = { path = "crates/fsd-shell" }
+fsd-shell     = { path = "crates/fsd-shell", default-features = false }
 fsd-conductor = { path = "crates/fsd-conductor" }
 fsd-store     = { path = "crates/fsd-store" }
 fsd-studio    = { path = "crates/fsd-studio" }
