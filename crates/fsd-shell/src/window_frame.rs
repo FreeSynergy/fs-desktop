@@ -148,7 +148,14 @@ pub fn WindowFrame(props: WindowFrameProps) -> Element {
     }
 }
 
-/// The three window control buttons (minimize, maximize, close).
+// ── KDE/Breeze window control SVG icons ──────────────────────────────────────
+
+const ICON_MINIMIZE: &str = r#"<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="5" x2="8" y2="5"/></svg>"#;
+const ICON_MAXIMIZE: &str = r#"<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="6" height="6" rx="0.5"/></svg>"#;
+const ICON_CLOSE: &str    = r#"<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="8" y2="8"/><line x1="8" y1="2" x2="2" y2="8"/></svg>"#;
+
+/// The three window control buttons — KDE/Breeze style: rectangular with SVG icons.
+/// Order: Minimize · Maximize · Close (right-aligned, close turns red on hover).
 #[component]
 fn WindowControls(
     closable: bool,
@@ -158,13 +165,13 @@ fn WindowControls(
 ) -> Element {
     rsx! {
         div {
-            style: "display: flex; align-items: center; gap: 6px;",
+            style: "display: flex; align-items: center; gap: 2px;",
 
-            // Minimize → hide to taskbar
+            // Minimize
             button {
-                style: "width: 12px; height: 12px; border-radius: 50%; \
-                        background: var(--fsn-warning); border: none; cursor: pointer; padding: 0;",
+                class: "fsd-window-btn",
                 title: "Minimize",
+                dangerous_inner_html: ICON_MINIMIZE,
                 onclick: move |evt| {
                     evt.stop_propagation();
                     on_minimize.call(evt);
@@ -173,9 +180,9 @@ fn WindowControls(
 
             // Maximize / restore
             button {
-                style: "width: 12px; height: 12px; border-radius: 50%; \
-                        background: var(--fsn-success); border: none; cursor: pointer; padding: 0;",
+                class: "fsd-window-btn",
                 title: "Maximize",
+                dangerous_inner_html: ICON_MAXIMIZE,
                 onclick: move |evt| {
                     evt.stop_propagation();
                     on_maximize.call(evt);
@@ -185,9 +192,9 @@ fn WindowControls(
             // Close
             if closable {
                 button {
-                    style: "width: 12px; height: 12px; border-radius: 50%; \
-                            background: var(--fsn-error); border: none; cursor: pointer; padding: 0;",
+                    class: "fsd-window-btn fsd-window-btn--close",
                     title: "Close",
+                    dangerous_inner_html: ICON_CLOSE,
                     onclick: on_close,
                 }
             }

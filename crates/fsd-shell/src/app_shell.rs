@@ -173,6 +173,8 @@ pub const GLOBAL_CSS: &str = r#"
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+html, body { height: 100%; overflow: hidden; }
+
 body {
     background: var(--fsn-bg-base);
     color: var(--fsn-text-primary);
@@ -194,6 +196,56 @@ body {
 @media (prefers-reduced-motion: reduce) {
     .fsd-page-enter, .fsd-page-fade { animation: none; }
 }
+
+/* ── Window control buttons (KDE/Breeze style) ─────────────────── */
+.fsd-window-btn {
+    width: 22px; height: 20px;
+    border-radius: var(--fsn-radius-sm);
+    background: transparent;
+    border: 1px solid transparent;
+    cursor: pointer; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--fsn-text-secondary);
+    transition: background 120ms, border-color 120ms, color 120ms;
+    flex-shrink: 0;
+}
+.fsd-window-btn:hover {
+    background: var(--fsn-bg-hover);
+    border-color: var(--fsn-border);
+}
+.fsd-window-btn--close:hover {
+    background: var(--fsn-error-bg);
+    border-color: var(--fsn-error);
+    color: var(--fsn-error);
+}
+
+/* ── Disabled button state ─────────────────────────────────────── */
+button:disabled,
+.fsd-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* ── Scrollable container ──────────────────────────────────────── */
+.fsn-scrollable {
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: var(--fsn-border) transparent;
+}
+.fsn-scrollable::-webkit-scrollbar { width: 6px; }
+.fsn-scrollable::-webkit-scrollbar-track { background: transparent; }
+.fsn-scrollable::-webkit-scrollbar-thumb {
+    background: var(--fsn-border);
+    border-radius: 3px;
+}
+.fsn-scrollable::-webkit-scrollbar-thumb:hover {
+    background: var(--fsn-border-hover);
+}
+
+/* ── Content area ──────────────────────────────────────────────── */
+.fsn-content { flex: 1; overflow-y: auto; }
 "#;
 
 /// Root app wrapper. Injects global CSS and applies mode-specific root styles.
