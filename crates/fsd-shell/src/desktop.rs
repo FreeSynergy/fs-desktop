@@ -27,7 +27,8 @@ use crate::window_frame::WindowFrame;
 /// Root desktop component.
 #[component]
 pub fn Desktop() -> Element {
-    let wallpaper           = use_signal(Wallpaper::default);
+    // Wallpaper CSS is provided as context so child apps (e.g. AppearanceSettings) can update it.
+    let mut wallpaper_bg: Signal<String> = use_context_provider(|| Signal::new(Wallpaper::default().to_css_background()));
     let mut wm              = use_signal(WindowManager::default);
     let mut apps            = use_signal(default_apps);
     let mut launcher        = use_signal(LauncherState::default);
@@ -47,7 +48,7 @@ pub fn Desktop() -> Element {
     let mut sidebar_visible  = use_signal(|| true);
     let mut sidebar_hide_gen = use_signal(|| 0u32);
 
-    let bg = wallpaper.read().to_css_background();
+    let bg = wallpaper_bg.read().clone();
 
     // ── Theme + menu action handler ────────────────────────────────────────
     let menu_action_handler = move |id: String| {

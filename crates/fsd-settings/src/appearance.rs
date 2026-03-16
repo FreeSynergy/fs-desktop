@@ -5,9 +5,12 @@ use dioxus::prelude::*;
 ///
 /// Reads and writes the global `Signal<String>` theme context provided by
 /// `Desktop`. Falls back to a local signal when running standalone.
+/// The wallpaper context (`Signal<String>`, the CSS background value) is also
+/// provided by `Desktop` — updates here propagate to the live desktop background.
 #[component]
 pub fn AppearanceSettings() -> Element {
     let theme_ctx: Option<Signal<String>> = try_use_context();
+    let wallpaper_ctx: Option<Signal<String>> = try_use_context();
     let mut local_theme = use_signal(|| "midnight-blue".to_string());
 
     let mut wallpaper_url = use_signal(String::new);
@@ -100,18 +103,70 @@ pub fn AppearanceSettings() -> Element {
                     input {
                         r#type: "url",
                         placeholder: "https://example.com/wallpaper.jpg",
-                        style: "flex: 1; padding: 8px 12px; border: 1px solid var(--fsn-color-border-default); border-radius: var(--fsn-radius-md);",
+                        style: "flex: 1; padding: 8px 12px; \
+                                border: 1px solid var(--fsn-color-border-default); \
+                                border-radius: var(--fsn-radius-md); \
+                                background: var(--fsn-color-bg-base); \
+                                color: var(--fsn-color-text-primary);",
                         oninput: move |e| *wallpaper_url.write() = e.value(),
                     }
                     button {
-                        style: "padding: 8px 12px; background: var(--fsn-color-bg-surface); border: 1px solid var(--fsn-color-border-default); border-radius: var(--fsn-radius-md); cursor: pointer;",
+                        style: "padding: 8px 12px; background: var(--fsn-color-primary); \
+                                color: white; border: none; \
+                                border-radius: var(--fsn-radius-md); cursor: pointer;",
+                        onclick: move |_| {
+                            let url = wallpaper_url.read().clone();
+                            if !url.is_empty() {
+                                let css = format!(
+                                    "background-image: url('{}'); background-size: cover; background-position: center;",
+                                    url
+                                );
+                                if let Some(mut ctx) = wallpaper_ctx {
+                                    ctx.set(css);
+                                }
+                            }
+                        },
                         "Load URL"
                     }
                 }
                 label {
-                    style: "display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px dashed var(--fsn-color-border-default); border-radius: var(--fsn-radius-md); cursor: pointer;",
-                    input { r#type: "file", accept: "image/*", style: "display: none;" }
-                    "Upload from file"
+                    style: "display: flex; align-items: center; gap: 8px; \
+                            padding: 8px 12px; border: 1px dashed var(--fsn-color-border-default); \
+                            border-radius: var(--fsn-radius-md); cursor: pointer;",
+                    input {
+                        r#type: "file",
+                        accept: "image/*",
+                        style: "display: none;",
+                        onchange: move |e| {
+                            if let Some(engine) = e.files() {
+                                let files = engine.files();
+                                if let Some(path) = files.into_iter().next() {
+                                    let css = format!(
+                                        "background-image: url('file://{}'); background-size: cover; background-position: center;",
+                                        path
+                                    );
+                                    if let Some(mut ctx) = wallpaper_ctx {
+                                        ctx.set(css);
+                                    }
+                                }
+                            }
+                        },
+                    }
+                    "📁 Upload from file"
+                }
+                // Reset to default
+                button {
+                    style: "margin-top: 8px; padding: 6px 12px; font-size: 12px; \
+                            background: transparent; border: 1px solid var(--fsn-color-border-default); \
+                            border-radius: var(--fsn-radius-md); cursor: pointer; \
+                            color: var(--fsn-color-text-muted);",
+                    onclick: move |_| {
+                        if let Some(mut ctx) = wallpaper_ctx {
+                            ctx.set("background: linear-gradient(135deg, #0f172a, #1e293b);".to_string());
+                        }
+                        wallpaper_url.set(String::new());
+                    },
+                    "Reset to default"
                 }
             }
 
