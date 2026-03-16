@@ -2,11 +2,35 @@
 use dioxus::prelude::*;
 
 /// Appearance settings component.
+///
+/// Reads and writes the global `Signal<String>` theme context provided by
+/// `Desktop`. Falls back to a local signal when running standalone (e.g. in
+/// fsd-settings standalone mode without a Desktop context).
 #[component]
 pub fn AppearanceSettings() -> Element {
+    // Use the shared theme context when available (provided by Desktop).
+    let theme_ctx: Option<Signal<String>> = use_context();
+    let mut local_theme = use_signal(|| "dark".to_string());
+
     let mut wallpaper_url = use_signal(String::new);
     let mut css_url = use_signal(String::new);
-    let mut dark_mode = use_signal(|| false);
+
+    // Determine current theme value from context or local fallback.
+    let current_theme = theme_ctx
+        .as_ref()
+        .map(|s| s.read().clone())
+        .unwrap_or_else(|| local_theme.read().clone());
+
+    let mut set_theme = move |value: &'static str| {
+        if let Some(mut ctx) = theme_ctx {
+            ctx.set(value.to_string());
+        } else {
+            local_theme.set(value.to_string());
+        }
+    };
+
+    let light_border = if current_theme == "light" { "var(--fsn-color-primary)" } else { "var(--fsn-color-border-default)" };
+    let dark_border  = if current_theme == "dark"  { "var(--fsn-color-primary)" } else { "var(--fsn-color-border-default)" };
 
     rsx! {
         div {
@@ -19,21 +43,19 @@ pub fn AppearanceSettings() -> Element {
             div { style: "margin-bottom: 24px;",
                 label { style: "display: block; font-weight: 500; margin-bottom: 8px;", "Color Scheme" }
                 div { style: "display: flex; gap: 8px;",
-                    {
-                        let light_border = if !*dark_mode.read() { "var(--fsn-color-primary)" } else { "var(--fsn-color-border-default)" };
-                        let dark_border  = if *dark_mode.read()  { "var(--fsn-color-primary)" } else { "var(--fsn-color-border-default)" };
-                        rsx! {
-                            button {
-                                style: "flex: 1; padding: 10px; border-radius: var(--fsn-radius-md); border: 2px solid {light_border}; cursor: pointer; background: #f8fafc;",
-                                onclick: move |_| *dark_mode.write() = false,
-                                "☀ Light"
-                            }
-                            button {
-                                style: "flex: 1; padding: 10px; border-radius: var(--fsn-radius-md); border: 2px solid {dark_border}; cursor: pointer; background: #1e293b; color: white;",
-                                onclick: move |_| *dark_mode.write() = true,
-                                "☾ Dark"
-                            }
-                        }
+                    button {
+                        style: "flex: 1; padding: 10px; border-radius: var(--fsn-radius-md); \
+                                border: 2px solid {light_border}; cursor: pointer; \
+                                background: #f8fafc; color: #0f172a;",
+                        onclick: move |_| set_theme("light"),
+                        "☀ Light"
+                    }
+                    button {
+                        style: "flex: 1; padding: 10px; border-radius: var(--fsn-radius-md); \
+                                border: 2px solid {dark_border}; cursor: pointer; \
+                                background: #1e293b; color: white;",
+                        onclick: move |_| set_theme("dark"),
+                        "☾ Dark"
                     }
                 }
             }

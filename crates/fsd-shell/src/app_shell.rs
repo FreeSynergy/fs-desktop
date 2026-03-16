@@ -246,6 +246,33 @@ button:disabled,
 
 /* ── Content area ──────────────────────────────────────────────── */
 .fsn-content { flex: 1; overflow-y: auto; }
+
+/* ── Sidebar collapsed: CSS hover-tooltip via ::after ─────────── */
+.fsd-sidebar--collapsed .fsd-sidebar__item {
+    position: relative;
+}
+.fsd-sidebar--collapsed .fsd-sidebar__item::after {
+    content: attr(data-label);
+    position: absolute;
+    left: calc(100% + 10px);
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--fsn-bg-elevated);
+    color: var(--fsn-text-primary);
+    border: 1px solid var(--fsn-border);
+    border-radius: var(--fsn-radius-md);
+    padding: 4px 10px;
+    font-size: 12px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 120ms ease;
+    z-index: 9999;
+    box-shadow: var(--fsn-shadow);
+}
+.fsd-sidebar--collapsed .fsd-sidebar__item:hover::after {
+    opacity: 1;
+}
 "#;
 
 /// Root app wrapper. Injects global CSS and applies mode-specific root styles.

@@ -15,8 +15,8 @@ path = "src/main.rs"
 
 [features]
 default  = ["desktop"]
-desktop  = ["dioxus/desktop"]
-web      = ["dioxus/web"]
+desktop  = ["dioxus/desktop", "fsn-components/desktop"]
+web      = ["dioxus/web",     "fsn-components/web"]
 
 [dependencies]
 fsd-conductor = { workspace = true }
@@ -24,9 +24,10 @@ fsd-store     = { workspace = true }
 fsd-studio    = { workspace = true }
 fsd-settings  = { workspace = true }
 fsd-profile   = { workspace = true }
-fsn-i18n      = { workspace = true }
-fsn-theme     = { workspace = true }
-fsn-config    = { workspace = true }
+fsn-components = { workspace = true }
+fsn-i18n       = { workspace = true }
+fsn-theme      = { workspace = true }
+fsn-config     = { workspace = true }
 dioxus        = { workspace = true }
 serde         = { workspace = true }
 toml          = { workspace = true }

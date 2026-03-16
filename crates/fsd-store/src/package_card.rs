@@ -13,6 +13,7 @@ pub struct PackageEntry {
     pub version: String,
     pub category: String,
     pub kind: PackageKind,
+    pub capabilities: Vec<String>,
     pub icon: Option<String>,
     pub installed: bool,
     pub update_available: bool,
@@ -20,11 +21,14 @@ pub struct PackageEntry {
 
 /// Package card component.
 #[component]
-pub fn PackageCard(package: PackageEntry) -> Element {
+pub fn PackageCard(package: PackageEntry, on_details: EventHandler<MouseEvent>) -> Element {
     rsx! {
         div {
             class: "fsd-package-card",
-            style: "background: var(--fsn-color-bg-surface); border: 1px solid var(--fsn-color-border-default); border-radius: var(--fsn-radius-lg); padding: 16px; display: flex; flex-direction: column; gap: 8px;",
+            style: "background: var(--fsn-color-bg-surface); border: 1px solid var(--fsn-color-border-default); \
+                    border-radius: var(--fsn-radius-lg); padding: 16px; display: flex; flex-direction: column; \
+                    gap: 8px; cursor: pointer; transition: border-color 0.15s;",
+            onclick: on_details,
 
             // Header
             div {

@@ -30,15 +30,16 @@ pub fn Desktop() -> Element {
     let mut notifs          = use_signal(NotificationManager::default);
     let mut sidebar_collapsed = use_signal(|| cfg.read().sidebar.default_collapsed);
     let sidebar_sections: Signal<Vec<SidebarSection>> = use_signal(default_sidebar_sections);
-    let mut theme           = use_signal(|| "dark".to_string());
+    // Theme is provided via Context so that AppearanceSettings can update it.
+    let mut theme: Signal<String> = use_context_provider(|| Signal::new("dark".to_string()));
 
     let bg = wallpaper.read().to_css_background();
 
-    // ── Theme switching ──────────────────────────────────────────────────────
+    // ── Theme switching (menu bar) ───────────────────────────────────────────
     let menu_action_handler = move |id: String| {
         match id.as_str() {
-            "theme-midnight-blue" => *theme.write() = "dark".to_string(),
-            "theme-light"         => *theme.write() = "light".to_string(),
+            "theme-midnight-blue" => theme.set("dark".to_string()),
+            "theme-light"         => theme.set("light".to_string()),
             _ => {}
         }
     };

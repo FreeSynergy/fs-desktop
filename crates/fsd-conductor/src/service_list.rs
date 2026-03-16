@@ -1,6 +1,9 @@
-/// Service list — shows all FSN systemd services with start/stop/restart actions.
+/// Service list — shows all FSN systemd services grouped by category with
+/// collapsible accordion sections and start/stop/restart actions.
 ///
 /// Uses SystemctlManager (no Podman socket) to list and control services.
+use std::collections::BTreeMap;
+
 use dioxus::prelude::*;
 use fsn_container::{SystemctlManager, UnitActiveState};
 
@@ -117,6 +120,16 @@ pub fn ServiceList(mut selected: Signal<Option<String>>) -> Element {
         });
     };
 
+    // Group services by category (parsed from "fsn-<category>-<name>.service")
+    let groups: BTreeMap<String, Vec<ServiceEntry>> = {
+        let mut map: BTreeMap<String, Vec<ServiceEntry>> = BTreeMap::new();
+        for svc in services.read().iter() {
+            let category = service_category(&svc.name);
+            map.entry(category).or_default().push(svc.clone());
+        }
+        map
+    };
+
     rsx! {
         div {
             class: "fsd-service-list",
@@ -126,42 +139,100 @@ pub fn ServiceList(mut selected: Signal<Option<String>>) -> Element {
                 style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;",
                 h2 { style: "margin: 0; font-size: 18px;", "Services" }
                 button {
-                    style: "background: var(--fsn-primary); color: white; border: none; padding: 8px 16px; border-radius: var(--fsn-radius-md); cursor: pointer;",
+                    style: "background: var(--fsn-primary); color: white; border: none; \
+                            padding: 8px 16px; border-radius: var(--fsn-radius-md); cursor: pointer;",
                     "Install Service"
                 }
             }
 
-            // Connection error / empty state
+            // Connection error
             if let Some(err) = error.read().as_deref() {
                 div {
-                    style: "color: var(--fsn-warning); background: var(--fsn-warning-bg); border: 1px solid var(--fsn-warning); border-radius: 6px; padding: 12px; margin-bottom: 16px; font-size: 13px;",
+                    style: "color: var(--fsn-warning); background: var(--fsn-warning-bg); \
+                            border: 1px solid var(--fsn-warning); border-radius: 6px; \
+                            padding: 12px; margin-bottom: 16px; font-size: 13px;",
                     "{err}"
                 }
             }
 
-            // Table
+            // Empty state
             if services.read().is_empty() && error.read().is_none() {
                 div {
                     style: "text-align: center; color: var(--fsn-text-muted); padding: 48px;",
                     p { "No services installed yet." }
                     p { "Open the Store to install your first service." }
                 }
-            } else if !services.read().is_empty() {
+            }
+
+            // Accordion groups
+            for (category, entries) in groups {
+                ServiceAccordionGroup {
+                    key: "{category}",
+                    category: category.clone(),
+                    entries: entries.clone(),
+                    selected,
+                    on_action,
+                }
+            }
+        }
+    }
+}
+
+// ── ServiceAccordionGroup ─────────────────────────────────────────────────────
+
+/// Collapsible accordion section showing services of the same category.
+#[component]
+fn ServiceAccordionGroup(
+    category: String,
+    entries: Vec<ServiceEntry>,
+    selected: Signal<Option<String>>,
+    on_action: EventHandler<(String, ServiceAction)>,
+) -> Element {
+    let mut expanded = use_signal(|| true);
+    let count = entries.len();
+    let running = entries.iter().filter(|e| e.active == UnitActiveState::Active).count();
+    let icon = if *expanded.read() { "▾" } else { "▸" };
+
+    rsx! {
+        div {
+            style: "margin-bottom: 8px; border: 1px solid var(--fsn-border); \
+                    border-radius: var(--fsn-radius-md); overflow: hidden;",
+
+            // Accordion header
+            div {
+                style: "display: flex; align-items: center; gap: 10px; \
+                        padding: 10px 14px; cursor: pointer; \
+                        background: var(--fsn-bg-surface); \
+                        border-bottom: 1px solid var(--fsn-border);",
+                onclick: move |_| {
+                    let v = *expanded.read();
+                    expanded.set(!v);
+                },
+                span { style: "font-size: 14px; color: var(--fsn-text-muted);", "{icon}" }
+                span { style: "font-weight: 600; font-size: 14px;", "{category}" }
+                span {
+                    style: "margin-left: auto; font-size: 12px; color: var(--fsn-text-muted);",
+                    "{running}/{count} running"
+                }
+            }
+
+            // Collapsible table
+            if *expanded.read() {
                 table {
                     style: "width: 100%; border-collapse: collapse;",
-
                     thead {
                         tr {
-                            style: "border-bottom: 1px solid var(--fsn-border); font-size: 12px; color: var(--fsn-text-muted);",
-                            th { style: "text-align: left; padding: 8px;", "NAME" }
-                            th { style: "text-align: left; padding: 8px;", "STATUS" }
-                            th { style: "text-align: left; padding: 8px;", "STATE" }
-                            th { style: "text-align: right; padding: 8px;", "ACTIONS" }
+                            style: "border-bottom: 1px solid var(--fsn-border); \
+                                    font-size: 11px; color: var(--fsn-text-muted); \
+                                    background: var(--fsn-bg-elevated);",
+                            th { style: "text-align: left; padding: 6px 8px;", "NAME" }
+                            th { style: "text-align: left; padding: 6px 8px;", "STATUS" }
+                            th { style: "text-align: left; padding: 6px 8px;", "STATE" }
+                            th { style: "text-align: right; padding: 6px 8px;", "ACTIONS" }
                         }
                     }
-
                     tbody {
-                        for svc in services.read().iter().cloned().collect::<Vec<_>>() {
+                        for svc in entries {
                             ServiceRow {
                                 key: "{svc.name}",
                                 service: svc,
@@ -174,6 +245,13 @@ pub fn ServiceList(mut selected: Signal<Option<String>>) -> Element {
             }
         }
     }
+}
+
+/// Derive a human-readable category from a systemd unit name like
+/// `fsn-proxy-zentinel.service` → `proxy`.
+fn service_category(name: &str) -> String {
+    let bare = name.trim_end_matches(".service").trim_start_matches("fsn-");
+    bare.split('-').next().unwrap_or("other").to_string()
 }
 
 /// A single row in the service table.

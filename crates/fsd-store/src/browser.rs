@@ -1,6 +1,7 @@
 /// Package browser — fetches the live catalog from the Node.Store and
 /// renders a filterable grid of package cards, with type-filter tabs.
 use dioxus::prelude::*;
+use fsn_components::{LoadingOverlay, SpinnerSize};
 use fsn_store::{Catalog, StoreClient};
 
 use crate::node_package::{NodePackage, PackageKind};
@@ -10,7 +11,7 @@ use crate::package_card::{PackageCard, PackageEntry};
 
 /// Package browser component — fetches and renders available packages.
 #[component]
-pub fn PackageBrowser(search: String) -> Element {
+pub fn PackageBrowser(search: String, on_select: EventHandler<PackageEntry>) -> Element {
     // Loaded catalog packages
     let packages: Signal<Vec<PackageEntry>> = use_signal(Vec::new);
     let mut loading: Signal<bool>           = use_signal(|| true);
@@ -84,9 +85,9 @@ pub fn PackageBrowser(search: String) -> Element {
 
             // Loading spinner
             if *loading.read() {
-                div {
-                    style: "text-align: center; color: var(--fsn-color-text-muted); padding: 48px;",
-                    p { "Loading catalog…" }
+                LoadingOverlay {
+                    size: SpinnerSize::Lg,
+                    message: Some("Loading catalog…".to_string()),
                 }
             } else if let Some(err) = error.read().as_deref() {
                 div {
@@ -110,7 +111,14 @@ pub fn PackageBrowser(search: String) -> Element {
                 div {
                     style: "display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;",
                     for pkg in filtered {
-                        PackageCard { key: "{pkg.id}", package: pkg }
+                        PackageCard {
+                            key: "{pkg.id}",
+                            package: pkg.clone(),
+                            on_details: {
+                                let p = pkg.clone();
+                                move |_| on_select.call(p.clone())
+                            },
+                        }
                     }
                 }
             }
@@ -160,6 +168,7 @@ fn catalog_to_entries(catalog: Catalog<NodePackage>) -> Vec<PackageEntry> {
             version:          p.version.clone(),
             category:         p.category.clone(),
             kind:             p.kind.clone(),
+            capabilities:     p.capabilities.clone(),
             icon:             p.icon.clone(),
             installed:        false, // filled in by InstalledList
             update_available: false,

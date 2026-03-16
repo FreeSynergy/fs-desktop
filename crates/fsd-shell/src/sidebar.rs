@@ -52,9 +52,10 @@ pub fn ShellSidebar(
     let justify = if collapsed { "center" } else { "flex-end" };
     let icon    = if collapsed { "▶" } else { "◀" };
     let title   = if collapsed { "Expand" } else { "Collapse" };
+    let nav_class = if collapsed { "fsd-sidebar fsd-sidebar--collapsed" } else { "fsd-sidebar" };
     rsx! {
         nav {
-            class: "fsd-sidebar",
+            class: "{nav_class}",
             style: "width: {width}; background: var(--fsn-color-bg-sidebar, #0f172a); \
                     border-right: 1px solid var(--fsn-color-border-default, #334155); \
                     display: flex; flex-direction: column; overflow: hidden; \
@@ -137,7 +138,9 @@ fn SidebarItemBtn(
     let padding = if collapsed { "8px" } else { "8px 10px" };
     rsx! {
         button {
+            class: "fsd-sidebar__item",
             title: "{item.label}",
+            "data-label": "{item.label}",
             style: "display: flex; align-items: center; gap: 10px; width: 100%; \
                     padding: {padding}; border: none; border-left: {border}; border-radius: 6px; \
                     cursor: pointer; background: {bg}; color: {color}; margin-bottom: 1px; \

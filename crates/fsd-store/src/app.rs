@@ -6,6 +6,8 @@ use fsn_store::StoreClient;
 use crate::browser::PackageBrowser;
 use crate::installed_list::InstalledList;
 use crate::node_package::NodePackage;
+use crate::package_card::PackageEntry;
+use crate::package_detail::PackageDetail;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum StoreTab {
@@ -19,6 +21,7 @@ pub enum StoreTab {
 pub fn StoreApp() -> Element {
     let mut active_tab = use_signal(|| StoreTab::Browse);
     let mut search = use_signal(String::new);
+    let mut detail: Signal<Option<PackageEntry>> = use_signal(|| None);
 
     // Catalog versions for update detection — (id, version) pairs
     let catalog_versions: Signal<Vec<(String, String)>> = use_signal(Vec::new);
@@ -39,6 +42,16 @@ pub fn StoreApp() -> Element {
                 }
             }
         });
+    }
+
+    // Show detail panel when a package is selected
+    if let Some(pkg) = detail.read().clone() {
+        return rsx! {
+            PackageDetail {
+                package: pkg,
+                on_back: move |_| detail.set(None),
+            }
+        };
     }
 
     rsx! {
@@ -70,7 +83,12 @@ pub fn StoreApp() -> Element {
             div {
                 style: "flex: 1; overflow: auto; padding: 16px;",
                 match *active_tab.read() {
-                    StoreTab::Browse    => rsx! { PackageBrowser { search: search.read().clone() } },
+                    StoreTab::Browse => rsx! {
+                        PackageBrowser {
+                            search: search.read().clone(),
+                            on_select: move |pkg| detail.set(Some(pkg)),
+                        }
+                    },
                     StoreTab::Installed => rsx! {
                         InstalledList {
                             catalog_versions: catalog_versions.read().clone(),

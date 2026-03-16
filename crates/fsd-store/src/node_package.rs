@@ -66,12 +66,14 @@ pub struct NodePackage {
     #[serde(default)]
     pub tags:        Vec<String>,
     #[serde(default)]
-    pub kind:        PackageKind,
+    pub kind:         PackageKind,
     #[serde(default)]
-    pub icon:        Option<String>,
+    pub capabilities: Vec<String>,
+    #[serde(default)]
+    pub icon:         Option<String>,
     /// Store-relative path to the module directory.
     #[serde(default)]
-    pub path:        Option<String>,
+    pub path:         Option<String>,
 }
 
 impl Manifest for NodePackage {
