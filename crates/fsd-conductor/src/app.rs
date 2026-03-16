@@ -74,8 +74,22 @@ pub fn ConductorApp() -> Element {
         style { "{FSN_SIDEBAR_CSS}" }
         div {
             class: "fsd-conductor",
-            style: "display: flex; height: 100%; width: 100%; overflow: hidden; \
+            style: "display: flex; flex-direction: column; height: 100%; width: 100%; overflow: hidden; \
                     background: var(--fsn-color-bg-base);",
+
+            // App title bar
+            div {
+                style: "padding: 10px 16px; border-bottom: 1px solid var(--fsn-border); \
+                        flex-shrink: 0; background: var(--fsn-bg-surface);",
+                h2 {
+                    style: "margin: 0; font-size: 16px; font-weight: 600; color: var(--fsn-text-primary);",
+                    "Conductor"
+                }
+            }
+
+            // Sidebar + Content row
+            div {
+                style: "display: flex; flex: 1; overflow: hidden;",
 
             // ── Left nav sidebar (collapsible) ────────────────────────────────
             FsnSidebar {
@@ -105,6 +119,7 @@ pub fn ConductorApp() -> Element {
                     },
                 }
             }
+            } // end sidebar + content row
         }
     }
 }

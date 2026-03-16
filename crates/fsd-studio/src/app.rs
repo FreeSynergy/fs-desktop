@@ -1,6 +1,6 @@
 /// Studio — root component: module builder, plugin builder, i18n editor.
 use dioxus::prelude::*;
-use fsn_components::TabBtn;
+use fsn_components::{FsnSidebar, FsnSidebarItem, FSN_SIDEBAR_CSS};
 
 use crate::module_builder::ModuleBuilder;
 use crate::plugin_builder::PluginBuilder;
@@ -13,43 +13,92 @@ pub enum StudioTab {
     I18n,
 }
 
+impl StudioTab {
+    pub fn id(&self) -> &'static str {
+        match self {
+            Self::Modules => "modules",
+            Self::Plugins => "plugins",
+            Self::I18n    => "i18n",
+        }
+    }
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Modules => "Module Builder",
+            Self::Plugins => "Plugin Builder",
+            Self::I18n    => "i18n Editor",
+        }
+    }
+
+    pub fn icon(&self) -> &'static str {
+        match self {
+            Self::Modules => "📦",
+            Self::Plugins => "🔌",
+            Self::I18n    => "🌐",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Self> {
+        match id {
+            "modules" => Some(Self::Modules),
+            "plugins" => Some(Self::Plugins),
+            "i18n"    => Some(Self::I18n),
+            _         => None,
+        }
+    }
+}
+
+const ALL_TABS: &[StudioTab] = &[StudioTab::Modules, StudioTab::Plugins, StudioTab::I18n];
+
 /// Root Studio component.
 #[component]
 pub fn StudioApp() -> Element {
     let mut active_tab = use_signal(|| StudioTab::Modules);
 
+    let sidebar_items: Vec<FsnSidebarItem> = ALL_TABS.iter()
+        .map(|t| FsnSidebarItem::new(t.id(), t.icon(), t.label()))
+        .collect();
+
     rsx! {
+        style { "{FSN_SIDEBAR_CSS}" }
         div {
             class: "fsd-studio",
             style: "display: flex; flex-direction: column; height: 100%; background: var(--fsn-color-bg-base);",
 
-            // Header
+            // App title bar
             div {
-                style: "padding: 16px; background: var(--fsn-color-bg-surface); border-bottom: 1px solid var(--fsn-color-border-default);",
-                h2 { style: "margin: 0; font-size: 20px;", "Studio" }
-                p { style: "margin: 4px 0 0; color: var(--fsn-color-text-muted); font-size: 13px;",
-                    "Create modules, plugins, and language files for the FreeSynergy ecosystem."
+                style: "padding: 10px 16px; border-bottom: 1px solid var(--fsn-border); \
+                        flex-shrink: 0; background: var(--fsn-bg-surface);",
+                h2 {
+                    style: "margin: 0; font-size: 16px; font-weight: 600; color: var(--fsn-text-primary);",
+                    "Studio"
                 }
             }
 
-            // Tab bar
+            // Sidebar + Content row
             div {
-                style: "display: flex; border-bottom: 1px solid var(--fsn-color-border-default);",
-                TabBtn { label: "Module Builder", is_active: *active_tab.read() == StudioTab::Modules, on_click: move |_| active_tab.set(StudioTab::Modules) }
-                TabBtn { label: "Plugin Builder", is_active: *active_tab.read() == StudioTab::Plugins, on_click: move |_| active_tab.set(StudioTab::Plugins) }
-                TabBtn { label: "i18n Editor",    is_active: *active_tab.read() == StudioTab::I18n,    on_click: move |_| active_tab.set(StudioTab::I18n) }
-            }
+                style: "display: flex; flex: 1; overflow: hidden;",
 
-            // Content
-            div {
-                style: "flex: 1; overflow: auto;",
-                match *active_tab.read() {
-                    StudioTab::Modules => rsx! { ModuleBuilder {} },
-                    StudioTab::Plugins => rsx! { PluginBuilder {} },
-                    StudioTab::I18n    => rsx! { I18nEditor {} },
+                FsnSidebar {
+                    items: sidebar_items,
+                    active_id: active_tab.read().id().to_string(),
+                    on_select: move |id: String| {
+                        if let Some(tab) = StudioTab::from_id(&id) {
+                            active_tab.set(tab);
+                        }
+                    },
+                }
+
+                // Content
+                div {
+                    style: "flex: 1; overflow: auto;",
+                    match *active_tab.read() {
+                        StudioTab::Modules => rsx! { ModuleBuilder {} },
+                        StudioTab::Plugins => rsx! { PluginBuilder {} },
+                        StudioTab::I18n    => rsx! { I18nEditor {} },
+                    }
                 }
             }
         }
     }
 }
-

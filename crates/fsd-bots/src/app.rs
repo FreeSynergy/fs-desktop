@@ -1,6 +1,6 @@
 /// Bot Manager — usage interface for messaging bots.
 use dioxus::prelude::*;
-use fsn_components::SidebarNavBtn;
+use fsn_components::{FsnSidebar, FsnSidebarItem, FSN_SIDEBAR_CSS};
 
 use crate::broadcast_view::BroadcastView;
 use crate::gatekeeper_view::GatekeeperView;
@@ -15,58 +15,67 @@ pub fn BotManagerApp() -> Element {
     let sel_idx = *selected_idx.read();
     let selected = sel_idx.and_then(|i| bot_list.get(i).cloned());
 
+    let active_id = sel_idx
+        .and_then(|i| bot_list.get(i))
+        .map(|b| b.id.clone())
+        .unwrap_or_default();
+
+    let sidebar_items: Vec<FsnSidebarItem> = bot_list.iter()
+        .map(|b| FsnSidebarItem::new(b.id.clone(), b.kind.icon().to_string(), b.name.clone()))
+        .collect();
+
     rsx! {
+        style { "{FSN_SIDEBAR_CSS}" }
         div {
-            style: "display: flex; height: 100%; width: 100%; overflow: hidden; \
+            style: "display: flex; flex-direction: column; height: 100%; width: 100%; overflow: hidden; \
                     background: var(--fsn-color-bg-base);",
 
-            nav {
-                style: "width: 200px; flex-shrink: 0; overflow-y: auto; \
-                        background: var(--fsn-color-bg-surface, #0f172a); \
-                        border-right: 1px solid var(--fsn-color-border-default, #334155); \
-                        padding: 12px 8px;",
-
-                div {
-                    style: "margin: 0 0 12px 8px; font-size: 11px; font-weight: 600; \
-                            text-transform: uppercase; letter-spacing: 0.08em; \
-                            color: var(--fsn-color-text-muted, #64748b);",
-                    "Bot Manager"
-                }
-
-                for (idx, bot) in bot_list.iter().enumerate() {
-                    SidebarNavBtn {
-                        key: "{bot.id}",
-                        label: bot.name.clone(),
-                        icon: bot.kind.icon().to_string(),
-                        is_active: sel_idx == Some(idx),
-                        left_border: true,
-                        on_click: move |_| selected_idx.set(Some(idx)),
-                    }
+            // App title bar
+            div {
+                style: "padding: 10px 16px; border-bottom: 1px solid var(--fsn-border); \
+                        flex-shrink: 0; background: var(--fsn-bg-surface);",
+                h2 {
+                    style: "margin: 0; font-size: 16px; font-weight: 600; color: var(--fsn-text-primary);",
+                    "Bots"
                 }
             }
 
+            // Sidebar + Content row
             div {
-                style: "flex: 1; overflow: auto; padding: 20px;",
+                style: "display: flex; flex: 1; overflow: hidden;",
 
-                match selected {
-                    None => rsx! {
-                        div {
-                            style: "display: flex; align-items: center; justify-content: center; \
-                                    height: 200px; color: var(--fsn-color-text-muted); font-size: 13px;",
-                            "Select a bot from the list"
-                        }
+                FsnSidebar {
+                    items: sidebar_items,
+                    active_id,
+                    on_select: move |id: String| {
+                        let idx = bots.read().iter().position(|b| b.id == id);
+                        selected_idx.set(idx);
                     },
-                    Some(bot) => rsx! {
-                        BotDetail {
-                            bot,
-                            on_update: move |updated: MessagingBot| {
-                                if let Some(i) = sel_idx {
-                                    bots.write()[i] = updated;
-                                    let _ = MessagingBotsConfig::save(&*bots.read());
+                }
+
+                div {
+                    style: "flex: 1; overflow: auto; padding: 20px;",
+
+                    match selected {
+                        None => rsx! {
+                            div {
+                                style: "display: flex; align-items: center; justify-content: center; \
+                                        height: 200px; color: var(--fsn-color-text-muted); font-size: 13px;",
+                                "Select a bot from the list"
+                            }
+                        },
+                        Some(bot) => rsx! {
+                            BotDetail {
+                                bot,
+                                on_update: move |updated: MessagingBot| {
+                                    if let Some(i) = sel_idx {
+                                        bots.write()[i] = updated;
+                                        let _ = MessagingBotsConfig::save(&*bots.read());
+                                    }
                                 }
                             }
-                        }
-                    },
+                        },
+                    }
                 }
             }
         }

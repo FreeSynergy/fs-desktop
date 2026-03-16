@@ -151,7 +151,21 @@ pub fn StoreApp() -> Element {
         style { "{FSN_SIDEBAR_CSS}" }
         div {
             class: "fsd-store",
-            style: "display: flex; flex-direction: row; height: 100%; background: var(--fsn-color-bg-base);",
+            style: "display: flex; flex-direction: column; height: 100%; background: var(--fsn-color-bg-base);",
+
+            // App title bar
+            div {
+                style: "padding: 10px 16px; border-bottom: 1px solid var(--fsn-border); \
+                        flex-shrink: 0; background: var(--fsn-bg-surface);",
+                h2 {
+                    style: "margin: 0; font-size: 16px; font-weight: 600; color: var(--fsn-text-primary);",
+                    "Store"
+                }
+            }
+
+            // Sidebar + Content row
+            div {
+                style: "display: flex; flex: 1; overflow: hidden;",
 
             // Left sidebar navigation
             FsnSidebar {
@@ -168,7 +182,6 @@ pub fn StoreApp() -> Element {
                 div {
                     style: "padding: 16px; background: var(--fsn-color-bg-surface); \
                             border-bottom: 1px solid var(--fsn-color-border-default);",
-                    h2 { style: "margin: 0 0 12px 0; font-size: 20px;", "Store" }
                     input {
                         r#type: "search",
                         placeholder: "Search packages…",
@@ -204,6 +217,7 @@ pub fn StoreApp() -> Element {
                     }
                 }
             }
+            } // end sidebar + content row
         }
     }
 }

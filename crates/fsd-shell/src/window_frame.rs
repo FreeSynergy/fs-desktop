@@ -176,6 +176,7 @@ pub fn WindowFrame(props: WindowFrameProps) -> Element {
          backdrop-filter: blur(16px) saturate(180%); -webkit-backdrop-filter: blur(16px) saturate(180%); \
          border: 1px solid var(--fsn-window-border); \
          box-shadow: var(--fsn-window-shadow); \
+         pointer-events: all; \
          z-index: 9999; overflow: hidden;".to_string()
     } else {
         // Bug A fix: use `dim` signal (which tracks resize) instead of win.size spec.
@@ -194,6 +195,7 @@ pub fn WindowFrame(props: WindowFrameProps) -> Element {
              border: 1px solid var(--fsn-window-border); \
              border-radius: 8px; \
              box-shadow: var(--fsn-window-shadow); \
+             pointer-events: all; \
              z-index: {}; overflow: visible;",
             win.z_index
         )
@@ -638,10 +640,11 @@ fn WindowFooterButton(button: WindowButton, on_close: EventHandler<bool>) -> Ele
 
 #[derive(Props, Clone, PartialEq)]
 pub struct MinimizedWindowIconProps {
-    pub window:    Window,
-    pub pos_x:     f64,
-    pub pos_y:     f64,
+    pub window:     Window,
+    pub pos_x:      f64,
+    pub pos_y:      f64,
     pub on_restore: EventHandler<WindowId>,
+    pub on_move:    EventHandler<(f64, f64)>,
 }
 
 /// Renders a minimized window as a draggable icon with pulsing green dot.
@@ -702,6 +705,8 @@ pub fn MinimizedWindowIcon(props: MinimizedWindowIconProps) -> Element {
                     let moved = ((c.x - sx).powi(2) + (c.y - sy).powi(2)).sqrt();
                     if moved < 5.0 {
                         props.on_restore.call(id);
+                    } else {
+                        props.on_move.call(*icon_pos.read());
                     }
                 },
             }

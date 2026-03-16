@@ -1,11 +1,43 @@
 /// Help View — context-sensitive help and keyboard shortcuts reference.
 use dioxus::prelude::*;
+use fsn_components::{FsnSidebar, FsnSidebarItem, FSN_SIDEBAR_CSS};
 use fsd_settings::{ShortcutsConfig, register_actions, resolve_shortcut};
 
 #[derive(Clone, PartialEq, Debug)]
-enum HelpTab {
+enum HelpSection {
     Topics,
     Shortcuts,
+}
+
+impl HelpSection {
+    fn id(&self) -> &'static str {
+        match self {
+            Self::Topics    => "topics",
+            Self::Shortcuts => "shortcuts",
+        }
+    }
+
+    fn label(&self) -> &'static str {
+        match self {
+            Self::Topics    => "Topics",
+            Self::Shortcuts => "Shortcuts",
+        }
+    }
+
+    fn icon(&self) -> &'static str {
+        match self {
+            Self::Topics    => "📚",
+            Self::Shortcuts => "⌨",
+        }
+    }
+
+    fn from_id(id: &str) -> Option<Self> {
+        match id {
+            "topics"    => Some(Self::Topics),
+            "shortcuts" => Some(Self::Shortcuts),
+            _           => None,
+        }
+    }
 }
 
 #[derive(Clone, PartialEq)]
@@ -25,63 +57,56 @@ const TOPICS: &[HelpTopic] = &[
     HelpTopic { id: "troubleshooting", title: "Troubleshooting",    summary: "Common issues and how to resolve them." },
 ];
 
+const ALL_SECTIONS: &[HelpSection] = &[HelpSection::Topics, HelpSection::Shortcuts];
+
 /// Root component for the Help view.
 #[component]
 pub fn HelpApp() -> Element {
-    let mut active_tab = use_signal(|| HelpTab::Topics);
+    let mut active = use_signal(|| HelpSection::Topics);
+
+    let sidebar_items: Vec<FsnSidebarItem> = ALL_SECTIONS.iter()
+        .map(|s| FsnSidebarItem::new(s.id(), s.icon(), s.label()))
+        .collect();
 
     rsx! {
+        style { "{FSN_SIDEBAR_CSS}" }
         div {
             class: "fsd-help-view",
             style: "display: flex; flex-direction: column; height: 100%; \
                     background: var(--fsn-color-bg-base);",
 
+            // App title bar
             div {
-                style: "padding: 20px 24px 0; \
-                        background: var(--fsn-color-bg-surface, #1e293b); \
-                        border-bottom: 1px solid var(--fsn-color-border-default, #334155);",
+                style: "padding: 10px 16px; border-bottom: 1px solid var(--fsn-border); \
+                        flex-shrink: 0; background: var(--fsn-bg-surface);",
                 h2 {
-                    style: "margin: 0 0 12px; font-size: 20px; \
-                            color: var(--fsn-color-text-primary, #e2e8f0);",
+                    style: "margin: 0; font-size: 16px; font-weight: 600; color: var(--fsn-text-primary);",
                     "Help & Documentation"
-                }
-                div { style: "display: flex; gap: 2px;",
-                    HelpTabBtn {
-                        label: "Topics",
-                        active: *active_tab.read() == HelpTab::Topics,
-                        on_click: move |_| *active_tab.write() = HelpTab::Topics,
-                    }
-                    HelpTabBtn {
-                        label: "Shortcuts",
-                        active: *active_tab.read() == HelpTab::Shortcuts,
-                        on_click: move |_| *active_tab.write() = HelpTab::Shortcuts,
-                    }
                 }
             }
 
-            div { style: "flex: 1; overflow: hidden;",
-                match *active_tab.read() {
-                    HelpTab::Topics    => rsx! { TopicsView {} },
-                    HelpTab::Shortcuts => rsx! { ShortcutsReference {} },
+            // Sidebar + Content row
+            div {
+                style: "display: flex; flex: 1; overflow: hidden;",
+
+                FsnSidebar {
+                    items: sidebar_items,
+                    active_id: active.read().id().to_string(),
+                    on_select: move |id: String| {
+                        if let Some(section) = HelpSection::from_id(&id) {
+                            active.set(section);
+                        }
+                    },
+                }
+
+                div { style: "flex: 1; overflow: hidden;",
+                    match *active.read() {
+                        HelpSection::Topics    => rsx! { TopicsView {} },
+                        HelpSection::Shortcuts => rsx! { ShortcutsReference {} },
+                    }
                 }
             }
         }
-    }
-}
-
-#[component]
-fn HelpTabBtn(label: &'static str, active: bool, on_click: EventHandler<MouseEvent>) -> Element {
-    let style = if active {
-        "padding: 6px 14px; border: none; border-bottom: 2px solid var(--fsn-primary); \
-         background: none; cursor: pointer; font-size: 13px; font-weight: 600; \
-         color: var(--fsn-primary);"
-    } else {
-        "padding: 6px 14px; border: none; border-bottom: 2px solid transparent; \
-         background: none; cursor: pointer; font-size: 13px; \
-         color: var(--fsn-text-muted);"
-    };
-    rsx! {
-        button { style: "{style}", onclick: on_click, "{label}" }
     }
 }
 

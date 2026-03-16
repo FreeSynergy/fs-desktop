@@ -1,5 +1,5 @@
-/// Desktop — root layout: header + content area with auto-hide overlay sidebar.
-use std::time::Duration;
+/// Desktop — root layout: header + sidebar + content area.
+use std::collections::HashMap;
 use dioxus::prelude::*;
 
 use fsd_bots::BotManagerApp;
@@ -12,6 +12,7 @@ use fsd_tasks::TasksApp;
 
 use crate::ai_view::AiApp;
 use crate::app_shell::{AppMode, AppShell, GLOBAL_CSS, LayoutA, LayoutC};
+use fsn_components::FSN_SIDEBAR_CSS;
 use crate::context_menu::{ContextMenu, ContextMenuItem, ContextMenuState};
 use crate::help_view::HelpApp;
 use crate::header::{Breadcrumb, ShellHeader};
@@ -47,9 +48,8 @@ pub fn Desktop() -> Element {
     let mut next_widget_id  = use_signal(|| 100u32);
     let mut picker_open     = use_signal(|| false);
 
-    // Sidebar auto-hide: visible = shown (translateX(0)), hidden = off-screen (translateX(-240px))
-    let mut sidebar_visible  = use_signal(|| true);
-    let mut sidebar_hide_gen = use_signal(|| 0u32);
+    // Persistent icon positions: window_id → (pos_x, pos_y)
+    let mut icon_positions: Signal<HashMap<u64, (f64, f64)>> = use_signal(HashMap::new);
 
     let bg = wallpaper_bg.read().clone();
 
@@ -73,28 +73,6 @@ pub fn Desktop() -> Element {
             "open-bots"           => open_app(&mut wm, &mut apps, "bots"),
             _ => {}
         }
-    };
-
-    // ── Sidebar auto-hide logic ────────────────────────────────────────────
-    let on_sidebar_enter = move |_: MouseEvent| {
-        let gen = *sidebar_hide_gen.read() + 1;
-        *sidebar_hide_gen.write() = gen;
-        *sidebar_visible.write() = true;
-    };
-    let on_sidebar_leave = move |_: MouseEvent| {
-        let gen = *sidebar_hide_gen.read() + 1;
-        *sidebar_hide_gen.write() = gen;
-        spawn(async move {
-            tokio::time::sleep(Duration::from_secs(2)).await;
-            if *sidebar_hide_gen.read() == gen {
-                *sidebar_visible.write() = false;
-            }
-        });
-    };
-    let on_edge_enter = move |_: MouseEvent| {
-        let gen = *sidebar_hide_gen.read() + 1;
-        *sidebar_hide_gen.write() = gen;
-        *sidebar_visible.write() = true;
     };
 
     // ── Sidebar app select ─────────────────────────────────────────────────
@@ -156,8 +134,6 @@ pub fn Desktop() -> Element {
     let launcher_state = launcher.read().clone();
     let notif_items    = notifs.read().items().to_vec();
     let app_list       = apps.read().clone();
-    let visible        = *sidebar_visible.read();
-    let sidebar_transform = if visible { "translateX(0)" } else { "translateX(-240px)" };
     let in_edit_mode   = *edit_mode.read();
     let is_picker_open = *picker_open.read();
 
@@ -180,6 +156,7 @@ pub fn Desktop() -> Element {
     rsx! {
         style { "{GLOBAL_CSS}" }
         style { "{FSNOBJ_CSS}" }
+        style { "{FSN_SIDEBAR_CSS}" }
         style { "{dynamic_css}" }
 
         div {
@@ -204,237 +181,236 @@ pub fn Desktop() -> Element {
                 }
             }
 
-            // ── Content area (home layer + window area + sidebar) ───────────
+            // ── Content area: sidebar (flow) + desktop area ────────────────
             div {
-                style: "flex: 1; position: relative; overflow: hidden;",
-                oncontextmenu: move |e: MouseEvent| {
-                    e.prevent_default();
-                    let coords = e.client_coordinates();
-                    ctx_menu.set(ContextMenuState::open_at(
-                        coords.x,
-                        coords.y,
-                        vec![
-                            ContextMenuItem::new("edit-desktop", "Edit Desktop").with_icon("✏"),
-                            ContextMenuItem::new("add-widget",   "Add Widget").with_icon("＋"),
-                            ContextMenuItem::new("settings",     "Settings").with_icon("⚙"),
-                        ],
-                    ));
-                },
+                style: "flex: 1; display: flex; flex-direction: row; overflow: hidden;",
 
-                // ── Home layer — widgets sit on the desktop background ──────
+                // ── Shell sidebar (flow, always visible, hover-expand) ──────
+                ShellSidebar {
+                    sections: sidebar_sections.read().clone(),
+                    active_id: active_app_id,
+                    on_select: on_sidebar_select,
+                }
+
+                // ── Desktop area (home layer + window area) ─────────────────
                 div {
-                    id: "fsd-home-layer",
-                    style: "position: absolute; inset: 0; overflow: hidden; pointer-events: none;",
-
-                    for slot in widget_layout.read().clone().into_iter() {
-                        HomeWidgetCard {
-                            key: "{slot.id}",
-                            slot: slot.clone(),
-                            edit_mode: in_edit_mode,
-                            on_remove: move |id: u32| {
-                                widget_layout.write().retain(|s| s.id != id);
-                            },
-                            on_update: move |updated: WidgetSlot| {
-                                if let Some(s) = widget_layout.write().iter_mut().find(|s| s.id == updated.id) {
-                                    *s = updated;
-                                }
-                            },
-                        }
-                    }
-                }
-
-                // ── Window area (full size — sidebar overlays on top) ───────
-                div {
-                    id: "fsd-window-area",
-                    style: "position: absolute; inset: 0; overflow: hidden;",
-
-                    // Render visible (non-minimized) windows
-                    for window in wm.read().windows().iter().filter(|w| !w.minimized).cloned().collect::<Vec<_>>() {
-                        WindowFrame {
-                            key: "{window.id.0}",
-                            window: window.clone(),
-                            on_close: on_close_window,
-                            on_focus: on_focus_window,
-                            on_minimize: on_minimize_window,
-                            on_maximize: on_maximize_window,
-                            AppWindowContent { title_key: window.title_key.clone() }
-                        }
-                    }
-
-                    // Render minimized windows as icons on the desktop
-                    for (i, window) in wm.read().windows().iter().filter(|w| w.minimized).cloned().collect::<Vec<_>>().iter().enumerate() {
-                        MinimizedWindowIcon {
-                            key: "min-{window.id.0}",
-                            window: window.clone(),
-                            pos_x: 20.0 + (i as f64) * 90.0,
-                            pos_y: 20.0,
-                            on_restore: on_focus_window,
-                        }
-                    }
-                }
-
-                // ── Sidebar — absolute overlay with auto-hide animation ──────
-                div {
-                    style: "position: absolute; top: 0; left: 0; height: 100%; z-index: 50; \
-                            width: 240px; \
-                            transform: {sidebar_transform}; \
-                            transition: transform 300ms ease;",
-                    onmouseenter: on_sidebar_enter,
-                    onmouseleave: on_sidebar_leave,
-                    ShellSidebar {
-                        sections: sidebar_sections.read().clone(),
-                        active_id: active_app_id,
-                        on_select: on_sidebar_select,
-                    }
-                }
-
-                // Edge trigger strip — shows sidebar when mouse approaches the left edge
-                if !visible {
-                    div {
-                        style: "position: absolute; top: 0; left: 0; width: 8px; height: 100%; \
-                                z-index: 49; cursor: default;",
-                        onmouseenter: on_edge_enter,
-                    }
-                }
-
-                // App Launcher overlay
-                if launcher_state.open {
-                    AppLauncher {
-                        apps: app_list,
-                        query: launcher_state.query.clone(),
-                        on_query_change: on_launcher_query,
-                        on_launch: on_launcher_launch,
-                        on_close: on_launcher_close,
-                    }
-                }
-
-                // Notification stack
-                NotificationStack {
-                    notifications: notif_items,
-                    on_dismiss: on_dismiss_notif,
-                }
-
-                // Context menu
-                ContextMenu {
-                    state: ctx_menu.read().clone(),
-                    on_action: move |id: String| {
-                        match id.as_str() {
-                            "edit-desktop" => edit_mode.set(true),
-                            "settings"     => open_app(&mut wm, &mut apps, "settings"),
-                            _ => {}
-                        }
-                        ctx_menu.set(ContextMenuState::default());
+                    style: "flex: 1; position: relative; overflow: hidden;",
+                    oncontextmenu: move |e: MouseEvent| {
+                        e.prevent_default();
+                        let coords = e.client_coordinates();
+                        ctx_menu.set(ContextMenuState::open_at(
+                            coords.x,
+                            coords.y,
+                            vec![
+                                ContextMenuItem::new("edit-desktop", "Edit Desktop").with_icon("✏"),
+                                ContextMenuItem::new("add-widget",   "Add Widget").with_icon("＋"),
+                                ContextMenuItem::new("settings",     "Settings").with_icon("⚙"),
+                            ],
+                        ));
                     },
-                    on_close: move |_| ctx_menu.set(ContextMenuState::default()),
-                }
 
-                // ── Edit Desktop button (bottom-right, outside edit mode) ────
-                if !in_edit_mode {
+                    // ── Home layer — widgets sit on the desktop background ──
                     div {
-                        style: "position: absolute; bottom: 16px; right: 16px; z-index: 60;",
-                        button {
-                            onclick: on_edit_desktop,
-                            style: "background: var(--fsn-color-bg-surface); \
-                                    border: 1px solid var(--fsn-color-border-default); \
-                                    border-radius: 8px; \
-                                    padding: 6px 14px; \
-                                    font-size: 12px; font-family: inherit; \
-                                    color: var(--fsn-color-text-muted); \
-                                    cursor: pointer; opacity: 0.75; \
-                                    transition: opacity 150ms;",
-                            "✏ Edit Desktop"
+                        id: "fsd-home-layer",
+                        style: "position: absolute; inset: 0; overflow: hidden; pointer-events: none;",
+
+                        for slot in widget_layout.read().clone().into_iter() {
+                            HomeWidgetCard {
+                                key: "{slot.id}",
+                                slot: slot.clone(),
+                                edit_mode: in_edit_mode,
+                                on_remove: move |id: u32| {
+                                    widget_layout.write().retain(|s| s.id != id);
+                                },
+                                on_update: move |updated: WidgetSlot| {
+                                    if let Some(s) = widget_layout.write().iter_mut().find(|s| s.id == updated.id) {
+                                        *s = updated;
+                                    }
+                                },
+                            }
                         }
                     }
-                }
 
-                // ── Edit Mode toolbar (bottom bar) ───────────────────────────
-                if in_edit_mode {
+                    // ── Window area — pointer-events: none so widgets are reachable
                     div {
-                        id: "fsd-edit-toolbar",
-                        style: "position: absolute; bottom: 0; left: 0; right: 0; z-index: 60; \
-                                background: var(--fsn-color-bg-surface); \
-                                border-top: 1px solid var(--fsn-color-border-default); \
-                                padding: 10px 20px; \
-                                display: flex; align-items: center; gap: 10px;",
+                        id: "fsd-window-area",
+                        style: "position: absolute; inset: 0; overflow: hidden; pointer-events: none;",
 
-                        // "+ Add Widget" with picker panel
-                        div { style: "position: relative;",
-                            button {
-                                onclick: on_toggle_picker,
-                                style: "background: var(--fsn-color-primary, #06b6d4); \
-                                        color: #fff; \
-                                        border: none; border-radius: 6px; \
-                                        padding: 7px 14px; \
-                                        font-size: 13px; font-family: inherit; \
-                                        cursor: pointer;",
-                                if is_picker_open { "▲ Add Widget" } else { "▼ Add Widget" }
+                        // Render visible (non-minimized) windows
+                        for window in wm.read().windows().iter().filter(|w| !w.minimized).cloned().collect::<Vec<_>>() {
+                            WindowFrame {
+                                key: "{window.id.0}",
+                                window: window.clone(),
+                                on_close: on_close_window,
+                                on_focus: on_focus_window,
+                                on_minimize: on_minimize_window,
+                                on_maximize: on_maximize_window,
+                                AppWindowContent { title_key: window.title_key.clone() }
                             }
+                        }
 
-                            // Widget picker panel (floats above toolbar)
-                            if is_picker_open {
-                                div {
-                                    id: "fsd-widget-picker",
-                                    style: "position: absolute; bottom: calc(100% + 8px); left: 0; \
-                                            background: var(--fsn-color-bg-surface); \
-                                            border: 1px solid var(--fsn-color-border-default); \
-                                            border-radius: 10px; \
-                                            padding: 6px 0; \
-                                            min-width: 220px; \
-                                            max-height: 320px; \
-                                            overflow-y: auto; \
-                                            z-index: 70; \
-                                            box-shadow: 0 8px 24px rgba(0,0,0,0.4);",
-
-                                    for kind in WidgetKind::all() {
-                                        WidgetPickerRow {
-                                            kind: kind.clone(),
-                                            on_add: move |k: WidgetKind| {
-                                                let id = *next_widget_id.read();
-                                                next_widget_id.set(id + 1);
-                                                let (w, h) = k.default_size();
-                                                let count = widget_layout.read().len();
-                                                let x = 24.0 + (count as f64 % 3.0) * (w + 16.0);
-                                                let y = 24.0 + (count as f64 / 3.0).floor() * (h + 16.0);
-                                                widget_layout.write().push(WidgetSlot { id, kind: k, x, y, w, h });
-                                                picker_open.set(false);
-                                            },
-                                        }
+                        // Render minimized windows as icons on the desktop
+                        for (i, window) in wm.read().windows().iter().filter(|w| w.minimized).cloned().collect::<Vec<_>>().iter().enumerate() {
+                            {
+                                let win_id_u64 = window.id.0;
+                                let positions = icon_positions.read();
+                                let (px, py) = positions.get(&win_id_u64).copied()
+                                    .unwrap_or_else(|| (20.0 + (i as f64) * 90.0, 600.0));
+                                rsx! {
+                                    MinimizedWindowIcon {
+                                        key: "min-{win_id_u64}",
+                                        window: window.clone(),
+                                        pos_x: px,
+                                        pos_y: py,
+                                        on_restore: on_focus_window,
+                                        on_move: move |(nx, ny): (f64, f64)| {
+                                            icon_positions.write().insert(win_id_u64, (nx, ny));
+                                        },
                                     }
                                 }
                             }
                         }
+                    }
 
-                        // "Clear All" button
-                        button {
-                            onclick: on_clear_all,
-                            style: "background: transparent; \
-                                    border: 1px solid var(--fsn-color-border-default); \
-                                    border-radius: 6px; \
-                                    padding: 7px 14px; \
-                                    font-size: 13px; font-family: inherit; \
-                                    color: var(--fsn-color-text-muted); \
-                                    cursor: pointer;",
-                            "Clear All"
-                        }
-
-                        // Spacer
-                        div { style: "flex: 1;" }
-
-                        // "Done" button
-                        button {
-                            onclick: on_done_editing,
-                            style: "background: var(--fsn-color-primary, #06b6d4); \
-                                    color: #fff; \
-                                    border: none; border-radius: 6px; \
-                                    padding: 7px 18px; \
-                                    font-size: 13px; font-family: inherit; \
-                                    font-weight: 600; \
-                                    cursor: pointer;",
-                            "✓ Done"
+                    // App Launcher overlay
+                        if launcher_state.open {
+                        AppLauncher {
+                            apps: app_list,
+                            query: launcher_state.query.clone(),
+                            on_query_change: on_launcher_query,
+                            on_launch: on_launcher_launch,
+                            on_close: on_launcher_close,
                         }
                     }
-                }
-            }
+
+                    // Notification stack
+                    NotificationStack {
+                        notifications: notif_items,
+                        on_dismiss: on_dismiss_notif,
+                    }
+
+                    // Context menu
+                    ContextMenu {
+                        state: ctx_menu.read().clone(),
+                        on_action: move |id: String| {
+                            match id.as_str() {
+                                "edit-desktop" => edit_mode.set(true),
+                                "settings"     => open_app(&mut wm, &mut apps, "settings"),
+                                _ => {}
+                            }
+                            ctx_menu.set(ContextMenuState::default());
+                        },
+                        on_close: move |_| ctx_menu.set(ContextMenuState::default()),
+                    }
+
+                    // ── Edit Desktop button (bottom-right, outside edit mode) ──
+                    if !in_edit_mode {
+                        div {
+                            style: "position: absolute; bottom: 16px; right: 16px; z-index: 60;",
+                            button {
+                                onclick: on_edit_desktop,
+                                style: "background: var(--fsn-color-bg-surface); \
+                                        border: 1px solid var(--fsn-color-border-default); \
+                                        border-radius: 8px; \
+                                        padding: 6px 14px; \
+                                        font-size: 12px; font-family: inherit; \
+                                        color: var(--fsn-color-text-muted); \
+                                        cursor: pointer; opacity: 0.75; \
+                                        transition: opacity 150ms;",
+                                "✏ Edit Desktop"
+                            }
+                        }
+                    }
+
+                    // ── Edit Mode toolbar (bottom bar) ─────────────────────────
+                    if in_edit_mode {
+                        div {
+                            id: "fsd-edit-toolbar",
+                            style: "position: absolute; bottom: 0; left: 0; right: 0; z-index: 60; \
+                                    background: var(--fsn-color-bg-surface); \
+                                    border-top: 1px solid var(--fsn-color-border-default); \
+                                    padding: 10px 20px; \
+                                    display: flex; align-items: center; gap: 10px;",
+
+                            // "+ Add Widget" with picker panel
+                            div { style: "position: relative;",
+                                button {
+                                    onclick: on_toggle_picker,
+                                    style: "background: var(--fsn-color-primary, #06b6d4); \
+                                            color: #fff; \
+                                            border: none; border-radius: 6px; \
+                                            padding: 7px 14px; \
+                                            font-size: 13px; font-family: inherit; \
+                                            cursor: pointer;",
+                                    if is_picker_open { "▲ Add Widget" } else { "▼ Add Widget" }
+                                }
+
+                                // Widget picker panel (floats above toolbar)
+                                if is_picker_open {
+                                    div {
+                                        id: "fsd-widget-picker",
+                                        style: "position: absolute; bottom: calc(100% + 8px); left: 0; \
+                                                background: var(--fsn-color-bg-surface); \
+                                                border: 1px solid var(--fsn-color-border-default); \
+                                                border-radius: 10px; \
+                                                padding: 6px 0; \
+                                                min-width: 220px; \
+                                                max-height: 320px; \
+                                                overflow-y: auto; \
+                                                z-index: 70; \
+                                                box-shadow: 0 8px 24px rgba(0,0,0,0.4);",
+
+                                        for kind in WidgetKind::all() {
+                                            WidgetPickerRow {
+                                                kind: kind.clone(),
+                                                on_add: move |k: WidgetKind| {
+                                                    let id = *next_widget_id.read();
+                                                    next_widget_id.set(id + 1);
+                                                    let (w, h) = k.default_size();
+                                                    let count = widget_layout.read().len();
+                                                    let x = 24.0 + (count as f64 % 3.0) * (w + 16.0);
+                                                    let y = 24.0 + (count as f64 / 3.0).floor() * (h + 16.0);
+                                                    widget_layout.write().push(WidgetSlot { id, kind: k, x, y, w, h });
+                                                    picker_open.set(false);
+                                                },
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // "Clear All" button
+                            button {
+                                onclick: on_clear_all,
+                                style: "background: transparent; \
+                                        border: 1px solid var(--fsn-color-border-default); \
+                                        border-radius: 6px; \
+                                        padding: 7px 14px; \
+                                        font-size: 13px; font-family: inherit; \
+                                        color: var(--fsn-color-text-muted); \
+                                        cursor: pointer;",
+                                "Clear All"
+                            }
+
+                            // Spacer
+                            div { style: "flex: 1;" }
+
+                            // "Done" button
+                            button {
+                                onclick: on_done_editing,
+                                style: "background: var(--fsn-color-primary, #06b6d4); \
+                                        color: #fff; \
+                                        border: none; border-radius: 6px; \
+                                        padding: 7px 18px; \
+                                        font-size: 13px; font-family: inherit; \
+                                        font-weight: 600; \
+                                        cursor: pointer;",
+                                "✓ Done"
+                            }
+                        }
+                    }
+                } // end desktop area
+            } // end flex row (sidebar + desktop)
         }
     }
 }
@@ -637,7 +613,10 @@ fn open_app(wm: &mut Signal<WindowManager>, apps: &mut Signal<Vec<AppEntry>>, ap
     }
 
     let title_key = format!("app-{}", app_id);
-    let window = Window::new(title_key);
+    let icon = apps.read().iter().find(|a| a.id == app_id)
+        .map(|a| a.icon.clone())
+        .unwrap_or_else(|| "🗗".to_string());
+    let window = Window::new(title_key).with_icon(icon);
     let win_id = window.id;
     wm.write().open(window);
 
