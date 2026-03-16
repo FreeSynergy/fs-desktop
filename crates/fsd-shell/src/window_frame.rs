@@ -172,6 +172,7 @@ fn WindowControls(
                 class: "fsd-window-btn",
                 title: "Minimize",
                 dangerous_inner_html: ICON_MINIMIZE,
+                onmousedown: move |evt: MouseEvent| evt.stop_propagation(),
                 onclick: move |evt| {
                     evt.stop_propagation();
                     on_minimize.call(evt);
@@ -183,6 +184,7 @@ fn WindowControls(
                 class: "fsd-window-btn",
                 title: "Maximize",
                 dangerous_inner_html: ICON_MAXIMIZE,
+                onmousedown: move |evt: MouseEvent| evt.stop_propagation(),
                 onclick: move |evt| {
                     evt.stop_propagation();
                     on_maximize.call(evt);
@@ -195,7 +197,11 @@ fn WindowControls(
                     class: "fsd-window-btn fsd-window-btn--close",
                     title: "Close",
                     dangerous_inner_html: ICON_CLOSE,
-                    onclick: on_close,
+                    onmousedown: move |evt: MouseEvent| evt.stop_propagation(),
+                    onclick: move |evt| {
+                        evt.stop_propagation();
+                        on_close.call(evt);
+                    },
                 }
             }
         }
