@@ -28,7 +28,7 @@ use crate::window_frame::WindowFrame;
 #[component]
 pub fn Desktop() -> Element {
     // Wallpaper CSS is provided as context so child apps (e.g. AppearanceSettings) can update it.
-    let mut wallpaper_bg: Signal<String> = use_context_provider(|| Signal::new(Wallpaper::default().to_css_background()));
+    let wallpaper_bg: Signal<String> = use_context_provider(|| Signal::new(Wallpaper::default().to_css_background()));
     let mut wm              = use_signal(WindowManager::default);
     let mut apps            = use_signal(default_apps);
     let mut launcher        = use_signal(LauncherState::default);
