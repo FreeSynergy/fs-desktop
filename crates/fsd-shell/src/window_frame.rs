@@ -342,7 +342,7 @@ pub fn WindowFrame(props: WindowFrameProps) -> Element {
         // ── Fullscreen overlay (drag + resize) ─────────────────────────────
         if has_overlay {
             div {
-                style: "position: fixed; inset: 0; z-index: 99999; cursor: {overlay_cursor};",
+                style: "position: fixed; inset: 0; z-index: 99999; pointer-events: all; cursor: {overlay_cursor};",
                 onmousemove: move |evt: MouseEvent| {
                     let c = evt.data().client_coordinates();
                     if *dragging.read() {
@@ -692,7 +692,7 @@ pub fn MinimizedWindowIcon(props: MinimizedWindowIconProps) -> Element {
         // On mouseup: measure how far the mouse moved. < 5px = click → restore.
         if is_dragging {
             div {
-                style: "position: fixed; inset: 0; z-index: 99999; cursor: grabbing;",
+                style: "position: fixed; inset: 0; z-index: 99999; pointer-events: all; cursor: grabbing;",
                 onmousemove: move |evt: MouseEvent| {
                     let c = evt.data().client_coordinates();
                     let (ox, oy) = *drag_off.read();

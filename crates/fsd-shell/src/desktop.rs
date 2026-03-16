@@ -136,6 +136,8 @@ pub fn Desktop() -> Element {
     let app_list       = apps.read().clone();
     let in_edit_mode   = *edit_mode.read();
     let is_picker_open = *picker_open.read();
+    // In edit mode the window area is hidden (visibility: hidden preserves component state).
+    let window_area_visibility = if in_edit_mode { "visibility: hidden;" } else { "" };
 
     let active_app_id = wm.read()
         .windows()
@@ -231,10 +233,11 @@ pub fn Desktop() -> Element {
                         }
                     }
 
-                    // ── Window area — pointer-events: none so widgets are reachable
+                    // ── Window area — pointer-events: none so widgets are reachable.
+                    // Hidden (visibility: hidden) in edit mode to let the user work on widgets only.
                     div {
                         id: "fsd-window-area",
-                        style: "position: absolute; inset: 0; overflow: hidden; pointer-events: none;",
+                        style: "position: absolute; inset: 0; overflow: hidden; pointer-events: none; {window_area_visibility}",
 
                         // Render visible (non-minimized) windows
                         for window in wm.read().windows().iter().filter(|w| !w.minimized).cloned().collect::<Vec<_>>() {
@@ -249,25 +252,21 @@ pub fn Desktop() -> Element {
                             }
                         }
 
-                        // Render minimized windows as icons on the desktop
-                        for (i, window) in wm.read().windows().iter().filter(|w| w.minimized).cloned().collect::<Vec<_>>().iter().enumerate() {
-                            {
-                                let win_id_u64 = window.id.0;
-                                let positions = icon_positions.read();
-                                let (px, py) = positions.get(&win_id_u64).copied()
-                                    .unwrap_or_else(|| (20.0 + (i as f64) * 90.0, 600.0));
-                                rsx! {
-                                    MinimizedWindowIcon {
-                                        key: "min-{win_id_u64}",
-                                        window: window.clone(),
-                                        pos_x: px,
-                                        pos_y: py,
-                                        on_restore: on_focus_window,
-                                        on_move: move |(nx, ny): (f64, f64)| {
-                                            icon_positions.write().insert(win_id_u64, (nx, ny));
-                                        },
+                        // Render minimized windows as desktop icons.
+                        // Key pattern "min-{id}" avoids collisions with visible-window keys.
+                        for window in wm.read().windows().iter().filter(|w| w.minimized).cloned().collect::<Vec<_>>() {
+                            MinimizedWindowIcon {
+                                key: "min-{window.id.0}",
+                                window: window.clone(),
+                                pos_x: icon_positions.read().get(&window.id.0).map(|p| p.0).unwrap_or(20.0),
+                                pos_y: icon_positions.read().get(&window.id.0).map(|p| p.1).unwrap_or(600.0),
+                                on_restore: on_focus_window,
+                                on_move: {
+                                    let wid = window.id.0;
+                                    move |(nx, ny): (f64, f64)| {
+                                        icon_positions.write().insert(wid, (nx, ny));
                                     }
-                                }
+                                },
                             }
                         }
                     }
@@ -528,7 +527,7 @@ fn HomeWidgetCard(
         if is_dragging {
             div {
                 style: "position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; \
-                        z-index: 9999; cursor: grabbing;",
+                        z-index: 9999; pointer-events: all; cursor: grabbing;",
                 onmousemove: move |e: MouseEvent| {
                     let coords = e.client_coordinates();
                     pos_x.set(coords.x - *drag_ox.read());
@@ -549,7 +548,7 @@ fn HomeWidgetCard(
         if is_resizing {
             div {
                 style: "position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; \
-                        z-index: 9999; cursor: nwse-resize;",
+                        z-index: 9999; pointer-events: all; cursor: nwse-resize;",
                 onmousemove: move |e: MouseEvent| {
                     let coords = e.client_coordinates();
                     let dx = coords.x - *resize_sx.read();
