@@ -163,22 +163,7 @@ pub fn Desktop() -> Element {
         .iter()
         .filter(|w| !w.minimized)
         .max_by_key(|w| w.z_index)
-        .map(|w| {
-            let label = w.title_key.trim_start_matches("app-");
-            let label = match label {
-                "tasks"     => "Tasks",
-                "bots"      => "Bots",
-                "conductor" => "Conductor",
-                "store"     => "Store",
-                "studio"    => "Studio",
-                "settings"  => "Settings",
-                "profile"   => "Profile",
-                "ai"        => "AI Assistant",
-                "help"      => "Help",
-                other       => other,
-            };
-            vec![Breadcrumb::new(label)]
-        })
+        .map(|w| vec![Breadcrumb::new(app_id_to_label(w.title_key.trim_start_matches("app-")))])
         .unwrap_or_else(|| vec![Breadcrumb::new("Desktop")]);
 
     rsx! {
@@ -575,5 +560,21 @@ fn AppWindowContent(title_key: String) -> Element {
                 "Unknown app: {title_key}"
             }
         },
+    }
+}
+
+/// Map an app id (the part after `"app-"`) to a human-readable breadcrumb label.
+fn app_id_to_label(id: &str) -> &str {
+    match id {
+        "tasks"     => "Tasks",
+        "bots"      => "Bots",
+        "conductor" => "Conductor",
+        "store"     => "Store",
+        "studio"    => "Studio",
+        "settings"  => "Settings",
+        "profile"   => "Profile",
+        "ai"        => "AI Assistant",
+        "help"      => "Help",
+        other       => other,
     }
 }
