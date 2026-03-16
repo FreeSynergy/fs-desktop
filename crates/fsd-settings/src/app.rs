@@ -1,6 +1,6 @@
 /// Settings — root component: all settings sections in one place.
 use dioxus::prelude::*;
-use fsn_components::SidebarNavBtn;
+use fsn_components::{FsnSidebar, FsnSidebarItem, FSN_SIDEBAR_CSS};
 
 use crate::appearance::AppearanceSettings;
 use crate::language::LanguageSettings;
@@ -41,6 +41,19 @@ impl SettingsSection {
             Self::Shortcuts    => "⌨",
         }
     }
+
+    /// Look up a section by its label string.
+    pub fn from_label(label: &str) -> Option<Self> {
+        match label {
+            "Appearance"   => Some(Self::Appearance),
+            "Language"     => Some(Self::Language),
+            "Service Roles"=> Some(Self::ServiceRoles),
+            "Accounts"     => Some(Self::Accounts),
+            "Desktop"      => Some(Self::Desktop),
+            "Shortcuts"    => Some(Self::Shortcuts),
+            _              => None,
+        }
+    }
 }
 
 const ALL_SECTIONS: &[SettingsSection] = &[
@@ -57,29 +70,25 @@ const ALL_SECTIONS: &[SettingsSection] = &[
 pub fn SettingsApp() -> Element {
     let mut active = use_signal(|| SettingsSection::Appearance);
 
+    let sidebar_items: Vec<FsnSidebarItem> = ALL_SECTIONS.iter()
+        .map(|s| FsnSidebarItem::new(s.label(), s.icon(), s.label()))
+        .collect();
+
     rsx! {
+        style { "{FSN_SIDEBAR_CSS}" }
         div {
             class: "fsd-settings",
             style: "display: flex; height: 100%; background: var(--fsn-color-bg-base);",
 
-            // Sidebar navigation
-            div {
-                style: "width: 220px; background: var(--fsn-color-bg-surface); border-right: 1px solid var(--fsn-color-border-default); padding: 16px 8px;",
-
-                h2 { style: "margin: 0 0 16px 8px; font-size: 16px;", "Settings" }
-
-                for section in ALL_SECTIONS {
-                    SidebarNavBtn {
-                        key: "{section.label()}",
-                        label: section.label().to_string(),
-                        icon:  section.icon().to_string(),
-                        is_active: *active.read() == *section,
-                        on_click: {
-                            let s = (*section).clone();
-                            move |_| active.set(s.clone())
-                        }
+            // Collapsible sidebar navigation
+            FsnSidebar {
+                items:     sidebar_items,
+                active_id: active.read().label().to_string(),
+                on_select: move |id: String| {
+                    if let Some(section) = SettingsSection::from_label(&id) {
+                        active.set(section);
                     }
-                }
+                },
             }
 
             // Content
@@ -97,4 +106,3 @@ pub fn SettingsApp() -> Element {
         }
     }
 }
-

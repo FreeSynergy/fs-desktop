@@ -125,7 +125,10 @@ pub fn ShellHeader(
             style: "display: flex; align-items: center; height: 60px; padding: 0 8px 0 16px; gap: 8px; \
                     background: var(--fsn-bg-sidebar, #0a0f1a); \
                     border-bottom: 1px solid var(--fsn-border, rgba(148,170,200,0.18)); \
-                    z-index: 100; flex-shrink: 0;",
+                    z-index: 100; flex-shrink: 0; position: relative;",
+
+            // Drag handle + OS window controls (desktop only).
+            OsWindowDragHandle {}
 
             // Brand
             div {
@@ -168,8 +171,73 @@ pub fn ShellHeader(
 
             // User avatar menu
             AvatarMenu { user_name, user_avatar }
+
+            // OS window controls (maximize + close) — desktop only.
+            OsWindowControls {}
         }
     }
+}
+
+/// Invisible drag handle that covers the full header area.
+/// Sits at z-index: -1 so buttons above it still receive events.
+/// When `decorations = false`, this allows dragging the OS window by the header.
+#[cfg(feature = "desktop")]
+#[component]
+fn OsWindowDragHandle() -> Element {
+    rsx! {
+        div {
+            style: "position: absolute; inset: 0; z-index: -1;",
+            onmousedown: move |_| {
+                dioxus::desktop::window().drag();
+            },
+        }
+    }
+}
+
+/// Stub for non-desktop builds.
+#[cfg(not(feature = "desktop"))]
+#[component]
+fn OsWindowDragHandle() -> Element {
+    rsx! {}
+}
+
+/// OS-level window controls: maximize/restore + close.
+/// `minimize()` is not exposed in dioxus-desktop 0.6; toggle_maximized and close are available.
+#[cfg(feature = "desktop")]
+#[component]
+fn OsWindowControls() -> Element {
+    rsx! {
+        div {
+            style: "display: flex; align-items: center; gap: 2px; flex-shrink: 0; margin-left: 4px;",
+            // Maximize / Restore
+            button {
+                class: "fsd-window-btn",
+                title: "Maximize",
+                onmousedown: move |evt: MouseEvent| evt.stop_propagation(),
+                onclick: move |_| {
+                    dioxus::desktop::window().toggle_maximized();
+                },
+                dangerous_inner_html: r#"<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="6" height="6" rx="0.5"/></svg>"#,
+            }
+            // Close
+            button {
+                class: "fsd-window-btn fsd-window-btn--close",
+                title: "Close",
+                onmousedown: move |evt: MouseEvent| evt.stop_propagation(),
+                onclick: move |_| {
+                    dioxus::desktop::window().close();
+                },
+                dangerous_inner_html: r#"<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="8" y2="8"/><line x1="8" y1="2" x2="2" y2="8"/></svg>"#,
+            }
+        }
+    }
+}
+
+/// Stub for non-desktop builds.
+#[cfg(not(feature = "desktop"))]
+#[component]
+fn OsWindowControls() -> Element {
+    rsx! {}
 }
 
 // ── Menu Bar ──────────────────────────────────────────────────────────────────

@@ -140,11 +140,15 @@ pub fn WindowFrame(props: WindowFrameProps) -> Element {
 
     // ── Position + size (in pixels) ───────────────────────────────────────────
     let init_pos = (100.0 + (id.0 % 8) as f64 * 40.0, 60.0 + (id.0 % 6) as f64 * 40.0);
-    let init_dim = win.size.initial_dimensions();
+    let _init_dim = win.size.initial_dimensions();
 
     let mut pos:  Signal<(f64, f64)> = use_signal(|| init_pos);
     let mut dim:  Signal<(f64, f64)> = use_signal(|| {
-        if matches!(win.size, WindowSize::Fullscreen) { (0.0, 0.0) } else { init_dim }
+        match &win.size {
+            WindowSize::Fixed { width, height }             => (*width, *height),
+            WindowSize::Responsive { min_width, max_width } => ((min_width + max_width) / 2.0, 600.0),
+            WindowSize::Fullscreen                          => (0.0, 0.0),
+        }
     });
 
     // ── Drag state ────────────────────────────────────────────────────────────
@@ -158,7 +162,7 @@ pub fn WindowFrame(props: WindowFrameProps) -> Element {
     let mut close_requested: Signal<bool> = use_signal(|| false);
 
     let (px, py)   = *pos.read();
-    let (_pw, _ph) = *dim.read();
+    let (pw, ph)   = *dim.read();
     let is_dragging = *dragging.read();
     let is_resizing = resize.read().dir.is_some();
     let has_overlay = is_dragging || is_resizing;
@@ -174,16 +178,16 @@ pub fn WindowFrame(props: WindowFrameProps) -> Element {
          box-shadow: var(--fsn-window-shadow); \
          z-index: 9999; overflow: hidden;".to_string()
     } else {
+        // Bug A fix: use `dim` signal (which tracks resize) instead of win.size spec.
+        // Bug B fix: add max-height so window cannot overflow the viewport.
         let (w_style, h_style) = match &win.size {
-            WindowSize::Fixed { width, height } => (format!("{width}px"), format!("{height}px")),
-            WindowSize::Responsive { min_width, max_width } => (
-                format!("clamp({min_width}px, 60vw, {max_width}px)"),
-                "auto".into(),
-            ),
-            WindowSize::Fullscreen => ("100%".into(), "100%".into()),
+            WindowSize::Fullscreen => ("100%".to_string(), "100%".to_string()),
+            _                      => (format!("{pw}px"), format!("{ph}px")),
         };
         format!(
-            "position: absolute; left: {px}px; top: {py}px; width: {w_style}; min-height: {h_style}; \
+            "position: absolute; left: {px}px; top: {py}px; \
+             width: {w_style}; height: {h_style}; \
+             max-height: calc(100vh - 60px); \
              display: flex; flex-direction: column; \
              background: var(--fsn-window-bg); \
              backdrop-filter: blur(16px) saturate(180%); -webkit-backdrop-filter: blur(16px) saturate(180%); \
@@ -641,12 +645,16 @@ pub struct MinimizedWindowIconProps {
 }
 
 /// Renders a minimized window as a draggable icon with pulsing green dot.
+///
+/// Bug C fix: restore-on-click now works even though the overlay intercepts mouseup.
+/// We track drag_start and measure movement — if < 5px, treat as a click (restore).
 #[component]
 pub fn MinimizedWindowIcon(props: MinimizedWindowIconProps) -> Element {
     let id  = props.window.id;
-    let mut icon_pos: Signal<(f64, f64)> = use_signal(|| (props.pos_x, props.pos_y));
-    let mut dragging:  Signal<bool>       = use_signal(|| false);
-    let mut drag_off:  Signal<(f64, f64)> = use_signal(|| (0.0, 0.0));
+    let mut icon_pos:   Signal<(f64, f64)> = use_signal(|| (props.pos_x, props.pos_y));
+    let mut dragging:   Signal<bool>       = use_signal(|| false);
+    let mut drag_off:   Signal<(f64, f64)> = use_signal(|| (0.0, 0.0));
+    let mut drag_start: Signal<(f64, f64)> = use_signal(|| (0.0, 0.0));
 
     let (ix, iy) = *icon_pos.read();
     let is_dragging = *dragging.read();
@@ -662,12 +670,8 @@ pub fn MinimizedWindowIcon(props: MinimizedWindowIconProps) -> Element {
                 let c = evt.data().client_coordinates();
                 let (cx, cy) = *icon_pos.read();
                 drag_off.set((c.x - cx, c.y - cy));
+                drag_start.set((c.x, c.y));
                 dragging.set(true);
-            },
-            onclick: move |_| {
-                if !*dragging.read() {
-                    props.on_restore.call(id);
-                }
             },
 
             div {
@@ -681,6 +685,8 @@ pub fn MinimizedWindowIcon(props: MinimizedWindowIconProps) -> Element {
             }
         }
 
+        // Overlay is shown as soon as mousedown fires (dragging = true).
+        // On mouseup: measure how far the mouse moved. < 5px = click → restore.
         if is_dragging {
             div {
                 style: "position: fixed; inset: 0; z-index: 99999; cursor: grabbing;",
@@ -689,7 +695,15 @@ pub fn MinimizedWindowIcon(props: MinimizedWindowIconProps) -> Element {
                     let (ox, oy) = *drag_off.read();
                     icon_pos.set((c.x - ox, c.y - oy));
                 },
-                onmouseup: move |_| { dragging.set(false); },
+                onmouseup: move |evt: MouseEvent| {
+                    dragging.set(false);
+                    let c = evt.data().client_coordinates();
+                    let (sx, sy) = *drag_start.read();
+                    let moved = ((c.x - sx).powi(2) + (c.y - sy).powi(2)).sqrt();
+                    if moved < 5.0 {
+                        props.on_restore.call(id);
+                    }
+                },
             }
         }
     }

@@ -1,6 +1,6 @@
 /// Conductor — main app component for container/service/bot management.
 use dioxus::prelude::*;
-use fsn_components::SidebarNavBtn;
+use fsn_components::{FsnSidebar, FsnSidebarItem, FSN_SIDEBAR_CSS};
 
 use crate::bot_management::BotManagement;
 use crate::dep_graph::DependencyGraph;
@@ -38,6 +38,18 @@ impl ConductorSection {
             Self::Graph     => "🔗",
         }
     }
+
+    /// Look up a section by its label string.
+    pub fn from_label(label: &str) -> Option<Self> {
+        match label {
+            "Services"          => Some(Self::Services),
+            "Bots"              => Some(Self::Bots),
+            "Resources"         => Some(Self::Resources),
+            "Logs"              => Some(Self::Logs),
+            "Dependency Graph"  => Some(Self::Graph),
+            _                   => None,
+        }
+    }
 }
 
 const ALL_SECTIONS: &[ConductorSection] = &[
@@ -54,39 +66,26 @@ pub fn ConductorApp() -> Element {
     let mut active = use_signal(|| ConductorSection::Services);
     let selected_service: Signal<Option<String>> = use_signal(|| None);
 
+    let sidebar_items: Vec<FsnSidebarItem> = ALL_SECTIONS.iter()
+        .map(|s| FsnSidebarItem::new(s.label(), s.icon(), s.label()))
+        .collect();
+
     rsx! {
+        style { "{FSN_SIDEBAR_CSS}" }
         div {
             class: "fsd-conductor",
             style: "display: flex; height: 100%; width: 100%; overflow: hidden; \
                     background: var(--fsn-color-bg-base);",
 
-            // ── Left nav sidebar (master) ─────────────────────────────────────
-            nav {
-                style: "width: 200px; flex-shrink: 0; overflow-y: auto; \
-                        background: var(--fsn-color-bg-surface, #0f172a); \
-                        border-right: 1px solid var(--fsn-color-border-default, #334155); \
-                        padding: 12px 8px;",
-
-                div {
-                    style: "margin: 0 0 12px 8px; font-size: 11px; font-weight: 600; \
-                            text-transform: uppercase; letter-spacing: 0.08em; \
-                            color: var(--fsn-color-text-muted, #64748b);",
-                    "Conductor"
-                }
-
-                for section in ALL_SECTIONS {
-                    SidebarNavBtn {
-                        key: "{section.label()}",
-                        label: section.label().to_string(),
-                        icon:  section.icon().to_string(),
-                        is_active: *active.read() == *section,
-                        left_border: true,
-                        on_click: {
-                            let s = (*section).clone();
-                            move |_| active.set(s.clone())
-                        }
+            // ── Left nav sidebar (collapsible) ────────────────────────────────
+            FsnSidebar {
+                items:     sidebar_items,
+                active_id: active.read().label().to_string(),
+                on_select: move |id: String| {
+                    if let Some(section) = ConductorSection::from_label(&id) {
+                        active.set(section);
                     }
-                }
+                },
             }
 
             // ── Detail area ───────────────────────────────────────────────────
@@ -109,4 +108,3 @@ pub fn ConductorApp() -> Element {
         }
     }
 }
-

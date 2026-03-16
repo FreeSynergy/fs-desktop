@@ -1,6 +1,6 @@
-/// Store — root component with package-type tabs.
+/// Store — root component with package-type sidebar navigation.
 use dioxus::prelude::*;
-use fsn_components::TabBtn;
+use fsn_components::{FsnSidebar, FsnSidebarItem, FSN_SIDEBAR_CSS};
 use fsn_store::StoreClient;
 
 use crate::browser::PackageBrowser;
@@ -52,9 +52,46 @@ impl StoreTab {
             Self::Updates   => "Updates",
         }
     }
+
+    /// Icon for this tab.
+    pub fn icon(&self) -> &'static str {
+        match self {
+            Self::All       => "📦",
+            Self::Plugins   => "🔌",
+            Self::Languages => "🌐",
+            Self::Themes    => "🎨",
+            Self::Widgets   => "🧩",
+            Self::Bots      => "🤖",
+            Self::Bridges   => "🔗",
+            Self::Tasks     => "📋",
+            Self::Installed => "✓",
+            Self::Updates   => "↑",
+        }
+    }
+
+    /// Stable string ID (same as label).
+    pub fn id(&self) -> &'static str {
+        self.label()
+    }
+
+    /// Look up a tab by its ID string.
+    pub fn from_id(id: &str) -> Self {
+        match id {
+            "Plugins"   => Self::Plugins,
+            "Languages" => Self::Languages,
+            "Themes"    => Self::Themes,
+            "Widgets"   => Self::Widgets,
+            "Bots"      => Self::Bots,
+            "Bridges"   => Self::Bridges,
+            "Tasks"     => Self::Tasks,
+            "Installed" => Self::Installed,
+            "Updates"   => Self::Updates,
+            _           => Self::All,
+        }
+    }
 }
 
-const BROWSE_TABS: &[StoreTab] = &[
+const ALL_TABS: &[StoreTab] = &[
     StoreTab::All,
     StoreTab::Plugins,
     StoreTab::Languages,
@@ -63,6 +100,8 @@ const BROWSE_TABS: &[StoreTab] = &[
     StoreTab::Bots,
     StoreTab::Bridges,
     StoreTab::Tasks,
+    StoreTab::Installed,
+    StoreTab::Updates,
 ];
 
 /// Root Store component.
@@ -104,75 +143,65 @@ pub fn StoreApp() -> Element {
     let tab = active_tab.read().clone();
     let kind_filter = tab.kind_filter();
 
+    let sidebar_items: Vec<FsnSidebarItem> = ALL_TABS.iter()
+        .map(|t| FsnSidebarItem::new(t.id(), t.icon(), t.label()))
+        .collect();
+
     rsx! {
+        style { "{FSN_SIDEBAR_CSS}" }
         div {
             class: "fsd-store",
-            style: "display: flex; flex-direction: column; height: 100%; background: var(--fsn-color-bg-base);",
+            style: "display: flex; flex-direction: row; height: 100%; background: var(--fsn-color-bg-base);",
 
-            // Header
-            div {
-                style: "padding: 16px; background: var(--fsn-color-bg-surface); border-bottom: 1px solid var(--fsn-color-border-default);",
-                h2 { style: "margin: 0 0 12px 0; font-size: 20px;", "Store" }
-                input {
-                    r#type: "search",
-                    placeholder: "Search packages…",
-                    style: "width: 100%; padding: 8px 12px; border: 1px solid var(--fsn-color-border-default); \
-                            border-radius: var(--fsn-radius-md); font-size: 14px; \
-                            background: var(--fsn-bg-input); color: var(--fsn-text-primary);",
-                    oninput: move |e| *search.write() = e.value(),
-                }
+            // Left sidebar navigation
+            FsnSidebar {
+                items:     sidebar_items,
+                active_id: active_tab.read().id().to_string(),
+                on_select: move |id: String| active_tab.set(StoreTab::from_id(&id)),
             }
 
-            // Tab bar (scrollable for small windows)
+            // Right content area
             div {
-                style: "display: flex; overflow-x: auto; border-bottom: 1px solid var(--fsn-color-border-default); \
-                        scrollbar-width: none;",
-                for store_tab in BROWSE_TABS {
-                    TabBtn {
-                        key: "{store_tab.label()}",
-                        label: store_tab.label(),
-                        is_active: *active_tab.read() == *store_tab,
-                        on_click: {
-                            let t = (*store_tab).clone();
-                            move |_| active_tab.set(t.clone())
-                        }
+                style: "flex: 1; display: flex; flex-direction: column; overflow: hidden;",
+
+                // Search header
+                div {
+                    style: "padding: 16px; background: var(--fsn-color-bg-surface); \
+                            border-bottom: 1px solid var(--fsn-color-border-default);",
+                    h2 { style: "margin: 0 0 12px 0; font-size: 20px;", "Store" }
+                    input {
+                        r#type: "search",
+                        placeholder: "Search packages…",
+                        style: "width: 100%; padding: 8px 12px; \
+                                border: 1px solid var(--fsn-color-border-default); \
+                                border-radius: var(--fsn-radius-md); font-size: 14px; \
+                                background: var(--fsn-bg-input); color: var(--fsn-text-primary);",
+                        oninput: move |e| *search.write() = e.value(),
                     }
                 }
-                // Separator
-                div { style: "width: 1px; height: 24px; margin: auto 4px; background: var(--fsn-border);" }
-                TabBtn {
-                    label: "Installed",
-                    is_active: *active_tab.read() == StoreTab::Installed,
-                    on_click: move |_| active_tab.set(StoreTab::Installed)
-                }
-                TabBtn {
-                    label: "Updates",
-                    is_active: *active_tab.read() == StoreTab::Updates,
-                    on_click: move |_| active_tab.set(StoreTab::Updates)
-                }
-            }
 
-            // Content
-            div {
-                style: "flex: 1; overflow: auto; padding: 16px;",
-                match *active_tab.read() {
-                    StoreTab::Installed => rsx! {
-                        InstalledList {
-                            catalog_versions: catalog_versions.read().clone(),
-                        }
-                    },
-                    StoreTab::Updates => rsx! {
-                        UpdatesList {
-                            catalog_versions: catalog_versions.read().clone(),
-                        }
-                    },
-                    _ => rsx! {
-                        PackageBrowser {
-                            search: search.read().clone(),
-                            kind: kind_filter,
-                            on_select: move |pkg| detail.set(Some(pkg)),
-                        }
-                    },
+                // Content
+                div {
+                    style: "flex: 1; overflow: auto; padding: 16px;",
+                    match *active_tab.read() {
+                        StoreTab::Installed => rsx! {
+                            InstalledList {
+                                catalog_versions: catalog_versions.read().clone(),
+                            }
+                        },
+                        StoreTab::Updates => rsx! {
+                            UpdatesList {
+                                catalog_versions: catalog_versions.read().clone(),
+                            }
+                        },
+                        _ => rsx! {
+                            PackageBrowser {
+                                search: search.read().clone(),
+                                kind: kind_filter,
+                                on_select: move |pkg| detail.set(Some(pkg)),
+                            }
+                        },
+                    }
                 }
             }
         }
