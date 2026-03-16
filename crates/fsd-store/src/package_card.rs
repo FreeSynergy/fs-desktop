@@ -2,6 +2,8 @@
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use crate::node_package::PackageKind;
+
 /// A package entry from the FSN store.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PackageEntry {
@@ -10,6 +12,7 @@ pub struct PackageEntry {
     pub description: String,
     pub version: String,
     pub category: String,
+    pub kind: PackageKind,
     pub icon: Option<String>,
     pub installed: bool,
     pub update_available: bool,

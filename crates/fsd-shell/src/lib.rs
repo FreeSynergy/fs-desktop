@@ -1,5 +1,6 @@
 pub mod ai_view;
 pub mod app_shell;
+pub mod widgets;
 pub mod desktop;
 pub mod header;
 pub mod help_view;
@@ -28,3 +29,4 @@ pub use taskbar::Taskbar;
 pub use web_desktop::{WebDesktop, WebTaskbarState};
 pub use window::{Window, WindowButton, WindowContent, WindowId, WindowManager, WindowSize};
 pub use window_frame::WindowFrame;
+pub use widgets::{ClockWidget, SystemInfoWidget};
