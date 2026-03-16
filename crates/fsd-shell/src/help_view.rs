@@ -96,7 +96,7 @@ pub fn HelpApp() -> Element {
 }
 
 #[component]
-fn HelpTopicCard(topic: &'static HelpTopic) -> Element {
+fn HelpTopicCard(topic: HelpTopic) -> Element {
     rsx! {
         div {
             class: "fsd-help-topic",

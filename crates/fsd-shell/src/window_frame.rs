@@ -165,7 +165,7 @@ fn WindowControls(
             // Minimize → hide to taskbar
             button {
                 style: "width: 12px; height: 12px; border-radius: 50%; \
-                        background: #f59e0b; border: none; cursor: pointer; padding: 0;",
+                        background: var(--fsn-warning); border: none; cursor: pointer; padding: 0;",
                 title: "Minimize",
                 onclick: move |evt| {
                     evt.stop_propagation();
@@ -176,7 +176,7 @@ fn WindowControls(
             // Maximize / restore
             button {
                 style: "width: 12px; height: 12px; border-radius: 50%; \
-                        background: #22c55e; border: none; cursor: pointer; padding: 0;",
+                        background: var(--fsn-success); border: none; cursor: pointer; padding: 0;",
                 title: "Maximize",
                 onclick: move |evt| {
                     evt.stop_propagation();
@@ -188,7 +188,7 @@ fn WindowControls(
             if closable {
                 button {
                     style: "width: 12px; height: 12px; border-radius: 50%; \
-                            background: #ef4444; border: none; cursor: pointer; padding: 0;",
+                            background: var(--fsn-error); border: none; cursor: pointer; padding: 0;",
                     title: "Close",
                     onclick: on_close,
                 }
@@ -205,7 +205,7 @@ fn WindowFooterButton(button: WindowButton, on_close: EventHandler<bool>) -> Ele
             button {
                 class: "fsd-btn fsd-btn--primary",
                 style: "padding: 6px 16px; border-radius: 4px; border: none; cursor: pointer; \
-                        background: var(--fsn-color-primary, #06b6d4); color: #fff; font-size: 13px;",
+                        background: var(--fsn-color-primary, #4d8bf5); color: #fff; font-size: 13px;",
                 onclick: move |_| on_close.call(true),
                 "OK"
             }

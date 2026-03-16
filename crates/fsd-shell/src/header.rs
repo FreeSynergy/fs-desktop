@@ -322,17 +322,19 @@ fn SubMenuRow(
                             border: 1px solid var(--fsn-border); border-radius: var(--fsn-radius-md); \
                             min-width: 160px; z-index: 600; padding: 4px 0; \
                             box-shadow: var(--fsn-shadow);",
-                    for sub in &items {
-                        let id_owned = sub.id.to_string();
+                    for sub in items.clone() {
                         button {
                             key: "{sub.id}",
                             style: "display: flex; align-items: center; width: 100%; \
                                     padding: 6px 16px; background: none; border: none; \
                                     cursor: pointer; font-size: 13px; text-align: left; \
                                     color: var(--fsn-text-primary);",
-                            onclick: move |_| {
-                                on_action.call(id_owned.clone());
-                                on_close.call(());
+                            onclick: {
+                                let id = sub.id.to_string();
+                                move |_| {
+                                    on_action.call(id.clone());
+                                    on_close.call(());
+                                }
                             },
                             "{sub.label}"
                         }

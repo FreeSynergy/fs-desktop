@@ -1,31 +1,49 @@
-/// Resource view — live CPU / RAM / PID stats for all running containers.
+/// Resource view — service status overview via SystemctlManager.
 ///
-/// Polls `PodmanClient::stats_all()` every 3 seconds and renders a table.
+/// CPU/RAM stats require the Podman socket (removed).
+/// Use `podman stats` or system monitoring tools for resource metrics.
 use dioxus::prelude::*;
-use fsn_container::{ContainerStats, PodmanClient};
+use fsn_container::{SystemctlManager, UnitActiveState};
+
+use crate::service_list::list_fsn_units;
+
+// ── ResourceEntry ─────────────────────────────────────────────────────────────
+
+#[derive(Clone, Debug, PartialEq)]
+struct ResourceEntry {
+    name:      String,
+    active:    UnitActiveState,
+    sub_state: String,
+}
 
 // ── ResourceView ──────────────────────────────────────────────────────────────
 
-/// Live resource usage table for all running containers.
+/// Service status table (replaces CPU/RAM stats — use system monitoring for metrics).
 #[component]
 pub fn ResourceView() -> Element {
-    let mut stats: Signal<Vec<ContainerStats>> = use_signal(Vec::new);
-    let mut error: Signal<Option<String>>      = use_signal(|| None);
+    let mut entries: Signal<Vec<ResourceEntry>> = use_signal(Vec::new);
+    let mut error: Signal<Option<String>>       = use_signal(|| None);
 
-    // Poll every 3 seconds
+    // Poll every 5 seconds
     use_future(move || async move {
+        let mgr = SystemctlManager::user();
         loop {
-            match PodmanClient::new() {
-                Ok(client) => match client.stats_all().await {
-                    Ok(s) => {
-                        stats.set(s);
-                        error.set(None);
-                    }
-                    Err(e) => error.set(Some(format!("Stats error: {e}"))),
-                },
-                Err(e) => error.set(Some(format!("Cannot connect to Podman: {e}"))),
+            let units = list_fsn_units().await;
+            if units.is_empty() {
+                error.set(Some("No FSN services found.".into()));
+            } else {
+                let mut rows = Vec::new();
+                for unit in &units {
+                    let (active, sub) = match mgr.service_status(unit).await {
+                        Ok(s)  => (s.active_state, s.sub_state),
+                        Err(_) => (UnitActiveState::Unknown, String::new()),
+                    };
+                    rows.push(ResourceEntry { name: unit.clone(), active, sub_state: sub });
+                }
+                entries.set(rows);
+                error.set(None);
             }
-            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
         }
     });
 
@@ -38,41 +56,41 @@ pub fn ResourceView() -> Element {
                 style: "display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;",
                 h2 { style: "margin: 0; font-size: 18px;", "Resources" }
                 span {
-                    style: "font-size: 12px; color: var(--fsn-color-text-muted);",
-                    "Refreshes every 3 s"
+                    style: "font-size: 12px; color: var(--fsn-text-muted);",
+                    "For CPU/RAM metrics use: "
+                    code { "podman stats" }
                 }
             }
 
-            // Error
+            // Error / empty state
             if let Some(err) = error.read().as_deref() {
                 div {
-                    style: "color: var(--fsn-color-error); background: rgba(239,68,68,0.1); border: 1px solid var(--fsn-color-error); border-radius: 6px; padding: 12px; margin-bottom: 16px; font-size: 13px;",
+                    style: "color: var(--fsn-warning); background: var(--fsn-warning-bg); border: 1px solid var(--fsn-warning); border-radius: 6px; padding: 12px; margin-bottom: 16px; font-size: 13px;",
                     "{err}"
                 }
             }
 
-            if stats.read().is_empty() {
+            if entries.read().is_empty() && error.read().is_none() {
                 div {
-                    style: "text-align: center; color: var(--fsn-color-text-muted); padding: 48px;",
+                    style: "text-align: center; color: var(--fsn-text-muted); padding: 48px;",
                     "No running containers."
                 }
-            } else {
+            } else if !entries.read().is_empty() {
                 table {
                     style: "width: 100%; border-collapse: collapse;",
 
                     thead {
                         tr {
-                            style: "border-bottom: 1px solid var(--fsn-color-border-default); font-size: 12px; color: var(--fsn-color-text-muted);",
-                            th { style: "text-align: left; padding: 8px;",           "NAME" }
-                            th { style: "text-align: right; padding: 8px; width: 120px;", "CPU" }
-                            th { style: "text-align: right; padding: 8px; width: 180px;", "MEMORY" }
-                            th { style: "text-align: right; padding: 8px; width: 80px;",  "PIDs" }
+                            style: "border-bottom: 1px solid var(--fsn-border); font-size: 12px; color: var(--fsn-text-muted);",
+                            th { style: "text-align: left; padding: 8px;",  "SERVICE" }
+                            th { style: "text-align: left; padding: 8px;",  "STATE" }
+                            th { style: "text-align: left; padding: 8px;",  "SUB-STATE" }
                         }
                     }
 
                     tbody {
-                        for s in stats.read().iter().cloned().collect::<Vec<_>>() {
-                            ResourceRow { stats: s }
+                        for e in entries.read().iter().cloned().collect::<Vec<_>>() {
+                            ResourceRow { entry: e }
                         }
                     }
                 }
@@ -84,76 +102,24 @@ pub fn ResourceView() -> Element {
 // ── ResourceRow ───────────────────────────────────────────────────────────────
 
 #[component]
-fn ResourceRow(stats: ContainerStats) -> Element {
-    let cpu_color = cpu_color(stats.cpu_percent);
-    let mem_pct   = mem_percent(&stats);
-    let mem_bar   = mem_bar_width(mem_pct);
-    let mem_color = mem_color(mem_pct);
-
-    let mem_label = if stats.memory_limit_mib > 0 {
-        format!("{} / {} MiB  ({:.0}%)", stats.memory_mib, stats.memory_limit_mib, mem_pct)
-    } else {
-        format!("{} MiB", stats.memory_mib)
+fn ResourceRow(entry: ResourceEntry) -> Element {
+    let color = match entry.active {
+        UnitActiveState::Active       => "var(--fsn-success)",
+        UnitActiveState::Failed       => "var(--fsn-error)",
+        UnitActiveState::Activating
+        | UnitActiveState::Deactivating => "var(--fsn-warning)",
+        _                             => "var(--fsn-text-muted)",
     };
-
     rsx! {
         tr {
-            style: "border-bottom: 1px solid var(--fsn-color-border-default);",
-
-            // Name
-            td { style: "padding: 10px 8px; font-weight: 500;", "{stats.name}" }
-
-            // CPU
-            td { style: "padding: 10px 8px; text-align: right;",
-                span {
-                    style: "font-size: 13px; font-weight: 600; color: {cpu_color};",
-                    "{stats.cpu_percent:.1}%"
-                }
+            style: "border-bottom: 1px solid var(--fsn-border);",
+            td { style: "padding: 10px 8px; font-weight: 500; font-size: 13px;", "{entry.name}" }
+            td { style: "padding: 10px 8px;",
+                span { style: "font-size: 13px; color: {color};", "{entry.active}" }
             }
-
-            // Memory — value + mini progress bar
-            td { style: "padding: 10px 8px; text-align: right;",
-                div {
-                    style: "display: flex; flex-direction: column; align-items: flex-end; gap: 3px;",
-                    span { style: "font-size: 12px;", "{mem_label}" }
-                    if stats.memory_limit_mib > 0 {
-                        div {
-                            style: "height: 4px; width: 120px; background: var(--fsn-color-bg-overlay); border-radius: 2px; overflow: hidden;",
-                            div {
-                                style: "height: 100%; width: {mem_bar}%; background: {mem_color}; border-radius: 2px; transition: width 0.5s;",
-                            }
-                        }
-                    }
-                }
-            }
-
-            // PIDs
-            td { style: "padding: 10px 8px; text-align: right; color: var(--fsn-color-text-muted); font-size: 13px;",
-                "{stats.pids}"
+            td { style: "padding: 10px 8px; font-size: 12px; color: var(--fsn-text-muted);",
+                "{entry.sub_state}"
             }
         }
     }
-}
-
-// ── Colour helpers ────────────────────────────────────────────────────────────
-
-fn cpu_color(pct: f64) -> &'static str {
-    if pct >= 80.0 { "var(--fsn-color-error)" }
-    else if pct >= 40.0 { "var(--fsn-color-warning)" }
-    else { "var(--fsn-color-success)" }
-}
-
-fn mem_percent(s: &ContainerStats) -> f64 {
-    if s.memory_limit_mib == 0 { return 0.0; }
-    (s.memory_mib as f64 / s.memory_limit_mib as f64) * 100.0
-}
-
-fn mem_bar_width(pct: f64) -> f64 {
-    pct.clamp(0.0, 100.0)
-}
-
-fn mem_color(pct: f64) -> &'static str {
-    if pct >= 90.0 { "var(--fsn-color-error)" }
-    else if pct >= 70.0 { "var(--fsn-color-warning)" }
-    else { "var(--fsn-color-primary)" }
 }

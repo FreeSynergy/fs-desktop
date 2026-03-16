@@ -89,80 +89,27 @@ pub fn StoreApp() -> Element {
 
 // ── UpdatesList ───────────────────────────────────────────────────────────────
 
-/// Shows containers where the catalog version is newer than the installed one.
+/// Shows available catalog updates.
+///
+/// Installed version detection via container labels requires Podman socket (removed).
+/// Run `fsn deploy` to apply updates for all deployed services.
 #[component]
 fn UpdatesList(catalog_versions: Vec<(String, String)>) -> Element {
-    use fsn_container::{ContainerInfo, PodmanClient};
-
-    let mut containers: Signal<Vec<ContainerInfo>> = use_signal(Vec::new);
-    use_future(move || async move {
-        loop {
-            if let Ok(client) = PodmanClient::new() {
-                if let Ok(list) = client.list(true).await {
-                    containers.set(list);
-                }
-            }
-            tokio::time::sleep(std::time::Duration::from_secs(30)).await;
-        }
-    });
-
-    // Find updateable containers
-    let updateable: Vec<(String, String, String)> = containers.read().iter()
-        .filter_map(|c| {
-            let module_id = c.labels.get("fsn.module.id")?;
-            let installed_ver = c.labels.get("fsn.module.version")?;
-            let (_, catalog_ver) = catalog_versions.iter().find(|(id, _)| id == module_id)?;
-            if catalog_ver != installed_ver {
-                Some((c.name.clone(), installed_ver.clone(), catalog_ver.clone()))
-            } else {
-                None
-            }
-        })
-        .collect();
-
     rsx! {
         div {
-            if updateable.is_empty() {
-                div {
-                    style: "text-align: center; color: var(--fsn-color-text-muted); padding: 48px;",
-                    p { style: "font-size: 24px;", "✓" }
-                    p { "All installed modules are up to date." }
+            style: "text-align: center; color: var(--fsn-text-muted); padding: 48px;",
+            p { style: "font-size: 24px; margin-bottom: 12px;", "↑" }
+            p { style: "margin-bottom: 8px;", "Update detection requires deployment metadata." }
+            p { style: "font-size: 13px;",
+                "Run "
+                code { style: "background: var(--fsn-bg-elevated); padding: 2px 6px; border-radius: 4px;",
+                    "fsn deploy"
                 }
-            } else {
-                div {
-                    style: "margin-bottom: 16px;",
-                    h3 { style: "margin: 0 0 4px 0;", "{updateable.len()} update(s) available" }
-                    p { style: "color: var(--fsn-color-text-muted); font-size: 13px; margin: 0;",
-                        "Run "
-                        code { "fsn deploy" }
-                        " to apply updates."
-                    }
-                }
-                table {
-                    style: "width: 100%; border-collapse: collapse;",
-                    thead {
-                        tr {
-                            style: "border-bottom: 1px solid var(--fsn-color-border-default); font-size: 12px; color: var(--fsn-color-text-muted);",
-                            th { style: "text-align: left; padding: 8px;",  "CONTAINER" }
-                            th { style: "text-align: left; padding: 8px;",  "INSTALLED" }
-                            th { style: "text-align: left; padding: 8px;",  "AVAILABLE" }
-                        }
-                    }
-                    tbody {
-                        for (name, installed, catalog) in updateable.iter().cloned().collect::<Vec<_>>() {
-                            tr {
-                                style: "border-bottom: 1px solid var(--fsn-color-border-default);",
-                                td { style: "padding: 10px 8px; font-weight: 500;",  "{name}" }
-                                td { style: "padding: 10px 8px; font-size: 13px; color: var(--fsn-color-text-muted);", "v{installed}" }
-                                td { style: "padding: 10px 8px;",
-                                    span {
-                                        style: "font-size: 13px; background: var(--fsn-color-warning); color: black; padding: 2px 8px; border-radius: 4px;",
-                                        "v{catalog}"
-                                    }
-                                }
-                            }
-                        }
-                    }
+                " to check and apply updates for all deployed services."
+            }
+            if !catalog_versions.is_empty() {
+                p { style: "margin-top: 16px; font-size: 13px;",
+                    "{catalog_versions.len()} package(s) available in the catalog."
                 }
             }
         }

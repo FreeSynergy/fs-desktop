@@ -1,13 +1,12 @@
-/// Dependency graph — SVG visualisation of container relationships.
+/// Dependency graph — SVG visualisation of FSN service states.
 ///
-/// Reads `fsn.requires` labels from running containers and renders
-/// directed edges between them as an SVG diagram.
-///
-/// Label convention (set by fsn-deploy):
-///   `fsn.requires = "container-a,container-b"`
+/// Lists all fsn-*.service units via systemctl and renders them as a grid.
+/// Dependency edges (fsn.requires labels) require Podman container labels
+/// which are not available via systemctl — edge rendering is omitted.
 use dioxus::prelude::*;
-use fsn_container::{ContainerInfo, PodmanClient};
-use std::collections::HashMap;
+use fsn_container::{SystemctlManager, UnitActiveState};
+
+use crate::service_list::list_fsn_units;
 
 // ── Layout constants ──────────────────────────────────────────────────────────
 
@@ -19,45 +18,61 @@ const COLS: usize  = 4;
 
 // ── GraphNode ─────────────────────────────────────────────────────────────────
 
-/// A positioned node in the graph.
 #[derive(Clone, Debug)]
 struct GraphNode {
     name:   String,
-    health: String, // "ok" | "warn" | "err" | "unknown"
+    health: &'static str, // "ok" | "warn" | "err" | "unknown"
     x: f64,
     y: f64,
 }
 
 // ── DependencyGraph ───────────────────────────────────────────────────────────
 
-/// SVG dependency-graph component.
-///
-/// Fetches containers via Podman, lays them out in a grid, and draws
-/// arrows for `fsn.requires` edges.
+/// SVG service-graph component — shows all FSN units with their active state.
 #[component]
 pub fn DependencyGraph() -> Element {
-    let mut containers: Signal<Vec<ContainerInfo>> = use_signal(Vec::new);
-    let mut error: Signal<Option<String>>          = use_signal(|| None);
+    let mut nodes: Signal<Vec<GraphNode>> = use_signal(Vec::new);
+    let mut error: Signal<Option<String>> = use_signal(|| None);
 
     // Poll every 5 seconds
     use_future(move || async move {
+        let mgr = SystemctlManager::user();
         loop {
-            match PodmanClient::new() {
-                Ok(client) => match client.list(true).await {
-                    Ok(list) => { containers.set(list); error.set(None); }
-                    Err(e)   => error.set(Some(format!("List error: {e}"))),
-                },
-                Err(e) => error.set(Some(format!("Cannot connect to Podman: {e}"))),
+            let units = list_fsn_units().await;
+            if units.is_empty() {
+                error.set(Some("No FSN services found.".into()));
+            } else {
+                let mut result = Vec::new();
+                for (i, unit) in units.iter().enumerate() {
+                    let health = match mgr.service_status(unit).await {
+                        Ok(s) => match s.active_state {
+                            UnitActiveState::Active       => "ok",
+                            UnitActiveState::Activating   => "warn",
+                            UnitActiveState::Failed       => "err",
+                            _                             => "unknown",
+                        },
+                        Err(_) => "unknown",
+                    };
+                    let col = i % COLS;
+                    let row = i / COLS;
+                    result.push(GraphNode {
+                        name:   unit.clone(),
+                        health,
+                        x: H_GAP + (col as f64) * (NODE_W + H_GAP),
+                        y: V_GAP + (row as f64) * (NODE_H + V_GAP),
+                    });
+                }
+                nodes.set(result);
+                error.set(None);
             }
             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
         }
     });
 
-    let list = containers.read().clone();
-    let (nodes, edges) = build_graph(&list);
+    let list = nodes.read().clone();
     let svg_w = (COLS as f64) * (NODE_W + H_GAP) + H_GAP;
-    let svg_h = if nodes.is_empty() { 120.0 } else {
-        let rows = (nodes.len() as f64 / COLS as f64).ceil();
+    let svg_h = if list.is_empty() { 120.0 } else {
+        let rows = (list.len() as f64 / COLS as f64).ceil();
         rows * (NODE_H + V_GAP) + V_GAP
     };
 
@@ -68,40 +83,40 @@ pub fn DependencyGraph() -> Element {
             // Header
             div {
                 style: "display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;",
-                h2 { style: "margin: 0; font-size: 18px;", "Dependency Graph" }
+                h2 { style: "margin: 0; font-size: 18px;", "Service Graph" }
                 span {
-                    style: "font-size: 12px; color: var(--fsn-color-text-muted);",
-                    "Edges from fsn.requires labels"
+                    style: "font-size: 12px; color: var(--fsn-text-muted);",
+                    "FSN systemd units"
                 }
             }
 
             // Error
             if let Some(err) = error.read().as_deref() {
                 div {
-                    style: "color: var(--fsn-color-error); font-size: 13px; margin-bottom: 12px;",
+                    style: "color: var(--fsn-warning); font-size: 13px; margin-bottom: 12px;",
                     "{err}"
                 }
             }
 
             if list.is_empty() {
                 div {
-                    style: "text-align: center; color: var(--fsn-color-text-muted); padding: 48px;",
-                    "No containers found."
+                    style: "text-align: center; color: var(--fsn-text-muted); padding: 48px;",
+                    "No FSN services found."
                 }
             } else {
                 // SVG canvas
                 div {
                     style: "overflow: auto;",
-                    dangerous_inner_html: "{build_svg(&nodes, &edges, svg_w, svg_h)}"
+                    dangerous_inner_html: "{build_svg(&list, svg_w, svg_h)}"
                 }
 
                 // Legend
                 div {
-                    style: "display: flex; gap: 16px; margin-top: 12px; font-size: 12px; color: var(--fsn-color-text-muted);",
-                    LegendDot { color: "#22c55e", label: "Healthy" }
-                    LegendDot { color: "#f59e0b", label: "Starting" }
-                    LegendDot { color: "#ef4444", label: "Unhealthy" }
-                    LegendDot { color: "#6b7280", label: "Unknown" }
+                    style: "display: flex; gap: 16px; margin-top: 12px; font-size: 12px; color: var(--fsn-text-muted);",
+                    LegendDot { color: "#34d399", label: "Active" }
+                    LegendDot { color: "#fbbf24", label: "Starting" }
+                    LegendDot { color: "#f87171", label: "Failed" }
+                    LegendDot { color: "#5a6e88", label: "Inactive" }
                 }
             }
         }
@@ -119,104 +134,30 @@ fn LegendDot(color: &'static str, label: &'static str) -> Element {
     }
 }
 
-// ── Graph builder ─────────────────────────────────────────────────────────────
-
-/// Build positioned nodes and (from, to) name edges from a container list.
-fn build_graph(containers: &[ContainerInfo]) -> (Vec<GraphNode>, Vec<(String, String)>) {
-    let mut nodes: Vec<GraphNode> = containers
-        .iter()
-        .enumerate()
-        .map(|(i, c)| {
-            let col = i % COLS;
-            let row = i / COLS;
-            let x = H_GAP + (col as f64) * (NODE_W + H_GAP);
-            let y = V_GAP + (row as f64) * (NODE_H + V_GAP);
-            let health = match c.health {
-                fsn_container::HealthStatus::Healthy   => "ok",
-                fsn_container::HealthStatus::Starting  => "warn",
-                fsn_container::HealthStatus::Unhealthy => "err",
-                fsn_container::HealthStatus::None      => "unknown",
-            };
-            GraphNode { name: c.name.clone(), health: health.to_string(), x, y }
-        })
-        .collect();
-
-    // Position map: name → (cx, cy)
-    let pos: HashMap<String, (f64, f64)> = nodes
-        .iter()
-        .map(|n| (n.name.clone(), (n.x + NODE_W / 2.0, n.y + NODE_H / 2.0)))
-        .collect();
-
-    // Edges from fsn.requires label
-    let mut edges: Vec<(String, String)> = Vec::new();
-    for c in containers {
-        if let Some(req) = c.labels.get("fsn.requires") {
-            for dep in req.split(',').map(str::trim).filter(|s| !s.is_empty()) {
-                if pos.contains_key(dep) {
-                    edges.push((c.name.clone(), dep.to_string()));
-                }
-            }
-        }
-    }
-
-    // Sort nodes alphabetically for a stable layout
-    nodes.sort_by(|a, b| a.name.cmp(&b.name));
-    // Re-apply positions after sort
-    for (i, node) in nodes.iter_mut().enumerate() {
-        let col = i % COLS;
-        let row = i / COLS;
-        node.x = H_GAP + (col as f64) * (NODE_W + H_GAP);
-        node.y = V_GAP + (row as f64) * (NODE_H + V_GAP);
-    }
-
-    (nodes, edges)
-}
-
 // ── SVG renderer ──────────────────────────────────────────────────────────────
 
 fn health_color(h: &str) -> &'static str {
     match h {
-        "ok"      => "#22c55e",
-        "warn"    => "#f59e0b",
-        "err"     => "#ef4444",
-        _         => "#6b7280",
+        "ok"   => "#34d399",
+        "warn" => "#fbbf24",
+        "err"  => "#f87171",
+        _      => "#5a6e88",
     }
 }
 
-fn build_svg(nodes: &[GraphNode], edges: &[(String, String)], w: f64, h: f64) -> String {
-    let pos: HashMap<&str, (f64, f64)> = nodes
-        .iter()
-        .map(|n| (n.name.as_str(), (n.x + NODE_W / 2.0, n.y + NODE_H / 2.0)))
-        .collect();
-
+fn build_svg(nodes: &[GraphNode], w: f64, h: f64) -> String {
     let mut svg = format!(
-        r##"<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" style="display:block;">"##,
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" style="display:block;">"#,
     );
 
-    // Arrow marker
-    svg.push_str(concat!(
-        r#"<defs><marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">"#,
-        r##"<path d="M0,0 L0,6 L8,3 z" fill="#6b7280"/></marker></defs>"##,
-    ));
-
-    // Edges
-    for (from, to) in edges {
-        if let (Some(&(fx, fy)), Some(&(tx, ty))) = (pos.get(from.as_str()), pos.get(to.as_str())) {
-            svg.push_str(&format!(
-                r##"<line x1="{fx:.0}" y1="{fy:.0}" x2="{tx:.0}" y2="{ty:.0}" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)"/>"##,
-            ));
-        }
-    }
-
-    // Nodes
     for node in nodes {
-        let x  = node.x;
-        let y  = node.y;
-        let cx = x + NODE_W / 2.0;
-        let cy = y + NODE_H / 2.0;
+        let x      = node.x;
+        let y      = node.y;
+        let cx     = x + NODE_W / 2.0;
+        let cy     = y + NODE_H / 2.0;
         let dot_cx = x + 14.0;
         let text_y = cy + 4.5;
-        let color = health_color(&node.health);
+        let color  = health_color(node.health);
         let label: String = if node.name.len() > 18 {
             format!("{}…", &node.name[..17])
         } else {
@@ -224,13 +165,13 @@ fn build_svg(nodes: &[GraphNode], edges: &[(String, String)], w: f64, h: f64) ->
         };
 
         svg.push_str(&format!(
-            r##"<rect x="{x:.0}" y="{y:.0}" width="{NODE_W}" height="{NODE_H}" rx="6" fill="#1e293b" stroke="{color}" stroke-width="2"/>"##
+            r##"<rect x="{x:.0}" y="{y:.0}" width="{NODE_W}" height="{NODE_H}" rx="6" fill="#162032" stroke="{color}" stroke-width="2"/>"##
         ));
         svg.push_str(&format!(
             r##"<circle cx="{dot_cx:.0}" cy="{cy:.0}" r="5" fill="{color}"/>"##
         ));
         svg.push_str(&format!(
-            r##"<text x="{cx:.0}" y="{text_y:.0}" text-anchor="middle" fill="#e2e8f0" font-size="12" font-family="monospace">{label}</text>"##
+            r##"<text x="{cx:.0}" y="{text_y:.0}" text-anchor="middle" fill="#e8edf5" font-size="12" font-family="monospace">{label}</text>"##
         ));
     }
 

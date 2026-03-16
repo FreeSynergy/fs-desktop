@@ -29,7 +29,7 @@ fn main() {
                             .with_title("FreeSynergy.Desktop")
                             .with_decorations(true)
                             .with_inner_size(dioxus::desktop::LogicalSize::new(1280.0_f64, 800.0_f64))
-                            .with_min_inner_size(dioxus::desktop::LogicalSize::new(800.0_f64, 600.0_f64))
+                            .with_min_inner_size(dioxus::desktop::LogicalSize::new(900.0_f64, 600.0_f64))
                             .with_resizable(true),
                     )
                     .with_background_color((12, 18, 34, 255)),

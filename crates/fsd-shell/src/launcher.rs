@@ -212,6 +212,15 @@ fn LauncherPagination(
     on_next: EventHandler<()>,
     on_goto: EventHandler<usize>,
 ) -> Element {
+    let at_start   = current == 0;
+    let at_end     = current + 1 >= total;
+    let op_prev    = if at_start { "0.3" } else { "1.0" };
+    let op_next    = if at_end   { "0.3" } else { "1.0" };
+    let page_label = format!("Page {} / {}", current + 1, total);
+    // Pre-compute dot colors — avoids if/else inside rsx! format strings
+    let dots: Vec<(usize, &'static str)> = (0..total)
+        .map(|i| (i, if i == current { "var(--fsn-primary)" } else { "var(--fsn-text-muted)" }))
+        .collect();
     rsx! {
         div {
             style: "display: flex; align-items: center; justify-content: center; \
@@ -222,8 +231,8 @@ fn LauncherPagination(
                 style: "background: none; border: 1px solid var(--fsn-border); \
                         border-radius: var(--fsn-radius-sm); color: var(--fsn-text-secondary); \
                         font-size: 13px; cursor: pointer; padding: 2px 10px; \
-                        opacity: {if current == 0 { \"0.3\" } else { \"1\" }};",
-                disabled: current == 0,
+                        opacity: {op_prev};",
+                disabled: at_start,
                 onclick: move |_| on_prev.call(()),
                 "◄"
             }
@@ -231,16 +240,15 @@ fn LauncherPagination(
             // Page label + dot indicators
             span {
                 style: "font-size: 12px; color: var(--fsn-text-muted); min-width: 60px; text-align: center;",
-                "Page {current + 1} / {total}"
+                "{page_label}"
             }
-            for i in 0..total {
+            for (i, bg) in dots {
                 button {
                     key: "{i}",
-                    style: "background: none; border: none; cursor: pointer; padding: 0 2px; \
-                            font-size: 14px; line-height: 1; \
-                            color: {if i == current { \"var(--fsn-primary)\" } else { \"var(--fsn-text-muted)\" }};",
+                    style: "width: 8px; height: 8px; border-radius: 50%; border: none; \
+                            cursor: pointer; padding: 0; display: inline-block; \
+                            background: {bg};",
                     onclick: move |_| on_goto.call(i),
-                    if i == current { "●" } else { "○" }
                 }
             }
 
@@ -249,8 +257,8 @@ fn LauncherPagination(
                 style: "background: none; border: 1px solid var(--fsn-border); \
                         border-radius: var(--fsn-radius-sm); color: var(--fsn-text-secondary); \
                         font-size: 13px; cursor: pointer; padding: 2px 10px; \
-                        opacity: {if current + 1 >= total { \"0.3\" } else { \"1\" }};",
-                disabled: current + 1 >= total,
+                        opacity: {op_next};",
+                disabled: at_end,
                 onclick: move |_| on_next.call(()),
                 "►"
             }
@@ -334,8 +342,6 @@ fn AppTile(app: AppEntry, on_click: EventHandler<MouseEvent>) -> Element {
                     width: "36",
                     height: "36",
                     style: "border-radius: 8px; object-fit: contain;",
-                    // On error: show emoji as fallback (handled in JS)
-                    onerror: "this.style.display='none'; this.nextSibling.style.display='block';",
                 }
                 span {
                     style: "font-size: 28px; display: none; line-height: 1;",

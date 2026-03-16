@@ -90,12 +90,19 @@ pub const GLOBAL_CSS: &str = r#"
     --fsn-color-bg-surface:    var(--fsn-bg-surface);
     --fsn-color-bg-sidebar:    var(--fsn-bg-sidebar);
     --fsn-color-bg-panel:      var(--fsn-bg-card);
+    --fsn-color-bg-card:       var(--fsn-bg-card);
     --fsn-color-bg-overlay:    var(--fsn-bg-elevated);
+    --fsn-color-bg-active:     var(--fsn-bg-elevated);
     --fsn-color-bg-input:      var(--fsn-bg-input);
     --fsn-color-text-primary:  var(--fsn-text-primary);
+    --fsn-color-text-secondary: var(--fsn-text-secondary);
     --fsn-color-text-muted:    var(--fsn-text-muted);
     --fsn-color-text-inverse:  var(--fsn-text-primary);
     --fsn-color-border-default: var(--fsn-border);
+    --fsn-color-success:       var(--fsn-success);
+    --fsn-color-warning:       var(--fsn-warning);
+    --fsn-color-error:         var(--fsn-error);
+    --fsn-color-info:          var(--fsn-info);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }

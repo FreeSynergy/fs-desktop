@@ -9,7 +9,6 @@
 use dioxus::prelude::*;
 
 use crate::taskbar::AppEntry;
-use crate::notification::NotificationStack;
 
 // ── Taskbar state ─────────────────────────────────────────────────────────────
 

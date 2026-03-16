@@ -1,6 +1,7 @@
-/// Log viewer — shows live or recent logs for a container.
+/// Log viewer — shows recent journal logs for a systemd service.
+///
+/// Calls `journalctl --user -u <unit> -n 200 --no-pager` (no Podman socket).
 use dioxus::prelude::*;
-use fsn_container::PodmanClient;
 
 /// Log entry with severity level.
 #[derive(Clone, Debug, PartialEq)]
@@ -21,10 +22,10 @@ pub enum LogLevel {
 impl LogLevel {
     pub fn color(&self) -> &str {
         match self {
-            Self::Info  => "var(--fsn-color-text-primary)",
-            Self::Warn  => "var(--fsn-color-warning)",
-            Self::Error => "var(--fsn-color-error)",
-            Self::Debug => "var(--fsn-color-text-muted)",
+            Self::Info  => "var(--fsn-text-primary)",
+            Self::Warn  => "var(--fsn-warning)",
+            Self::Error => "var(--fsn-error)",
+            Self::Debug => "var(--fsn-text-muted)",
         }
     }
 
@@ -42,6 +43,21 @@ impl LogLevel {
     }
 }
 
+/// Fetch last N lines from journalctl --user for the given unit.
+async fn fetch_journal(unit: &str, lines: u32) -> Vec<String> {
+    let Ok(out) = tokio::process::Command::new("journalctl")
+        .args(["--user", "-u", unit, "-n", &lines.to_string(), "--no-pager", "--output=short"])
+        .output()
+        .await
+    else {
+        return vec![];
+    };
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .map(|l| l.to_string())
+        .collect()
+}
+
 /// Live log viewer component — polls the last 200 lines every 3 seconds.
 #[component]
 pub fn LogViewer(service: String) -> Element {
@@ -57,18 +73,17 @@ pub fn LogViewer(service: String) -> Element {
                     return;
                 }
                 loop {
-                    if let Ok(client) = PodmanClient::new() {
-                        if let Ok(lines) = client.logs(&service, Some(200)).await {
-                            let new_entries: Vec<LogEntry> = lines
-                                .into_iter()
-                                .filter(|l| !l.is_empty())
-                                .map(|line| LogEntry {
-                                    level: LogLevel::detect(&line),
-                                    message: line,
-                                })
-                                .collect();
-                            entries.set(new_entries);
-                        }
+                    let lines = fetch_journal(&service, 200).await;
+                    let new_entries: Vec<LogEntry> = lines
+                        .into_iter()
+                        .filter(|l| !l.is_empty())
+                        .map(|line| LogEntry {
+                            level: LogLevel::detect(&line),
+                            message: line,
+                        })
+                        .collect();
+                    if !new_entries.is_empty() {
+                        entries.set(new_entries);
                     }
                     tokio::time::sleep(std::time::Duration::from_secs(3)).await;
                 }
@@ -83,7 +98,7 @@ pub fn LogViewer(service: String) -> Element {
 
             // Toolbar
             div {
-                style: "display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--fsn-color-border-default);",
+                style: "display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--fsn-border);",
 
                 h3 { style: "margin: 0; flex: 1;", "Logs: {service}" }
 
@@ -97,7 +112,7 @@ pub fn LogViewer(service: String) -> Element {
                 }
 
                 button {
-                    style: "padding: 4px 8px; background: var(--fsn-color-bg-surface); border: 1px solid var(--fsn-color-border-default); border-radius: 4px; cursor: pointer; font-size: 12px;",
+                    style: "padding: 4px 8px; background: var(--fsn-bg-surface); border: 1px solid var(--fsn-border); border-radius: 4px; cursor: pointer; font-size: 12px;",
                     onclick: move |_| entries.set(vec![]),
                     "Clear"
                 }
@@ -109,7 +124,7 @@ pub fn LogViewer(service: String) -> Element {
 
                 if entries.read().is_empty() {
                     div {
-                        style: "color: var(--fsn-color-text-muted); padding: 16px;",
+                        style: "color: var(--fsn-text-muted); padding: 16px;",
                         if service.is_empty() {
                             "Select a service to view its logs."
                         } else {
