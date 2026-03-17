@@ -6,6 +6,7 @@ use crate::bot_management::BotManagement;
 use crate::dep_graph::DependencyGraph;
 use crate::log_viewer::LogViewer;
 use crate::resource_view::ResourceView;
+use crate::service_detail::ServiceDetail;
 use crate::service_list::ServiceList;
 
 /// Active section in the Conductor.
@@ -64,7 +65,7 @@ const ALL_SECTIONS: &[ConductorSection] = &[
 #[component]
 pub fn ConductorApp() -> Element {
     let mut active = use_signal(|| ConductorSection::Services);
-    let selected_service: Signal<Option<String>> = use_signal(|| None);
+    let mut selected_service: Signal<Option<String>> = use_signal(|| None);
 
     let sidebar_items: Vec<FsnSidebarItem> = ALL_SECTIONS.iter()
         .map(|s| FsnSidebarItem::new(s.label(), s.icon(), s.label()))
@@ -105,16 +106,53 @@ pub fn ConductorApp() -> Element {
             // ── Detail area ───────────────────────────────────────────────────
             div {
                 class: "fsd-conductor__detail fsd-page-enter",
-                style: "flex: 1; overflow: auto; padding: 16px;",
+                style: "flex: 1; display: flex; overflow: hidden;",
 
                 match *active.read() {
-                    ConductorSection::Services  => rsx! { ServiceList { selected: selected_service } },
-                    ConductorSection::Bots      => rsx! { BotManagement {} },
-                    ConductorSection::Resources => rsx! { ResourceView {} },
-                    ConductorSection::Graph     => rsx! { DependencyGraph {} },
+                    // Services: split-view — list on left, detail on right
+                    ConductorSection::Services => rsx! {
+                        // List pane — shrinks when detail is open
+                        div {
+                            style: {
+                                if selected_service.read().is_some() {
+                                    "flex: 0 0 340px; overflow: auto; padding: 16px; \
+                                     border-right: 1px solid var(--fsn-border);"
+                                } else {
+                                    "flex: 1; overflow: auto; padding: 16px;"
+                                }
+                            },
+                            ServiceList { selected: selected_service }
+                        }
+                        // Detail pane — only visible when a service is selected
+                        if let Some(name) = selected_service.read().clone() {
+                            div { style: "flex: 1; overflow: hidden;",
+                                ServiceDetail {
+                                    service_name: name,
+                                    on_close: move |_| *selected_service.write() = None,
+                                }
+                            }
+                        }
+                    },
+                    ConductorSection::Bots      => rsx! {
+                        div { style: "flex: 1; overflow: auto; padding: 16px;",
+                            BotManagement {}
+                        }
+                    },
+                    ConductorSection::Resources => rsx! {
+                        div { style: "flex: 1; overflow: auto; padding: 16px;",
+                            ResourceView {}
+                        }
+                    },
+                    ConductorSection::Graph     => rsx! {
+                        div { style: "flex: 1; overflow: auto; padding: 16px;",
+                            DependencyGraph {}
+                        }
+                    },
                     ConductorSection::Logs      => rsx! {
-                        LogViewer {
-                            service: selected_service.read().clone().unwrap_or_default()
+                        div { style: "flex: 1; overflow: auto; padding: 16px;",
+                            LogViewer {
+                                service: selected_service.read().clone().unwrap_or_default()
+                            }
                         }
                     },
                 }

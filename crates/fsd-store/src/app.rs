@@ -12,6 +12,7 @@ use crate::package_detail::PackageDetail;
 #[derive(Clone, PartialEq, Debug)]
 pub enum StoreTab {
     All,
+    Services,
     Plugins,
     Languages,
     Themes,
@@ -27,6 +28,7 @@ impl StoreTab {
     /// Returns the PackageKind filter for this tab (None = show all).
     pub fn kind_filter(&self) -> Option<PackageKind> {
         match self {
+            Self::Services  => Some(PackageKind::Container),
             Self::Plugins   => Some(PackageKind::Plugin),
             Self::Languages => Some(PackageKind::Language),
             Self::Themes    => Some(PackageKind::Theme),
@@ -41,6 +43,7 @@ impl StoreTab {
     pub fn label(&self) -> &'static str {
         match self {
             Self::All       => "All",
+            Self::Services  => "Services",
             Self::Plugins   => "Plugins",
             Self::Languages => "Languages",
             Self::Themes    => "Themes",
@@ -57,6 +60,7 @@ impl StoreTab {
     pub fn icon(&self) -> &'static str {
         match self {
             Self::All       => "📦",
+            Self::Services  => "⚙",
             Self::Plugins   => "🔌",
             Self::Languages => "🌐",
             Self::Themes    => "🎨",
@@ -77,6 +81,7 @@ impl StoreTab {
     /// Look up a tab by its ID string.
     pub fn from_id(id: &str) -> Self {
         match id {
+            "Services"  => Self::Services,
             "Plugins"   => Self::Plugins,
             "Languages" => Self::Languages,
             "Themes"    => Self::Themes,
@@ -93,6 +98,7 @@ impl StoreTab {
 
 const ALL_TABS: &[StoreTab] = &[
     StoreTab::All,
+    StoreTab::Services,
     StoreTab::Plugins,
     StoreTab::Languages,
     StoreTab::Themes,

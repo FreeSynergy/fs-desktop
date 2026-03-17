@@ -229,8 +229,8 @@ pub fn WindowFrame(props: WindowFrameProps) -> Element {
             if !is_max {
                 ResizeHandles {
                     on_start: move |rs: ResizeState| resize.set(rs),
-                    pos: *pos.read(),
-                    dim: *dim.read(),
+                    pos,
+                    dim,
                 }
             }
 
@@ -401,25 +401,30 @@ pub fn WindowFrame(props: WindowFrameProps) -> Element {
 #[derive(Props, Clone, PartialEq)]
 struct ResizeHandlesProps {
     on_start: EventHandler<ResizeState>,
-    pos: (f64, f64),
-    dim: (f64, f64),
+    // Signals so closures always read the current position/size, not stale
+    // captured values from the last render.
+    pos: Signal<(f64, f64)>,
+    dim: Signal<(f64, f64)>,
 }
 
 /// Eight invisible CSS handles (edges + corners) for resizing.
 #[component]
 fn ResizeHandles(props: ResizeHandlesProps) -> Element {
-    let (px, py) = props.pos;
-    let (pw, ph) = props.dim;
-
     macro_rules! handle {
         ($dir:expr, $style:literal) => {{
-            let dir = $dir;
+            let dir  = $dir;
+            let mut pos_sig = props.pos;
+            let mut dim_sig = props.dim;
             rsx! {
                 div {
                     style: concat!("position: absolute; z-index: 200; ", $style),
                     onmousedown: move |evt: MouseEvent| {
                         evt.stop_propagation();
                         let c = evt.data().client_coordinates();
+                        // Read current signal values inside the closure so we
+                        // always get the latest position even after dragging.
+                        let (px, py) = *pos_sig.read();
+                        let (pw, ph) = *dim_sig.read();
                         props.on_start.call(ResizeState {
                             dir:      Some(dir),
                             start_mx: c.x,

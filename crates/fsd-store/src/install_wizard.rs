@@ -41,15 +41,18 @@ impl WizardStep {
 
 // ── async install logic ────────────────────────────────────────────────────────
 
-/// Downloads and registers a package. Returns the display message on success.
-async fn do_install(package: PackageEntry) -> Result<(), String> {
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
+/// Downloads and registers a package. Returns Ok on success.
+async fn do_install(package: PackageEntry, env_vars: String) -> Result<(), String> {
+    let home    = std::env::var("HOME").unwrap_or_else(|_| ".".into());
     let fsn_dir = std::path::PathBuf::from(&home).join(".local/share/fsn");
 
     let store_path = package.store_path.as_deref()
         .map(|p| p.trim_end_matches('/').to_string());
 
     let file_path: Option<String> = match &package.kind {
+        PackageKind::Container => {
+            install_container(&package, store_path, &fsn_dir, &env_vars).await?
+        }
         PackageKind::Language => {
             let base = store_path.unwrap_or_else(|| format!("shared/i18n/{}", package.id));
             let url  = format!("{base}/ui.toml");
@@ -98,6 +101,157 @@ async fn do_install(package: PackageEntry) -> Result<(), String> {
     .map_err(|e| format!("Registry error: {e}"))
 }
 
+/// Full container install:
+///  1. Fetch compose file from store
+///  2. Write compose + .env to ~/.local/share/fsn/services/<id>/
+///  3. Try `fsn conductor install <compose_path>` (adds Quadlet + systemd unit)
+///  4. systemctl --user daemon-reload
+async fn install_container(
+    package:    &PackageEntry,
+    store_path: Option<String>,
+    fsn_dir:    &std::path::Path,
+    env_vars:   &str,
+) -> Result<Option<String>, String> {
+    let base = store_path.unwrap_or_else(|| format!("node/modules/{}", package.id));
+
+    // Try compose.yml first, then docker-compose.yml
+    let compose_content = {
+        let mut content = None;
+        for name in &["compose.yml", "docker-compose.yml", "container.yml"] {
+            let url = format!("{base}/{name}");
+            if let Ok(c) = StoreClient::node_store().fetch_raw(&url).await {
+                content = Some((c, *name));
+                break;
+            }
+        }
+        content
+    };
+
+    let service_dir = fsn_dir.join("services").join(&package.id);
+    std::fs::create_dir_all(&service_dir).map_err(|e| e.to_string())?;
+
+    let compose_path = match compose_content {
+        Some((content, filename)) => {
+            let dest = service_dir.join(filename);
+            std::fs::write(&dest, content).map_err(|e| e.to_string())?;
+            dest
+        }
+        None => {
+            // No compose file in store — create a placeholder so the user can
+            // edit it manually and re-run `fsn conductor install`.
+            let dest = service_dir.join("compose.yml");
+            std::fs::write(&dest, format!(
+                "# Compose file for {name}\n\
+                 # Edit this file and run: fsn conductor install {path}\n\
+                 services:\n\
+                 #  {id}:\n\
+                 #    image: ...\n",
+                name = package.name,
+                id   = package.id,
+                path = dest.display(),
+            )).map_err(|e| e.to_string())?;
+            dest
+        }
+    };
+
+    // Write .env file
+    if !env_vars.trim().is_empty() {
+        let env_path = service_dir.join(".env");
+        std::fs::write(&env_path, env_vars).map_err(|e| e.to_string())?;
+    }
+
+    // Try `fsn conductor install <compose_path>`
+    let compose_str = compose_path.to_string_lossy().into_owned();
+    let conductor_result = tokio::process::Command::new("fsn")
+        .args(["conductor", "install", &compose_str])
+        .output()
+        .await;
+
+    match conductor_result {
+        Ok(out) if out.status.success() => {
+            // Reload systemd so the new Quadlet unit is picked up
+            let _ = tokio::process::Command::new("systemctl")
+                .args(["--user", "daemon-reload"])
+                .output()
+                .await;
+        }
+        Ok(out) => {
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            tracing::warn!(
+                "fsn conductor install returned non-zero: {stderr}. \
+                 Compose file saved to {compose_str} — run manually to finish setup."
+            );
+        }
+        Err(_) => {
+            tracing::warn!(
+                "`fsn` binary not found. Compose file saved to {compose_str}. \
+                 Run `fsn conductor install {compose_str}` manually to activate the service."
+            );
+        }
+    }
+
+    Ok(Some(compose_str))
+}
+
+// ── Fetch detected env vars from compose file ─────────────────────────────────
+
+/// Fetches a compose file from the store and extracts environment variable
+/// names so the configure step can show pre-populated input fields.
+pub async fn fetch_container_env_vars(package: &PackageEntry) -> Vec<String> {
+    let base = package.store_path.as_deref()
+        .map(|p| p.trim_end_matches('/').to_string())
+        .unwrap_or_else(|| format!("node/modules/{}", package.id));
+
+    for name in &["compose.yml", "docker-compose.yml", "container.yml"] {
+        let url = format!("{base}/{name}");
+        if let Ok(content) = StoreClient::node_store().fetch_raw(&url).await {
+            return extract_env_var_names(&content);
+        }
+    }
+    vec![]
+}
+
+/// Simple line-by-line extraction of `KEY` or `KEY: ...` or `KEY=...` from a
+/// YAML environment section. Good enough for showing input fields; the
+/// Conductor will do the proper analysis when installing.
+fn extract_env_var_names(yaml: &str) -> Vec<String> {
+    let mut in_env = false;
+    let mut vars   = Vec::new();
+
+    for line in yaml.lines() {
+        let trimmed = line.trim();
+
+        // Detect `environment:` section start
+        if trimmed == "environment:" || trimmed.starts_with("environment:") {
+            in_env = true;
+            continue;
+        }
+
+        // Detect next top-level key (ends env section)
+        if in_env && !line.starts_with(' ') && !line.starts_with('\t') && !trimmed.is_empty() {
+            in_env = false;
+        }
+
+        if in_env {
+            // `  - KEY=value`  or  `  - KEY`
+            let entry = trimmed.trim_start_matches("- ");
+            // `  KEY: value`
+            let key = if let Some(pos) = entry.find('=') {
+                &entry[..pos]
+            } else if let Some(pos) = entry.find(':') {
+                &entry[..pos]
+            } else {
+                entry
+            };
+            let key = key.trim();
+            if !key.is_empty() && key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+                vars.push(key.to_string());
+            }
+        }
+    }
+    vars
+}
+
 // ── InstallWizard component ────────────────────────────────────────────────────
 
 /// Install wizard — guides the user through pre-install configuration.
@@ -106,6 +260,13 @@ pub fn InstallWizard(package: PackageEntry, on_cancel: EventHandler<()>) -> Elem
     let mut step          = use_signal(|| WizardStep::Overview);
     let mut install_error = use_signal(|| Option::<String>::None);
 
+    // Container-specific: env var keys detected from compose file
+    let mut detected_vars: Signal<Vec<String>> = use_signal(Vec::new);
+    // Container-specific: user-entered env var values (KEY=VALUE per line in textarea)
+    let mut env_vars_text: Signal<String>      = use_signal(String::new);
+    // Whether we are currently fetching env vars
+    let mut loading_vars: Signal<bool>         = use_signal(|| false);
+
     let visible_steps = [
         WizardStep::Overview,
         WizardStep::Configure,
@@ -113,6 +274,31 @@ pub fn InstallWizard(package: PackageEntry, on_cancel: EventHandler<()>) -> Elem
     ];
 
     let current = step.read().clone();
+
+    // When entering Configure step for a Container package, fetch env vars once.
+    {
+        let pkg = package.clone();
+        use_effect(move || {
+            if *step.read() == WizardStep::Configure
+                && pkg.kind == PackageKind::Container
+                && detected_vars.read().is_empty()
+                && !*loading_vars.read()
+            {
+                loading_vars.set(true);
+                let pkg2 = pkg.clone();
+                spawn(async move {
+                    let vars = fetch_container_env_vars(&pkg2).await;
+                    // Pre-fill textarea with KEY= lines
+                    let prefill: String = vars.iter()
+                        .map(|k| format!("{k}=\n"))
+                        .collect();
+                    detected_vars.set(vars);
+                    env_vars_text.set(prefill);
+                    loading_vars.set(false);
+                });
+            }
+        });
+    }
 
     rsx! {
         div {
@@ -167,6 +353,12 @@ pub fn InstallWizard(package: PackageEntry, on_cancel: EventHandler<()>) -> Elem
                     WizardStep::Configure => rsx! {
                         h3 { style: "margin-top: 0;", "Configure {package.name}" }
                         { match &package.kind {
+                            PackageKind::Container => rsx! {
+                                ContainerConfigureStep {
+                                    loading: *loading_vars.read(),
+                                    env_vars_text,
+                                }
+                            },
                             PackageKind::Language => rsx! {
                                 p { style: "color: var(--fsn-color-text-muted);",
                                     "The language pack will be downloaded and saved locally. \
@@ -204,6 +396,27 @@ pub fn InstallWizard(package: PackageEntry, on_cancel: EventHandler<()>) -> Elem
                             div { "Version: {package.version}" }
                             div { "Type: {package.kind.label()}" }
                         }
+                        if package.kind == PackageKind::Container {
+                            div {
+                                style: "margin-top: 12px; padding: 10px 14px; \
+                                        background: var(--fsn-color-bg-surface); \
+                                        border: 1px solid var(--fsn-color-border-default); \
+                                        border-radius: var(--fsn-radius-md); font-size: 12px; \
+                                        color: var(--fsn-color-text-muted);",
+                                p { style: "margin: 0 0 4px 0;",
+                                    "The compose file will be saved to:"
+                                }
+                                code {
+                                    style: "font-size: 11px;",
+                                    "~/.local/share/fsn/services/{package.id}/"
+                                }
+                                p { style: "margin: 8px 0 0 0;",
+                                    "Then "
+                                    code { "fsn conductor install" }
+                                    " will generate the Quadlet unit and start the service."
+                                }
+                            }
+                        }
                     },
                     WizardStep::Installing => rsx! {
                         div { style: "text-align: center; padding: 48px;",
@@ -231,10 +444,11 @@ pub fn InstallWizard(package: PackageEntry, on_cancel: EventHandler<()>) -> Elem
                             }
                             p { style: "color: var(--fsn-color-text-muted); font-size: 13px; margin-top: 8px;",
                                 { match &package.kind {
-                                    PackageKind::Language => "Select it in Settings → Language.",
-                                    PackageKind::Theme    => "Activate it in Settings → Appearance.",
-                                    PackageKind::Widget   => "Add it via Edit Desktop → Add Widget.",
-                                    _                     => "Package is ready to use.",
+                                    PackageKind::Container => "Open Conductor to start and configure the service.",
+                                    PackageKind::Language  => "Select it in Settings → Language.",
+                                    PackageKind::Theme     => "Activate it in Settings → Appearance.",
+                                    PackageKind::Widget    => "Add it via Edit Desktop → Add Widget.",
+                                    _                      => "Package is ready to use.",
                                 }}
                             }
                         }
@@ -281,10 +495,11 @@ pub fn InstallWizard(package: PackageEntry, on_cancel: EventHandler<()>) -> Elem
                                     border-radius: var(--fsn-radius-md); cursor: pointer; \
                                     font-weight: 600;",
                             onclick: move |_| {
-                                let pkg = package.clone();
+                                let pkg   = package.clone();
+                                let envs  = env_vars_text.read().clone();
                                 step.set(WizardStep::Installing);
                                 spawn(async move {
-                                    match do_install(pkg).await {
+                                    match do_install(pkg, envs).await {
                                         Ok(()) => step.set(WizardStep::Done),
                                         Err(e) => {
                                             install_error.set(Some(e));
@@ -311,6 +526,49 @@ pub fn InstallWizard(package: PackageEntry, on_cancel: EventHandler<()>) -> Elem
                         }
                     },
                 }}
+            }
+        }
+    }
+}
+
+// ── ContainerConfigureStep ────────────────────────────────────────────────────
+
+/// Configure step for container packages: editable KEY=VALUE textarea.
+/// Pre-filled with detected variable names from the compose file.
+#[component]
+fn ContainerConfigureStep(loading: bool, mut env_vars_text: Signal<String>) -> Element {
+    rsx! {
+        div {
+            p { style: "color: var(--fsn-color-text-secondary); margin-bottom: 16px;",
+                "Enter environment variables for this service (one per line, KEY=VALUE)."
+            }
+            p { style: "color: var(--fsn-color-text-muted); font-size: 12px; margin-bottom: 12px;",
+                "These will be saved to "
+                code { ".env" }
+                " next to the compose file. Leave values empty to fill in later."
+            }
+
+            if loading {
+                p { style: "color: var(--fsn-color-text-muted); font-size: 13px;",
+                    "Detecting variables…"
+                }
+            } else {
+                textarea {
+                    style: "width: 100%; min-height: 200px; padding: 10px 12px; \
+                            font-family: monospace; font-size: 13px; \
+                            background: var(--fsn-color-bg-elevated); \
+                            border: 1px solid var(--fsn-color-border-default); \
+                            border-radius: var(--fsn-radius-md); \
+                            color: var(--fsn-color-text-primary); \
+                            resize: vertical; box-sizing: border-box;",
+                    placeholder: "KEY=value\nANOTHER_KEY=value",
+                    value: "{env_vars_text.read()}",
+                    oninput: move |e| env_vars_text.set(e.value()),
+                }
+                p { style: "color: var(--fsn-color-text-muted); font-size: 11px; margin-top: 6px;",
+                    "Tip: You can also edit this file later at "
+                    code { "~/.local/share/fsn/services/<name>/.env" }
+                }
             }
         }
     }

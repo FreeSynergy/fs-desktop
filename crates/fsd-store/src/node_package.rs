@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 pub enum PackageKind {
     #[default]
     Plugin,
+    /// A Podman/Quadlet container service (e.g. Kanidm, Forgejo, Outline).
+    Container,
     Language,
     Theme,
     Widget,
@@ -20,6 +22,7 @@ impl PackageKind {
     /// All selectable kinds in order.
     pub const ALL: &'static [PackageKind] = &[
         PackageKind::Plugin,
+        PackageKind::Container,
         PackageKind::Language,
         PackageKind::Theme,
         PackageKind::Widget,
@@ -31,6 +34,7 @@ impl PackageKind {
     pub fn label(&self) -> &'static str {
         match self {
             PackageKind::Plugin     => "Plugin",
+            PackageKind::Container  => "Service",
             PackageKind::Language   => "Language",
             PackageKind::Theme      => "Theme",
             PackageKind::Widget     => "Widget",
@@ -43,6 +47,7 @@ impl PackageKind {
     pub fn icon(&self) -> &'static str {
         match self {
             PackageKind::Plugin     => "🔌",
+            PackageKind::Container  => "📦",
             PackageKind::Language   => "🌐",
             PackageKind::Theme      => "🎨",
             PackageKind::Widget     => "🧩",
@@ -56,6 +61,7 @@ impl PackageKind {
     pub fn kind_str(&self) -> String {
         match self {
             PackageKind::Plugin     => "plugin".into(),
+            PackageKind::Container  => "container".into(),
             PackageKind::Language   => "language".into(),
             PackageKind::Theme      => "theme".into(),
             PackageKind::Widget     => "widget".into(),

@@ -1,0 +1,337 @@
+/// Service detail panel — shown when a service is selected in the Services list.
+///
+/// Displays: service status, start/stop/restart actions, environment variables
+/// editor (.env file), and a mini log tail.
+use dioxus::prelude::*;
+use fsn_container::{SystemctlManager, UnitActiveState};
+
+use crate::log_viewer::LogViewer;
+
+// ── ServiceDetail ──────────────────────────────────────────────────────────────
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum DetailTab {
+    Config,
+    Logs,
+}
+
+/// Full detail panel for a single service.
+#[component]
+pub fn ServiceDetail(service_name: String, on_close: EventHandler<()>) -> Element {
+    let mut tab = use_signal(|| DetailTab::Config);
+
+    rsx! {
+        div {
+            class: "fsd-service-detail",
+            style: "display: flex; flex-direction: column; height: 100%; \
+                    border-left: 1px solid var(--fsn-border); \
+                    background: var(--fsn-color-bg-base);",
+
+            // ── Header ─────────────────────────────────────────────────────────
+            div {
+                style: "display: flex; align-items: center; justify-content: space-between; \
+                        padding: 12px 16px; border-bottom: 1px solid var(--fsn-border); \
+                        background: var(--fsn-bg-surface); flex-shrink: 0;",
+                div {
+                    style: "display: flex; align-items: center; gap: 10px;",
+                    button {
+                        style: "background: none; border: none; cursor: pointer; \
+                                color: var(--fsn-text-muted); font-size: 18px; padding: 0 4px;",
+                        title: "Close detail",
+                        onclick: move |_| on_close.call(()),
+                        "‹"
+                    }
+                    span {
+                        style: "font-weight: 600; font-size: 14px;",
+                        "{service_name}"
+                    }
+                }
+                ServiceStatusBadge { service_name: service_name.clone() }
+            }
+
+            // ── Tab bar ────────────────────────────────────────────────────────
+            div {
+                style: "display: flex; border-bottom: 1px solid var(--fsn-border); flex-shrink: 0;",
+                DetailTabBtn {
+                    label: "Config",
+                    active: *tab.read() == DetailTab::Config,
+                    onclick: move |_| tab.set(DetailTab::Config),
+                }
+                DetailTabBtn {
+                    label: "Logs",
+                    active: *tab.read() == DetailTab::Logs,
+                    onclick: move |_| tab.set(DetailTab::Logs),
+                }
+            }
+
+            // ── Tab content ────────────────────────────────────────────────────
+            div {
+                style: "flex: 1; overflow: auto;",
+                match *tab.read() {
+                    DetailTab::Config => rsx! {
+                        ServiceConfigTab { service_name: service_name.clone() }
+                    },
+                    DetailTab::Logs => rsx! {
+                        LogViewer { service: service_name.clone() }
+                    },
+                }
+            }
+        }
+    }
+}
+
+// ── ServiceStatusBadge ─────────────────────────────────────────────────────────
+
+/// Small live status badge (polls systemctl every 5s).
+#[component]
+fn ServiceStatusBadge(service_name: String) -> Element {
+    let mut state: Signal<UnitActiveState> = use_signal(|| UnitActiveState::Unknown);
+
+    {
+        let name = service_name.clone();
+        use_future(move || {
+            let name = name.clone();
+            async move {
+                let mgr = SystemctlManager::user();
+                loop {
+                    if let Ok(s) = mgr.service_status(&name).await {
+                        state.set(s.active_state);
+                    }
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                }
+            }
+        });
+    }
+
+    let (label, color, bg) = match *state.read() {
+        UnitActiveState::Active       => ("Running",  "var(--fsn-success)",      "rgba(34,197,94,0.1)"),
+        UnitActiveState::Inactive     => ("Stopped",  "var(--fsn-text-muted)",   "var(--fsn-bg-elevated)"),
+        UnitActiveState::Activating   => ("Starting", "var(--fsn-info)",         "rgba(99,179,237,0.1)"),
+        UnitActiveState::Deactivating => ("Stopping", "var(--fsn-warning)",      "rgba(251,191,36,0.1)"),
+        UnitActiveState::Failed       => ("Failed",   "var(--fsn-error)",        "rgba(239,68,68,0.1)"),
+        UnitActiveState::Unknown      => ("Unknown",  "var(--fsn-text-muted)",   "var(--fsn-bg-elevated)"),
+    };
+
+    rsx! {
+        span {
+            style: "padding: 3px 10px; border-radius: 999px; font-size: 12px; \
+                    color: {color}; background: {bg}; border: 1px solid {color};",
+            "{label}"
+        }
+    }
+}
+
+// ── ServiceConfigTab ───────────────────────────────────────────────────────────
+
+/// Config tab: action buttons + .env editor.
+#[component]
+fn ServiceConfigTab(service_name: String) -> Element {
+    let mut action_msg: Signal<Option<String>> = use_signal(|| None);
+
+    rsx! {
+        div { style: "padding: 16px;",
+
+            // Action buttons
+            div {
+                style: "display: flex; gap: 8px; margin-bottom: 20px;",
+                ActionBtn {
+                    label: "Start",
+                    color: "var(--fsn-success)",
+                    name: service_name.clone(),
+                    action: "start",
+                    msg: action_msg,
+                }
+                ActionBtn {
+                    label: "Stop",
+                    color: "var(--fsn-error)",
+                    name: service_name.clone(),
+                    action: "stop",
+                    msg: action_msg,
+                }
+                ActionBtn {
+                    label: "Restart",
+                    color: "var(--fsn-warning)",
+                    name: service_name.clone(),
+                    action: "restart",
+                    msg: action_msg,
+                }
+            }
+
+            // Action feedback
+            if let Some(msg) = action_msg.read().as_deref() {
+                div {
+                    style: "margin-bottom: 12px; padding: 8px 12px; \
+                            background: var(--fsn-bg-elevated); \
+                            border-radius: var(--fsn-radius-md); \
+                            font-size: 12px; color: var(--fsn-text-muted);",
+                    "{msg}"
+                }
+            }
+
+            // Env vars editor
+            EnvEditor { service_name: service_name.clone() }
+        }
+    }
+}
+
+// ── ActionBtn ─────────────────────────────────────────────────────────────────
+
+#[component]
+fn ActionBtn(
+    label:  String,
+    color:  String,
+    name:   String,
+    action: String,
+    mut msg: Signal<Option<String>>,
+) -> Element {
+    rsx! {
+        button {
+            style: "padding: 6px 14px; background: {color}; color: white; \
+                    border: none; border-radius: var(--fsn-radius-md); \
+                    cursor: pointer; font-size: 13px;",
+            onclick: {
+                let name   = name.clone();
+                let action = action.clone();
+                let label  = label.clone();
+                move |_| {
+                    let name   = name.clone();
+                    let action = action.clone();
+                    let label  = label.clone();
+                    spawn(async move {
+                        let mgr = SystemctlManager::user();
+                        let result = match action.as_str() {
+                            "start"   => mgr.start(&name).await,
+                            "stop"    => mgr.stop(&name).await,
+                            "restart" => mgr.restart(&name).await,
+                            _         => Ok(()),
+                        };
+                        match result {
+                            Ok(()) => msg.set(Some(format!("{label} OK"))),
+                            Err(e) => msg.set(Some(format!("{label} failed: {e}"))),
+                        }
+                    });
+                }
+            },
+            "{label}"
+        }
+    }
+}
+
+// ── EnvEditor ─────────────────────────────────────────────────────────────────
+
+/// Reads ~/.local/share/fsn/services/<name>/.env and lets the user edit + save it.
+#[component]
+fn EnvEditor(service_name: String) -> Element {
+    let env_path = {
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
+        std::path::PathBuf::from(home)
+            .join(".local/share/fsn/services")
+            .join(&service_name)
+            .join(".env")
+    };
+
+    let env_path_str = env_path.to_string_lossy().into_owned();
+
+    let mut content: Signal<String>       = use_signal(String::new);
+    let mut loaded:  Signal<bool>         = use_signal(|| false);
+    let mut save_msg: Signal<Option<String>> = use_signal(|| None);
+
+    // Load once
+    {
+        let path = env_path.clone();
+        use_effect(move || {
+            if !*loaded.read() {
+                let text = std::fs::read_to_string(&path).unwrap_or_default();
+                content.set(text);
+                loaded.set(true);
+            }
+        });
+    }
+
+    rsx! {
+        div {
+            div {
+                style: "display: flex; align-items: center; justify-content: space-between; \
+                        margin-bottom: 8px;",
+                span {
+                    style: "font-size: 13px; font-weight: 600;",
+                    "Environment Variables"
+                }
+                button {
+                    style: "padding: 4px 12px; background: var(--fsn-color-primary); \
+                            color: white; border: none; border-radius: var(--fsn-radius-md); \
+                            cursor: pointer; font-size: 12px;",
+                    onclick: {
+                        let path = env_path.clone();
+                        move |_| {
+                            let path    = path.clone();
+                            let to_save = content.read().clone();
+                            match std::fs::write(&path, &to_save) {
+                                Ok(()) => {
+                                    save_msg.set(Some("Saved. Restart the service to apply.".into()));
+                                }
+                                Err(e) => {
+                                    save_msg.set(Some(format!("Save failed: {e}")));
+                                }
+                            }
+                        }
+                    },
+                    "Save"
+                }
+            }
+
+            p { style: "font-size: 11px; color: var(--fsn-text-muted); margin-bottom: 8px;",
+                "{env_path_str}"
+            }
+
+            if let Some(msg) = save_msg.read().as_deref() {
+                div {
+                    style: "margin-bottom: 8px; padding: 6px 10px; \
+                            background: var(--fsn-bg-elevated); \
+                            border-radius: var(--fsn-radius-md); \
+                            font-size: 12px; color: var(--fsn-text-muted);",
+                    "{msg}"
+                }
+            }
+
+            textarea {
+                style: "width: 100%; min-height: 220px; padding: 10px 12px; \
+                        font-family: monospace; font-size: 12px; \
+                        background: var(--fsn-color-bg-elevated); \
+                        border: 1px solid var(--fsn-color-border-default); \
+                        border-radius: var(--fsn-radius-md); \
+                        color: var(--fsn-color-text-primary); \
+                        resize: vertical; box-sizing: border-box;",
+                placeholder: "KEY=value\nANOTHER_KEY=value",
+                value: "{content.read()}",
+                oninput: move |e| content.set(e.value()),
+            }
+
+            p { style: "font-size: 11px; color: var(--fsn-text-muted); margin-top: 6px;",
+                "After saving, restart the service for changes to take effect."
+            }
+        }
+    }
+}
+
+// ── DetailTabBtn ───────────────────────────────────────────────────────────────
+
+#[component]
+fn DetailTabBtn(label: String, active: bool, onclick: EventHandler<MouseEvent>) -> Element {
+    let bg     = if active { "var(--fsn-bg-elevated)" } else { "transparent" };
+    let border = if active {
+        "border-bottom: 2px solid var(--fsn-color-primary);"
+    } else {
+        "border-bottom: 2px solid transparent;"
+    };
+    let color  = if active { "var(--fsn-text-primary)" } else { "var(--fsn-text-muted)" };
+
+    rsx! {
+        button {
+            style: "padding: 8px 16px; background: {bg}; border: none; \
+                    {border} cursor: pointer; font-size: 13px; color: {color};",
+            onclick: move |e| onclick.call(e),
+            "{label}"
+        }
+    }
+}
