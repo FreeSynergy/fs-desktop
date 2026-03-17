@@ -38,9 +38,12 @@ pub fn Desktop() -> Element {
     let mut ctx_menu        = use_signal(|| ContextMenuState::default());
     let sidebar_sections: Signal<Vec<SidebarSection>> = use_signal(default_sidebar_sections);
     let mut theme: Signal<String> = use_context_provider(|| Signal::new(crate::db::load_theme_from_db()));
-    // B5: Animation + Window-Chrome opacity contexts
-    let anim_enabled: Signal<bool> = use_context_provider(|| Signal::new(true));
-    let chrome_opacity: Signal<f64> = use_context_provider(|| Signal::new(0.80f64));
+    // B5: Animation, chrome opacity, and component style contexts
+    let anim_enabled: Signal<bool>    = use_context_provider(|| Signal::new(true));
+    let chrome_opacity: Signal<f64>   = use_context_provider(|| Signal::new(0.80f64));
+    let chrome_style: Signal<String>  = use_context_provider(|| Signal::new("kde".to_string()));
+    let btn_style: Signal<String>     = use_context_provider(|| Signal::new("rounded".to_string()));
+    let sidebar_style: Signal<String> = use_context_provider(|| Signal::new("solid".to_string()));
 
     // ── Widget layer state ─────────────────────────────────────────────────
     let mut widget_layout   = use_signal(load_widget_layout);
@@ -60,14 +63,19 @@ pub fn Desktop() -> Element {
         ":root {{ --fsn-anim-duration: {anim_dur}; --fsn-window-bg: rgba(15,23,42,{win_opacity:.2}); }}"
     );
 
+    // Separate custom-injected CSS (Store themes) from named theme attribute.
+    // Convention: theme Signal = "__custom__<css>" for Store themes, plain id for built-in.
+    let theme_val = theme.read().clone();
+    let (theme_attr, store_theme_css) = if let Some(css) = theme_val.strip_prefix("__custom__") {
+        ("".to_string(), css.to_string())
+    } else {
+        (theme_val, String::new())
+    };
+
     // ── Theme + menu action handler ────────────────────────────────────────
     let menu_action_handler = move |id: String| {
         match id.as_str() {
             "theme-midnight-blue" => { theme.set("midnight-blue".to_string()); crate::db::save_theme_to_db("midnight-blue".to_string()); }
-            "theme-cloud-white"   => { theme.set("cloud-white".to_string());   crate::db::save_theme_to_db("cloud-white".to_string()); }
-            "theme-cupertino"     => { theme.set("cupertino".to_string());     crate::db::save_theme_to_db("cupertino".to_string()); }
-            "theme-nordic"        => { theme.set("nordic".to_string());        crate::db::save_theme_to_db("nordic".to_string()); }
-            "theme-rose-pine"     => { theme.set("rose-pine".to_string());     crate::db::save_theme_to_db("rose-pine".to_string()); }
             "launcher"            => launcher.write().toggle(),
             "open-tasks"          => open_app(&mut wm, &mut apps, "tasks"),
             "open-bots"           => open_app(&mut wm, &mut apps, "bots"),
@@ -198,10 +206,17 @@ pub fn Desktop() -> Element {
         style { "{FSNOBJ_CSS}" }
         style { "{FSN_SIDEBAR_CSS}" }
         style { "{dynamic_css}" }
+        // Store-theme CSS injection (overrides the built-in midnight-blue defaults)
+        if !store_theme_css.is_empty() {
+            style { "{store_theme_css}" }
+        }
 
         div {
             id: "fsd-desktop",
-            "data-theme": "{theme}",
+            "data-theme": "{theme_attr}",
+            "data-chrome-style":  "{chrome_style.read()}",
+            "data-btn-style":     "{btn_style.read()}",
+            "data-sidebar-style": "{sidebar_style.read()}",
             style: "
                 width: 100vw; height: 100vh; overflow: hidden;
                 display: flex; flex-direction: column;

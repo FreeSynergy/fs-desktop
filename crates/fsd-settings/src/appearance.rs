@@ -8,6 +8,7 @@ use dioxus::prelude::*;
 #[component]
 pub fn AppearanceSettings() -> Element {
     use fsd_db::package_registry::PackageRegistry;
+    use fsn_theme::{prefix_theme_css, validate_theme_vars};
     let theme_ctx: Option<Signal<String>> = try_use_context();
     let wallpaper_ctx: Option<Signal<String>> = try_use_context();
     let mut local_theme = use_signal(|| "midnight-blue".to_string());
@@ -24,10 +25,16 @@ pub fn AppearanceSettings() -> Element {
     let mut theme_remove_confirm: Signal<Option<String>> = use_signal(|| None);
 
     // Animation + Window-Chrome toggles (B5)
-    let anim_ctx: Option<Signal<bool>> = try_use_context();
-    let chrome_ctx: Option<Signal<f64>> = try_use_context();
-    let mut local_anim    = use_signal(|| true);
-    let mut local_opacity = use_signal(|| 0.80f64);
+    let anim_ctx: Option<Signal<bool>>    = try_use_context();
+    let chrome_ctx: Option<Signal<f64>>   = try_use_context();
+    let chrome_style_ctx: Option<Signal<String>>  = try_use_context();
+    let btn_style_ctx: Option<Signal<String>>     = try_use_context();
+    let sidebar_style_ctx: Option<Signal<String>> = try_use_context();
+    let mut local_anim          = use_signal(|| true);
+    let mut local_opacity       = use_signal(|| 0.80f64);
+    let mut local_chrome_style  = use_signal(|| "kde".to_string());
+    let mut local_btn_style     = use_signal(|| "rounded".to_string());
+    let mut local_sidebar_style = use_signal(|| "solid".to_string());
 
     let current_theme = theme_ctx
         .as_ref()
@@ -45,6 +52,19 @@ pub fn AppearanceSettings() -> Element {
         .unwrap_or_else(|| *local_opacity.read());
     let opacity_pct = (chrome_opacity * 100.0) as u32;
     let opacity_label = if anim_enabled { "On" } else { "Off" };
+
+    let chrome_style = chrome_style_ctx
+        .as_ref()
+        .map(|s| s.read().clone())
+        .unwrap_or_else(|| local_chrome_style.read().clone());
+    let btn_style = btn_style_ctx
+        .as_ref()
+        .map(|s| s.read().clone())
+        .unwrap_or_else(|| local_btn_style.read().clone());
+    let sidebar_style = sidebar_style_ctx
+        .as_ref()
+        .map(|s| s.read().clone())
+        .unwrap_or_else(|| local_sidebar_style.read().clone());
 
     let set_theme = move |value: String| {
         if let Some(mut ctx) = theme_ctx {
@@ -70,13 +90,20 @@ pub fn AppearanceSettings() -> Element {
         }
     };
 
+    let mut set_chrome_style = move |v: String| {
+        if let Some(mut ctx) = chrome_style_ctx { ctx.set(v); } else { local_chrome_style.set(v); }
+    };
+    let mut set_btn_style = move |v: String| {
+        if let Some(mut ctx) = btn_style_ctx { ctx.set(v); } else { local_btn_style.set(v); }
+    };
+    let mut set_sidebar_style = move |v: String| {
+        if let Some(mut ctx) = sidebar_style_ctx { ctx.set(v); } else { local_sidebar_style.set(v); }
+    };
+
     // Built-in themes: (id, label, preview colors: bg, primary, text)
+    // Only Midnight Blue is bundled. Other themes come from the Store (see "Installed Themes").
     let themes: &[(&str, &str, &str)] = &[
         ("midnight-blue", "Midnight Blue", "#0c1222,#4d8bf5,#e8edf5"),
-        ("cloud-white",   "Cloud White",   "#f8fafc,#2563eb,#0f172a"),
-        ("cupertino",     "Cupertino",     "#f5f5f7,#007AFF,#1d1d1f"),
-        ("nordic",        "Nordic",        "#2E3440,#88C0D0,#ECEFF4"),
-        ("rose-pine",     "Rose Pine",     "#191724,#ebbcba,#e0def4"),
     ];
 
     rsx! {
@@ -189,12 +216,8 @@ pub fn AppearanceSettings() -> Element {
                         {
                             let pkg_id   = pkg.id.clone();
                             let pkg_name = pkg.name.clone();
-                            let file_css = pkg.file_path.as_ref().map(|p| {
-                                format!(
-                                    "background-image: none; --fsn-theme-file: url('file://{}');",
-                                    p
-                                )
-                            });
+                            // Store themes ship a theme.css — read it on apply.
+                            let css_path = pkg.file_path.clone();
                             let mut set_theme = set_theme.clone();
                             rsx! {
                                 div {
@@ -208,15 +231,19 @@ pub fn AppearanceSettings() -> Element {
                                         style: "flex: 1; font-size: 14px; font-weight: 500;",
                                         "{pkg_name}"
                                     }
-                                    if let Some(css) = file_css {
+                                    if css_path.is_some() {
                                         button {
                                             style: "padding: 6px 14px; background: var(--fsn-color-primary); \
                                                     color: white; border: none; \
                                                     border-radius: var(--fsn-radius-md); cursor: pointer; \
                                                     font-size: 12px;",
                                             onclick: {
-                                                let css = css.clone();
-                                                move |_| set_theme(format!("__custom__{}", css))
+                                                let path = css_path.clone().unwrap_or_default();
+                                                move |_| {
+                                                    if let Ok(css) = std::fs::read_to_string(&path) {
+                                                        set_theme(format!("__custom__{}", css));
+                                                    }
+                                                }
                                             },
                                             "Apply"
                                         }
@@ -289,6 +316,97 @@ pub fn AppearanceSettings() -> Element {
                                   color: var(--fsn-text-muted); margin-top: 4px;",
                         span { "Transparent" }
                         span { "Opaque" }
+                    }
+                }
+            }
+
+            // ── Section: Component Style ───────────────────────────────────
+            h3 { style: "margin-top: 0; margin-bottom: 16px; font-size: 16px;", "Component Style" }
+
+            div { style: "display: flex; flex-direction: column; gap: 20px; margin-bottom: 28px;",
+                {
+                    let chrome_options: &[(&str, &str)] = &[("kde","KDE"),("macos","macOS"),("windows","Windows"),("minimal","Minimal")];
+                    let btn_options:    &[(&str, &str)] = &[("rounded","Rounded"),("square","Square"),("pill","Pill"),("flat","Flat")];
+                    let sidebar_options: &[(&str, &str)] = &[("solid","Solid"),("glass","Glass"),("transparent","Transparent")];
+
+                    rsx! {
+                        // Window Chrome
+                        div {
+                            div { style: "font-size: 14px; font-weight: 500; margin-bottom: 8px;", "Window Chrome" }
+                            div { style: "display: flex; gap: 8px; flex-wrap: wrap;",
+                                for (id, label) in chrome_options.iter().copied() {
+                                    {
+                                        let active = chrome_style == id;
+                                        let id_owned = id.to_string();
+                                        let btn_style_s = if active {
+                                            "padding: 6px 14px; border-radius: var(--fsn-radius-md); font-size: 13px; cursor: pointer; background: var(--fsn-primary); color: white; border: 1px solid var(--fsn-primary);"
+                                        } else {
+                                            "padding: 6px 14px; border-radius: var(--fsn-radius-md); font-size: 13px; cursor: pointer; background: var(--fsn-bg-surface); color: var(--fsn-text-primary); border: 1px solid var(--fsn-border);"
+                                        };
+                                        rsx! {
+                                            button {
+                                                key: "{id}",
+                                                style: "{btn_style_s}",
+                                                onclick: move |_| set_chrome_style(id_owned.clone()),
+                                                "{label}"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Button Style
+                        div {
+                            div { style: "font-size: 14px; font-weight: 500; margin-bottom: 8px;", "Button Style" }
+                            div { style: "display: flex; gap: 8px; flex-wrap: wrap;",
+                                for (id, label) in btn_options.iter().copied() {
+                                    {
+                                        let active = btn_style == id;
+                                        let id_owned = id.to_string();
+                                        let btn_style_s = if active {
+                                            "padding: 6px 14px; border-radius: var(--fsn-radius-md); font-size: 13px; cursor: pointer; background: var(--fsn-primary); color: white; border: 1px solid var(--fsn-primary);"
+                                        } else {
+                                            "padding: 6px 14px; border-radius: var(--fsn-radius-md); font-size: 13px; cursor: pointer; background: var(--fsn-bg-surface); color: var(--fsn-text-primary); border: 1px solid var(--fsn-border);"
+                                        };
+                                        rsx! {
+                                            button {
+                                                key: "{id}",
+                                                style: "{btn_style_s}",
+                                                onclick: move |_| set_btn_style(id_owned.clone()),
+                                                "{label}"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Sidebar Style
+                        div {
+                            div { style: "font-size: 14px; font-weight: 500; margin-bottom: 8px;", "Sidebar Style" }
+                            div { style: "display: flex; gap: 8px; flex-wrap: wrap;",
+                                for (id, label) in sidebar_options.iter().copied() {
+                                    {
+                                        let active = sidebar_style == id;
+                                        let id_owned = id.to_string();
+                                        let btn_style_s = if active {
+                                            "padding: 6px 14px; border-radius: var(--fsn-radius-md); font-size: 13px; cursor: pointer; background: var(--fsn-primary); color: white; border: 1px solid var(--fsn-primary);"
+                                        } else {
+                                            "padding: 6px 14px; border-radius: var(--fsn-radius-md); font-size: 13px; cursor: pointer; background: var(--fsn-bg-surface); color: var(--fsn-text-primary); border: 1px solid var(--fsn-border);"
+                                        };
+                                        rsx! {
+                                            button {
+                                                key: "{id}",
+                                                style: "{btn_style_s}",
+                                                onclick: move |_| set_sidebar_style(id_owned.clone()),
+                                                "{label}"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -395,7 +513,7 @@ pub fn AppearanceSettings() -> Element {
 
             // Required vars hint
             div { style: "font-size: 11px; color: var(--fsn-text-muted); margin-bottom: 8px;",
-                "Required: --bg-base, --bg-surface, --text-primary, --text-muted, --primary, --border, …"
+                "Required: --bg-base, --bg-surface, --bg-elevated, --bg-card, --bg-input, --text-primary, --text-secondary, --text-muted, --primary, --primary-hover, --primary-text, --accent, --success, --warning, --error, --border, --border-focus"
             }
 
             // Editor textarea
@@ -407,7 +525,7 @@ pub fn AppearanceSettings() -> Element {
                         background: var(--fsn-bg-input); \
                         color: var(--fsn-text-primary); \
                         resize: vertical; box-sizing: border-box;",
-                placeholder: ":root {{\n  --bg-base: #0c1222;\n  --text-primary: #e8edf5;\n  --primary: #4d8bf5;\n  /* … */\n}}",
+                placeholder: ":root {{\n  /* Required: backgrounds */\n  --bg-base: #0c1222;\n  --bg-surface: #162032;\n  --bg-elevated: #1e2d45;\n  --bg-card: #1a2538;\n  --bg-input: #0f1a2e;\n  /* Required: text */\n  --text-primary: #e8edf5;\n  --text-secondary: #a0b0c8;\n  --text-muted: #5a6e88;\n  /* Required: colors */\n  --primary: #4d8bf5;\n  --primary-hover: #3a78e8;\n  --primary-text: #ffffff;\n  --accent: #22d3ee;\n  /* Required: status */\n  --success: #34d399;\n  --warning: #fbbf24;\n  --error: #f87171;\n  /* Required: borders */\n  --border: rgba(148,170,200,0.18);\n  --border-focus: #4d8bf5;\n  /* Optional: effects */\n  --shadow: 0 4px 16px rgba(0,0,0,0.4);\n  --radius: 10px;\n  --transition: 0.18s ease;\n  --font-family: 'Inter', sans-serif;\n}}",
                 oninput: move |e| {
                     custom_css.set(e.value());
                     editor_error.set(None);
@@ -486,46 +604,3 @@ pub fn AppearanceSettings() -> Element {
     }
 }
 
-// ── Theme loader helpers (inlined to avoid circular deps with fsd-shell) ───────
-
-const REQUIRED_VARS: &[&str] = &[
-    "bg-base", "bg-surface", "bg-elevated", "bg-card", "bg-input",
-    "text-primary", "text-secondary", "text-muted",
-    "primary", "primary-hover", "primary-text",
-    "accent",
-    "success", "warning", "error",
-    "border", "border-focus",
-];
-
-/// Injects `--{prefix}-` before every CSS variable name that lacks it.
-fn prefix_theme_css(css: &str, prefix: &str) -> String {
-    let guard = format!("{prefix}-");
-    let mut out = String::with_capacity(css.len() + css.len() / 4);
-    let bytes = css.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if i + 1 < bytes.len() && bytes[i] == b'-' && bytes[i + 1] == b'-' {
-            out.push_str("--");
-            i += 2;
-            // Check if already prefixed.
-            if css[i..].starts_with(&guard) {
-                // Already has prefix — emit as-is.
-            } else {
-                out.push_str(&guard);
-            }
-        } else {
-            out.push(css.as_bytes()[i] as char);
-            i += 1;
-        }
-    }
-    out
-}
-
-/// Returns names of required variables missing from `css` (without prefix).
-fn validate_theme_vars(css: &str) -> Vec<&'static str> {
-    REQUIRED_VARS
-        .iter()
-        .copied()
-        .filter(|var| !css.contains(&format!("--{var}")))
-        .collect()
-}
