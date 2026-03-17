@@ -23,11 +23,8 @@ fsd-db         = { workspace = true }
 fsn-components = { workspace = true }
 fsn-store      = { workspace = true }
 fsn-theme      = { workspace = true }
-fsn-i18n   = { workspace = true }
-fsn-config = { workspace = true }
-fsn-error  = { workspace = true }
-dioxus     = { workspace = true }
-serde      = { workspace = true }
-toml       = { workspace = true }
-anyhow     = { workspace = true }
-tracing    = { workspace = true }
+fsn-i18n       = { workspace = true }
+dioxus         = { workspace = true }
+serde          = { workspace = true }
+toml           = { workspace = true }
+tracing        = { workspace = true }

@@ -28,16 +28,12 @@ fsd-profile   = { workspace = true }
 fsd-bots      = { workspace = true }
 fsd-tasks     = { workspace = true }
 fsn-components = { workspace = true }
-fsn-i18n       = { workspace = true }
 fsn-theme      = { workspace = true }
-fsn-config     = { workspace = true }
-dioxus        = { workspace = true }
-serde         = { workspace = true }
-toml          = { workspace = true }
-anyhow        = { workspace = true }
-chrono        = { workspace = true }
-tokio         = { workspace = true }
-tracing       = { workspace = true }
+dioxus         = { workspace = true }
+serde          = { workspace = true }
+chrono         = { workspace = true }
+tokio          = { workspace = true }
+tracing        = { workspace = true }
 
 [dev-dependencies]
 insta     = { version = "1", features = ["toml"] }

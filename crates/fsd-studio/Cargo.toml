@@ -20,15 +20,8 @@ web      = ["dioxus/web",     "fsn-components/web"]
 
 [dependencies]
 fsn-components = { workspace = true }
-fsn-plugin-sdk = { workspace = true }
-fsn-i18n       = { workspace = true }
-fsn-error      = { workspace = true }
 dioxus         = { workspace = true }
 serde          = { workspace = true }
 serde_json     = { workspace = true }
 serde_yaml     = { workspace = true }
-toml           = { workspace = true }
 reqwest        = { workspace = true }
-tokio          = { workspace = true }
-anyhow         = { workspace = true }
-tracing        = { workspace = true }
