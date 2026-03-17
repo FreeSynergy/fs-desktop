@@ -25,7 +25,15 @@ pub fn PackageBrowser(
             async move {
                 match StoreClient::node_store().fetch_catalog::<NodePackage>("Node", false).await {
                     Ok(catalog) => {
-                        packages.set(catalog_to_entries(catalog));
+                        let mut entries = catalog_to_entries(catalog);
+                        // Also load shared catalog (language packs, themes, etc.)
+                        if let Ok(shared) = StoreClient::node_store()
+                            .fetch_catalog::<NodePackage>("shared", false)
+                            .await
+                        {
+                            entries.extend(catalog_to_entries(shared));
+                        }
+                        packages.set(entries);
                         error.set(None);
                     }
                     Err(e) => {
