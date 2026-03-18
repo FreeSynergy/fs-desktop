@@ -65,14 +65,10 @@ impl AppEntry {
 }
 
 /// Builds the default pinned apps list.
+/// Only the Store is pinned by default; all other apps appear after installation.
 pub fn default_apps() -> Vec<AppEntry> {
     vec![
-        AppEntry { id: "conductor".into(), label_key: "Conductor".into(), icon: "⚙".into(),  icon_url: Some(we10x_icon_url("apps/scalable", "virt-manager")),                 group: Some("System".into()), pinned: true, windows: vec![] },
-        AppEntry { id: "store".into(),     label_key: "Store".into(),     icon: "📦".into(), icon_url: Some(we10x_icon_url("apps/scalable", "system-software-install")),       group: Some("System".into()), pinned: true, windows: vec![] },
-        AppEntry { id: "studio".into(),    label_key: "Studio".into(),    icon: "🔧".into(), icon_url: Some(we10x_icon_url("apps/scalable", "preferences-plugin-script")),    group: Some("System".into()), pinned: true, windows: vec![] },
-        AppEntry { id: "settings".into(),  label_key: "Settings".into(),  icon: "⚙".into(),  icon_url: Some(we10x_icon_url("apps/scalable", "preferences-system")),           group: Some("System".into()), pinned: true, windows: vec![] },
-        AppEntry { id: "ai".into(),        label_key: "AI".into(),        icon: "🤖".into(), icon_url: Some(we10x_icon_url("apps/scalable", "braindump")),                     group: Some("System".into()), pinned: true, windows: vec![] },
-        AppEntry { id: "help".into(),      label_key: "Help".into(),      icon: "❓".into(), icon_url: Some(we10x_icon_url("apps/scalable", "help-browser")),                  group: Some("System".into()), pinned: true, windows: vec![] },
+        AppEntry { id: "store".into(), label_key: "Store".into(), icon: "📦".into(), icon_url: Some(we10x_icon_url("apps/scalable", "system-software-install")), group: Some("System".into()), pinned: true, windows: vec![] },
     ]
 }
 
