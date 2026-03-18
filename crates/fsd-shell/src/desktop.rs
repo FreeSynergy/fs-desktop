@@ -67,17 +67,33 @@ fn os_resize_handles() -> Element {
     rsx! {}
 }
 
-/// Initialize the global i18n instance and load any user-installed language pack.
+/// Initialize the global i18n instance and load all app-specific language strings.
 ///
-/// Called once at Desktop startup. Loads built-in snippets (EN + DE), then
-/// overlays the user's chosen language pack from disk if available.
+/// Called once at Desktop startup:
+/// 1. Loads built-in generic snippets (EN + DE) from fsn-i18n.
+/// 2. Each app crate registers its own app-specific strings (store.*, conductor.*, …).
+/// 3. Overlays any user-installed language pack from disk (Store → Inventory).
 fn init_i18n() -> String {
     let lang = fsd_settings::load_active_language();
 
-    // Initialize with built-in snippet bundles; ignore double-init errors.
+    // 1. Generic built-in snippets (actions.*, labels.*, status.*, …)
     let _ = fsn_i18n::init_with_builtins(&lang);
 
-    // Overlay user-installed language pack from ~/.local/share/fsn/i18n/{lang}/ui.toml
+    // 2. App-specific strings — each crate owns its own TOML assets
+    fsd_store::register_i18n();
+    fsd_conductor::register_i18n();
+    fsd_settings::register_i18n();
+    fsd_studio::register_i18n();
+    // shell.* + profile.* — registered inline below
+    {
+        const EN: &str = include_str!("../assets/i18n/en.toml");
+        const DE: &str = include_str!("../assets/i18n/de.toml");
+        let _ = fsn_i18n::add_toml_lang("en", EN);
+        let _ = fsn_i18n::add_toml_lang("de", DE);
+    }
+
+    // 3. Overlay user-installed language pack from ~/.local/share/fsn/i18n/{lang}/ui.toml
+    //    (future: will read from Inventory DB instead of files)
     if lang != "en" {
         let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
         let pack = std::path::PathBuf::from(home)

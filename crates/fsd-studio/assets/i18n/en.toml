@@ -1,0 +1,18 @@
+# fsd-studio — English i18n strings
+
+[studio]
+title = "Studio"
+
+[studio.section]
+i18n    = "i18n Editor"
+plugins = "Plugin Builder"
+modules = "Module Builder"
+
+[studio.i18n]
+language_label   = "LANGUAGE"
+no_packs         = "No language packs installed. Use the Store to install one."
+file_path_hint   = "File path"
+unsaved          = "● unsaved"
+save_btn         = "Save"
+no_toml_title    = "No ui.toml found for this language."
+no_toml_hint     = "Install it from the Store or create a new file at:"
