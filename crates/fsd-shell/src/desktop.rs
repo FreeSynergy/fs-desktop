@@ -4,6 +4,8 @@ use dioxus::prelude::*;
 use fsn_i18n;
 
 use fsd_browser::BrowserApp;
+use fsd_bots::BotManagerApp;
+use fsd_conductor::ConductorApp;
 use fsd_lenses::LensesApp;
 use fsd_managers::ManagersApp;
 use fsd_profile::ProfileApp;
@@ -11,6 +13,7 @@ use fsd_settings::SettingsApp;
 use fsd_store::StoreApp;
 use fsd_builder::BuilderApp;
 use fsd_tasks::TasksApp;
+use fsd_theme_mgr::ThemeManagerApp;
 
 use crate::ai_view::AiApp;
 use crate::app_shell::{AppMode, AppShell, GLOBAL_CSS, LayoutA, LayoutC};
@@ -87,6 +90,9 @@ fn init_i18n() -> String {
     fsd_browser::register_i18n();
     fsd_lenses::register_i18n();
     fsd_managers::register_i18n();
+    fsd_conductor::register_i18n();
+    fsd_bots::register_i18n();
+    fsd_theme_mgr::register_i18n();
     // shell.* + profile.* — registered inline below
     {
         const EN: &str = include_str!("../assets/i18n/en.toml");
@@ -806,6 +812,8 @@ fn open_app(wm: &mut Signal<WindowManager>, apps: &mut Signal<Vec<AppEntry>>, ap
 }
 
 /// Wraps each app in the appropriate layout (A / B / C).
+/// Apps that manage their own internal sidebar (conductor, theme, bots) use LayoutA
+/// so the full area is handed to them without an extra wrapper split.
 #[component]
 fn AppWindowContent(title_key: String) -> Element {
     match title_key.as_str() {
@@ -822,6 +830,21 @@ fn AppWindowContent(title_key: String) -> Element {
         "app-builder" => rsx! {
             AppShell { mode: AppMode::Window,
                 LayoutA { BuilderApp {} }
+            }
+        },
+        "app-container" => rsx! {
+            AppShell { mode: AppMode::Window,
+                LayoutA { ConductorApp {} }
+            }
+        },
+        "app-theme-manager" => rsx! {
+            AppShell { mode: AppMode::Window,
+                LayoutA { ThemeManagerApp {} }
+            }
+        },
+        "app-bot-manager" => rsx! {
+            AppShell { mode: AppMode::Window,
+                LayoutA { BotManagerApp {} }
             }
         },
         "app-settings" => rsx! {
@@ -872,16 +895,19 @@ fn AppWindowContent(title_key: String) -> Element {
 /// Map an app id (the part after `"app-"`) to a human-readable breadcrumb label.
 fn app_id_to_label(id: &str) -> &str {
     match id {
-        "tasks"    => "Tasks",
-        "store"    => "Store",
-        "builder"  => "Builder",
-        "browser"  => "Browser",
-        "lenses"   => "Lenses",
-        "settings" => "Settings",
-        "managers" => "Managers",
-        "profile"  => "Profile",
-        "ai"       => "AI Assistant",
-        "help"     => "Help",
-        other      => other,
+        "tasks"         => "Tasks",
+        "store"         => "Store",
+        "builder"       => "Builder",
+        "browser"       => "Browser",
+        "lenses"        => "Lenses",
+        "settings"      => "Settings",
+        "managers"      => "Managers",
+        "profile"       => "Profile",
+        "ai"            => "AI Assistant",
+        "help"          => "Help",
+        "container"     => "Container Manager",
+        "theme-manager" => "Theme Manager",
+        "bot-manager"   => "Bot Manager",
+        other           => other,
     }
 }

@@ -1,62 +1,41 @@
 # fsd-conductor — Deutsche i18n Strings
 
-[conductor]
-title = "Conductor"
+[container]
+title = "Container-Verwaltung"
 
-[conductor.section]
-services  = "Dienste"
-bots      = "Bots"
-resources = "Ressourcen"
-logs      = "Logs"
-graph     = "Abhängigkeitsgraph"
+[container.section]
+installed   = "Installiert"
+install_new = "Neu installieren"
+build       = "Erstellen"
+logs        = "Logs"
 
-[conductor.services]
+[container.services]
 empty        = "Noch keine Dienste installiert."
 empty_hint   = "Store öffnen, um den ersten Dienst zu installieren."
 not_found    = "Keine FSN-Dienste gefunden. Erst ein Projekt deployen."
 running_count = "{running}/{count} laufend"
 install_btn  = "Dienst installieren"
 
-[conductor.tab]
+[container.tab]
 config = "Konfiguration"
 module = "Modul"
 logs   = "Logs"
 
-[conductor.env]
+[container.env]
 heading      = "Umgebungsvariablen"
 saved_hint   = "Gespeichert. Dienst neu starten, um die Änderungen zu übernehmen."
 restart_hint = "Nach dem Speichern den Dienst neu starten, damit die Änderungen wirksam werden."
 
-[conductor.logs]
+[container.logs]
 title            = "Logs: {service}"
 follow           = "Folgen"
 empty_no_service = "Einen Dienst auswählen, um seine Logs anzuzeigen."
 empty            = "Noch keine Logs für {service}."
 
-[conductor.resources]
-metrics_hint = "Für CPU/RAM-Metriken: podman stats"
-empty        = "Keine laufenden Container."
-sub_state    = "Teilzustand"
-
-[conductor.graph]
-subtitle = "FSN systemd-Units"
-empty    = "Keine FSN-Dienste gefunden."
-
-[conductor.bots]
-description     = "Automatisierte Container-Lebenszyklus-Regeln — beim Start oder in Intervallen ausgeführt."
-btn_add         = "+ Bot hinzufügen"
-btn_submit      = "Bot hinzufügen"
-empty           = "Noch keine Bots definiert."
-empty_hint      = "Einen Bot hinzufügen, um Container-Start/Stopp/Neustart zu automatisieren."
-label_trigger   = "Auslöser"
-label_action    = "Aktion"
-label_command   = "Befehl"
-label_service   = "Dienstname"
-label_interval  = "Alle (Sekunden)"
-trigger_startup  = "Beim Start"
-trigger_interval = "Intervall"
-action_start    = "Container starten"
-action_stop     = "Container stoppen"
-action_restart  = "Container neu starten"
-action_command  = "Befehl ausführen"
-form_title      = "Neuer Bot"
+[container.build]
+title       = "Erstellen & Veröffentlichen"
+description = "docker-compose.yml einfügen, analysieren und als FreeSynergy-Paket veröffentlichen."
+yaml_label  = "docker-compose.yml"
+analyze_btn = "Analysieren"
+publish_btn = "Im Store veröffentlichen"
+placeholder_results = "Analyseergebnisse erscheinen hier"

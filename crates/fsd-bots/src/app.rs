@@ -1,26 +1,95 @@
-/// Bot Manager — usage interface for messaging bots.
+/// Bot Manager — manage messenger accounts and bot configurations.
 use dioxus::prelude::*;
 use fsn_components::{FsnSidebar, FsnSidebarItem, FSN_SIDEBAR_CSS};
+use fsn_i18n;
 
+use crate::accounts_view::AccountsView;
 use crate::broadcast_view::BroadcastView;
 use crate::gatekeeper_view::GatekeeperView;
 use crate::model::{BotKind, MessagingBot, MessagingBotsConfig};
 
+/// Active section in the Bot Manager.
+#[derive(Clone, PartialEq, Debug)]
+pub enum BotSection {
+    Accounts,
+    Bots,
+    Broadcast,
+    Gatekeeper,
+}
+
+impl BotSection {
+    pub fn id(&self) -> &str {
+        match self {
+            Self::Accounts   => "accounts",
+            Self::Bots       => "bots",
+            Self::Broadcast  => "broadcast",
+            Self::Gatekeeper => "gatekeeper",
+        }
+    }
+
+    pub fn label(&self) -> String {
+        match self {
+            Self::Accounts   => fsn_i18n::t("bots.section.accounts"),
+            Self::Bots       => fsn_i18n::t("bots.section.bots"),
+            Self::Broadcast  => fsn_i18n::t("bots.section.broadcast"),
+            Self::Gatekeeper => fsn_i18n::t("bots.section.gatekeeper"),
+        }
+    }
+
+    pub fn icon(&self) -> &str {
+        match self {
+            Self::Accounts   => "🔑",
+            Self::Bots       => "🤖",
+            Self::Broadcast  => "📢",
+            Self::Gatekeeper => "🔒",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Self> {
+        match id {
+            "accounts"   => Some(Self::Accounts),
+            "bots"       => Some(Self::Bots),
+            "broadcast"  => Some(Self::Broadcast),
+            "gatekeeper" => Some(Self::Gatekeeper),
+            _            => None,
+        }
+    }
+}
+
+const ALL_SECTIONS: &[BotSection] = &[
+    BotSection::Accounts,
+    BotSection::Bots,
+    BotSection::Broadcast,
+    BotSection::Gatekeeper,
+];
+
+/// Root component of the Bot Manager.
 #[component]
 pub fn BotManagerApp() -> Element {
-    let mut bots = use_signal(MessagingBotsConfig::load);
+    let mut active = use_signal(|| BotSection::Accounts);
+    let mut bots   = use_signal(MessagingBotsConfig::load);
     let mut selected_idx: Signal<Option<usize>> = use_signal(|| Some(0));
 
+    let sidebar_items: Vec<FsnSidebarItem> = ALL_SECTIONS.iter()
+        .map(|s| FsnSidebarItem::new(s.id(), s.icon(), s.label()))
+        .collect();
+
+    // Find first broadcast/gatekeeper bot for the dedicated views
+    let broadcast_bot   = bots.read().iter().find(|b| b.kind == BotKind::Broadcast).cloned();
+    let gatekeeper_bot  = bots.read().iter().find(|b| b.kind == BotKind::Gatekeeper).cloned();
+    let broadcast_idx   = bots.read().iter().position(|b| b.kind == BotKind::Broadcast);
+    let gatekeeper_idx  = bots.read().iter().position(|b| b.kind == BotKind::Gatekeeper);
+
     let bot_list = bots.read().clone();
-    let sel_idx = *selected_idx.read();
+    let sel_idx  = *selected_idx.read();
     let selected = sel_idx.and_then(|i| bot_list.get(i).cloned());
 
-    let active_id = sel_idx
+    let active_bot_id = sel_idx
         .and_then(|i| bot_list.get(i))
         .map(|b| b.id.clone())
         .unwrap_or_default();
 
-    let sidebar_items: Vec<FsnSidebarItem> = bot_list.iter()
+    let bots_sidebar_items: Vec<FsnSidebarItem> = bot_list.iter()
         .map(|b| FsnSidebarItem::new(b.id.clone(), b.kind.icon().to_string(), b.name.clone()))
         .collect();
 
@@ -36,7 +105,7 @@ pub fn BotManagerApp() -> Element {
                         flex-shrink: 0; background: var(--fsn-bg-surface);",
                 h2 {
                     style: "margin: 0; font-size: 16px; font-weight: 600; color: var(--fsn-text-primary);",
-                    "Bots"
+                    {fsn_i18n::t("bots.title")}
                 }
             }
 
@@ -45,34 +114,105 @@ pub fn BotManagerApp() -> Element {
                 style: "display: flex; flex: 1; overflow: hidden;",
 
                 FsnSidebar {
-                    items: sidebar_items,
-                    active_id,
+                    items:     sidebar_items,
+                    active_id: active.read().id().to_string(),
                     on_select: move |id: String| {
-                        let idx = bots.read().iter().position(|b| b.id == id);
-                        selected_idx.set(idx);
+                        if let Some(section) = BotSection::from_id(&id) {
+                            active.set(section);
+                        }
                     },
                 }
 
                 div {
                     style: "flex: 1; overflow: auto; padding: 20px;",
 
-                    match selected {
-                        None => rsx! {
-                            div {
-                                style: "display: flex; align-items: center; justify-content: center; \
-                                        height: 200px; color: var(--fsn-color-text-muted); font-size: 13px;",
-                                "Select a bot from the list"
-                            }
+                    match *active.read() {
+                        BotSection::Accounts => rsx! {
+                            AccountsView {}
                         },
-                        Some(bot) => rsx! {
-                            BotDetail {
-                                bot,
-                                on_update: move |updated: MessagingBot| {
-                                    if let Some(i) = sel_idx {
-                                        bots.write()[i] = updated;
-                                        let _ = MessagingBotsConfig::save(&*bots.read());
+
+                        BotSection::Bots => rsx! {
+                            div { style: "display: flex; height: 100%; overflow: hidden;",
+                                // Bot list sidebar
+                                div {
+                                    style: "width: 220px; border-right: 1px solid var(--fsn-border); overflow-y: auto;",
+                                    FsnSidebar {
+                                        items: bots_sidebar_items,
+                                        active_id: active_bot_id,
+                                        on_select: move |id: String| {
+                                            let idx = bots.read().iter().position(|b| b.id == id);
+                                            selected_idx.set(idx);
+                                        },
                                     }
                                 }
+                                // Bot detail
+                                div { style: "flex: 1; overflow: auto; padding: 0 20px;",
+                                    match selected {
+                                        None => rsx! {
+                                            div {
+                                                style: "display: flex; align-items: center; \
+                                                        justify-content: center; height: 200px; \
+                                                        color: var(--fsn-color-text-muted); font-size: 13px;",
+                                                "Select a bot from the list"
+                                            }
+                                        },
+                                        Some(bot) => rsx! {
+                                            BotDetail {
+                                                bot,
+                                                on_update: move |updated: MessagingBot| {
+                                                    if let Some(i) = sel_idx {
+                                                        bots.write()[i] = updated;
+                                                        let _ = MessagingBotsConfig::save(&*bots.read());
+                                                    }
+                                                }
+                                            }
+                                        },
+                                    }
+                                }
+                            }
+                        },
+
+                        BotSection::Broadcast => rsx! {
+                            match broadcast_bot {
+                                Some(bot) => rsx! {
+                                    BroadcastView {
+                                        bot,
+                                        on_update: move |updated: MessagingBot| {
+                                            if let Some(i) = broadcast_idx {
+                                                bots.write()[i] = updated;
+                                                let _ = MessagingBotsConfig::save(&*bots.read());
+                                            }
+                                        }
+                                    }
+                                },
+                                None => rsx! {
+                                    div {
+                                        style: "color: var(--fsn-color-text-muted); font-size: 13px;",
+                                        "No Broadcast bot configured."
+                                    }
+                                },
+                            }
+                        },
+
+                        BotSection::Gatekeeper => rsx! {
+                            match gatekeeper_bot {
+                                Some(bot) => rsx! {
+                                    GatekeeperView {
+                                        bot,
+                                        on_update: move |updated: MessagingBot| {
+                                            if let Some(i) = gatekeeper_idx {
+                                                bots.write()[i] = updated;
+                                                let _ = MessagingBotsConfig::save(&*bots.read());
+                                            }
+                                        }
+                                    }
+                                },
+                                None => rsx! {
+                                    div {
+                                        style: "color: var(--fsn-color-text-muted); font-size: 13px;",
+                                        "No Gatekeeper bot configured."
+                                    }
+                                },
                             }
                         },
                     }
@@ -81,6 +221,8 @@ pub fn BotManagerApp() -> Element {
         }
     }
 }
+
+// ── BotDetail ─────────────────────────────────────────────────────────────────
 
 #[component]
 fn BotDetail(bot: MessagingBot, on_update: EventHandler<MessagingBot>) -> Element {

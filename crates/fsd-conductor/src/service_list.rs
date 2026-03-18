@@ -89,7 +89,7 @@ pub fn ServiceList(mut selected: Signal<Option<String>>) -> Element {
         loop {
             let units = list_fsn_units().await;
             if units.is_empty() {
-                error.set(Some(fsn_i18n::t("conductor.services.not_found")));
+                error.set(Some(fsn_i18n::t("container.services.not_found")));
             } else {
                 let mut entries = Vec::new();
                 for unit in &units {
@@ -144,7 +144,7 @@ pub fn ServiceList(mut selected: Signal<Option<String>>) -> Element {
             // Header
             div {
                 style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;",
-                h2 { style: "margin: 0; font-size: 18px;", {fsn_i18n::t("conductor.section.services")} }
+                h2 { style: "margin: 0; font-size: 18px;", {fsn_i18n::t("container.section.installed")} }
                 button {
                     style: "background: var(--fsn-primary); color: white; border: none; \
                             padding: 8px 16px; border-radius: var(--fsn-radius-md); cursor: pointer;",
@@ -153,7 +153,7 @@ pub fn ServiceList(mut selected: Signal<Option<String>>) -> Element {
                             *req.write() = Some("store".to_string());
                         }
                     },
-                    {fsn_i18n::t("conductor.services.install_btn")}
+                    {fsn_i18n::t("container.services.install_btn")}
                 }
             }
 
@@ -171,8 +171,8 @@ pub fn ServiceList(mut selected: Signal<Option<String>>) -> Element {
             if services.read().is_empty() && error.read().is_none() {
                 div {
                     style: "text-align: center; color: var(--fsn-text-muted); padding: 48px;",
-                    p { {fsn_i18n::t("conductor.services.empty")} }
-                    p { {fsn_i18n::t("conductor.services.empty_hint")} }
+                    p { {fsn_i18n::t("container.services.empty")} }
+                    p { {fsn_i18n::t("container.services.empty_hint")} }
                 }
             }
 
@@ -224,7 +224,7 @@ fn ServiceAccordionGroup(
                 span { style: "font-weight: 600; font-size: 14px;", "{category}" }
                 span {
                     style: "margin-left: auto; font-size: 12px; color: var(--fsn-text-muted);",
-                    {fsn_i18n::t_with("conductor.services.running_count", &[("running", &running.to_string()), ("count", &count.to_string())])}
+                    {fsn_i18n::t_with("container.services.running_count", &[("running", &running.to_string()), ("count", &count.to_string())])}
                 }
             }
 
@@ -350,7 +350,7 @@ fn ServiceActions(
             // Select service for log view
             button {
                 style: "padding: 4px 8px; background: var(--fsn-bg-surface); border: 1px solid var(--fsn-border); border-radius: 4px; cursor: pointer; font-size: 12px;",
-                title: fsn_i18n::t("conductor.section.logs"),
+                title: fsn_i18n::t("container.section.logs"),
                 onclick: {
                     let n = name.clone();
                     move |_| *selected.write() = Some(n.clone())

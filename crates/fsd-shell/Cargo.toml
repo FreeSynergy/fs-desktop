@@ -19,15 +19,18 @@ desktop  = ["dioxus/desktop", "fsn-components/desktop"]
 web      = ["dioxus/web",     "fsn-components/web"]
 
 [dependencies]
-fsd-db       = { workspace = true }
-fsd-store    = { workspace = true }
-fsd-builder  = { workspace = true }
-fsd-settings = { workspace = true }
-fsd-profile  = { workspace = true }
-fsd-tasks    = { workspace = true }
-fsd-browser  = { workspace = true }
-fsd-lenses   = { workspace = true }
-fsd-managers = { workspace = true }
+fsd-db        = { workspace = true }
+fsd-store     = { workspace = true }
+fsd-builder   = { workspace = true }
+fsd-conductor = { workspace = true }
+fsd-settings  = { workspace = true }
+fsd-profile   = { workspace = true }
+fsd-tasks     = { workspace = true }
+fsd-browser   = { workspace = true }
+fsd-lenses    = { workspace = true }
+fsd-managers  = { workspace = true }
+fsd-bots      = { workspace = true }
+fsd-theme = { workspace = true }
 fsn-components = { workspace = true }
 fsn-i18n       = { workspace = true }
 fsn-theme      = { workspace = true }

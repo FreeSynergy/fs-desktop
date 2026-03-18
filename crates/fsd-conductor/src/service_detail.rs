@@ -56,17 +56,17 @@ pub fn ServiceDetail(service_name: String, on_close: EventHandler<()>) -> Elemen
             div {
                 style: "display: flex; border-bottom: 1px solid var(--fsn-border); flex-shrink: 0;",
                 DetailTabBtn {
-                    label: fsn_i18n::t("conductor.tab.config"),
+                    label: fsn_i18n::t("container.tab.config"),
                     active: *tab.read() == DetailTab::Config,
                     onclick: move |_| tab.set(DetailTab::Config),
                 }
                 DetailTabBtn {
-                    label: fsn_i18n::t("conductor.tab.module"),
+                    label: fsn_i18n::t("container.tab.module"),
                     active: *tab.read() == DetailTab::Module,
                     onclick: move |_| tab.set(DetailTab::Module),
                 }
                 DetailTabBtn {
-                    label: fsn_i18n::t("conductor.tab.logs"),
+                    label: fsn_i18n::t("container.tab.logs"),
                     active: *tab.read() == DetailTab::Logs,
                     onclick: move |_| tab.set(DetailTab::Logs),
                 }
@@ -268,7 +268,7 @@ fn EnvEditor(service_name: String) -> Element {
                         margin-bottom: 8px;",
                 span {
                     style: "font-size: 13px; font-weight: 600;",
-                    {fsn_i18n::t("conductor.env.heading")}
+                    {fsn_i18n::t("container.env.heading")}
                 }
                 button {
                     style: "padding: 4px 12px; background: var(--fsn-color-primary); \
@@ -281,7 +281,7 @@ fn EnvEditor(service_name: String) -> Element {
                             let to_save = content.read().clone();
                             match std::fs::write(&path, &to_save) {
                                 Ok(()) => {
-                                    save_msg.set(Some(fsn_i18n::t("conductor.env.saved_hint")));
+                                    save_msg.set(Some(fsn_i18n::t("container.env.saved_hint")));
                                 }
                                 Err(e) => {
                                     save_msg.set(Some(format!("Save failed: {e}")));
@@ -321,7 +321,7 @@ fn EnvEditor(service_name: String) -> Element {
             }
 
             p { style: "font-size: 11px; color: var(--fsn-text-muted); margin-top: 6px;",
-                {fsn_i18n::t("conductor.env.restart_hint")}
+                {fsn_i18n::t("container.env.restart_hint")}
             }
         }
     }

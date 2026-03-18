@@ -101,7 +101,7 @@ pub fn LogViewer(service: String) -> Element {
             div {
                 style: "display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--fsn-border);",
 
-                h3 { style: "margin: 0; flex: 1;", {fsn_i18n::t_with("conductor.logs.title", &[("service", &service)])} }
+                h3 { style: "margin: 0; flex: 1;", {fsn_i18n::t_with("container.logs.title", &[("service", &service)])} }
 
                 label { style: "display: flex; align-items: center; gap: 4px; font-size: 13px;",
                     input {
@@ -109,7 +109,7 @@ pub fn LogViewer(service: String) -> Element {
                         checked: *follow.read(),
                         oninput: move |e| follow.set(e.checked()),
                     }
-                    {fsn_i18n::t("conductor.logs.follow")}
+                    {fsn_i18n::t("container.logs.follow")}
                 }
 
                 button {
@@ -127,9 +127,9 @@ pub fn LogViewer(service: String) -> Element {
                     div {
                         style: "color: var(--fsn-text-muted); padding: 16px;",
                         if service.is_empty() {
-                            {fsn_i18n::t("conductor.logs.empty_no_service")}
+                            {fsn_i18n::t("container.logs.empty_no_service")}
                         } else {
-                            {fsn_i18n::t_with("conductor.logs.empty", &[("service", &service)])}
+                            {fsn_i18n::t_with("container.logs.empty", &[("service", &service)])}
                         }
                     }
                 }

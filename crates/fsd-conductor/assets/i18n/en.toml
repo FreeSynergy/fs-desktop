@@ -1,62 +1,41 @@
 # fsd-conductor — English i18n strings
 
-[conductor]
-title = "Conductor"
+[container]
+title = "Container Manager"
 
-[conductor.section]
-services  = "Services"
-bots      = "Bots"
-resources = "Resources"
-logs      = "Logs"
-graph     = "Dependency Graph"
+[container.section]
+installed   = "Installed"
+install_new = "Install New"
+build       = "Build"
+logs        = "Logs"
 
-[conductor.services]
+[container.services]
 empty        = "No services installed yet."
 empty_hint   = "Open the Store to install your first service."
 not_found    = "No FSN services found. Deploy a project first."
 running_count = "{running}/{count} running"
 install_btn  = "Install Service"
 
-[conductor.tab]
+[container.tab]
 config = "Config"
 module = "Module"
 logs   = "Logs"
 
-[conductor.env]
+[container.env]
 heading      = "Environment Variables"
 saved_hint   = "Saved. Restart the service to apply."
 restart_hint = "After saving, restart the service for changes to take effect."
 
-[conductor.logs]
+[container.logs]
 title            = "Logs: {service}"
 follow           = "Follow"
 empty_no_service = "Select a service to view its logs."
 empty            = "No logs yet for {service}."
 
-[conductor.resources]
-metrics_hint = "For CPU/RAM metrics use: podman stats"
-empty        = "No running containers."
-sub_state    = "Sub-State"
-
-[conductor.graph]
-subtitle = "FSN systemd units"
-empty    = "No FSN services found."
-
-[conductor.bots]
-description     = "Automated container lifecycle rules — triggered on startup or on an interval."
-btn_add         = "+ Add Bot"
-btn_submit      = "Add Bot"
-empty           = "No bots defined yet."
-empty_hint      = "Add a bot to automate container start/stop/restart actions."
-label_trigger   = "Trigger"
-label_action    = "Action"
-label_command   = "Command"
-label_service   = "Service name"
-label_interval  = "Every (seconds)"
-trigger_startup  = "On startup"
-trigger_interval = "Interval"
-action_start    = "Start container"
-action_stop     = "Stop container"
-action_restart  = "Restart container"
-action_command  = "Run command"
-form_title      = "New Bot"
+[container.build]
+title       = "Build & Publish"
+description = "Paste a docker-compose.yml to analyze and publish as a FreeSynergy package."
+yaml_label  = "docker-compose.yml"
+analyze_btn = "Analyze"
+publish_btn = "Publish to Store"
+placeholder_results = "Analysis results will appear here"

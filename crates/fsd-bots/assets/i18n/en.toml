@@ -1,0 +1,8 @@
+[bots]
+title = "Bot Manager"
+
+[bots.section]
+accounts   = "Accounts"
+bots       = "Bots"
+broadcast  = "Broadcast"
+gatekeeper = "Gatekeeper"

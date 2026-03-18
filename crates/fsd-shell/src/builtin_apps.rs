@@ -21,11 +21,13 @@ struct BuiltinApp {
 }
 
 const BUILTIN_APPS: &[BuiltinApp] = &[
-    BuiltinApp { id: "browser", name: "Browser", icon: "🌐", version: env!("CARGO_PKG_VERSION") },
-    BuiltinApp { id: "lenses",  name: "Lenses",  icon: "🔍", version: env!("CARGO_PKG_VERSION") },
-    BuiltinApp { id: "tasks",   name: "Tasks",   icon: "📋", version: env!("CARGO_PKG_VERSION") },
-    BuiltinApp { id: "store",   name: "Store",   icon: "📦", version: env!("CARGO_PKG_VERSION") },
-    BuiltinApp { id: "builder", name: "Builder", icon: "🔧", version: env!("CARGO_PKG_VERSION") },
+    BuiltinApp { id: "browser",       name: "Browser",           icon: "🌐", version: env!("CARGO_PKG_VERSION") },
+    BuiltinApp { id: "lenses",        name: "Lenses",            icon: "🔍", version: env!("CARGO_PKG_VERSION") },
+    BuiltinApp { id: "tasks",         name: "Tasks",             icon: "📋", version: env!("CARGO_PKG_VERSION") },
+    BuiltinApp { id: "store",         name: "Store",             icon: "📦", version: env!("CARGO_PKG_VERSION") },
+    BuiltinApp { id: "container",     name: "Container Manager", icon: "📦", version: env!("CARGO_PKG_VERSION") },
+    BuiltinApp { id: "theme-manager", name: "Theme Manager",     icon: "🎨", version: env!("CARGO_PKG_VERSION") },
+    BuiltinApp { id: "bot-manager",   name: "Bot Manager",       icon: "🤖", version: env!("CARGO_PKG_VERSION") },
 ];
 
 /// Pre-registers all built-in apps in the PackageRegistry (idempotent).
