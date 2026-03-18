@@ -1,0 +1,30 @@
+[package]
+name        = "fsd-lenses"
+description = "FreeSynergy Desktop – Lenses: aggregated cross-service data views"
+version.workspace   = true
+edition.workspace   = true
+license.workspace   = true
+
+[lib]
+name = "fsd_lenses"
+path = "src/lib.rs"
+
+[[bin]]
+name = "fsd-lenses"
+path = "src/main.rs"
+
+[features]
+default  = ["desktop"]
+desktop  = ["dioxus/desktop", "fsn-components/desktop"]
+web      = ["dioxus/web",     "fsn-components/web"]
+
+[dependencies]
+fsd-db         = { workspace = true }
+fsn-components = { workspace = true }
+fsn-i18n       = { workspace = true }
+dioxus         = { workspace = true }
+serde          = { workspace = true }
+serde_json     = { workspace = true }
+tokio          = { workspace = true }
+chrono         = { workspace = true }
+reqwest        = { workspace = true }

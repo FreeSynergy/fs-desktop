@@ -4,7 +4,9 @@ use dioxus::prelude::*;
 use fsn_i18n;
 
 use fsd_bots::BotManagerApp;
+use fsd_browser::BrowserApp;
 use fsd_conductor::ConductorApp;
+use fsd_lenses::LensesApp;
 use fsd_profile::ProfileApp;
 use fsd_settings::SettingsApp;
 use fsd_store::StoreApp;
@@ -84,6 +86,8 @@ fn init_i18n() -> String {
     fsd_conductor::register_i18n();
     fsd_settings::register_i18n();
     fsd_builder::register_i18n();
+    fsd_browser::register_i18n();
+    fsd_lenses::register_i18n();
     // shell.* + profile.* — registered inline below
     {
         const EN: &str = include_str!("../assets/i18n/en.toml");
@@ -145,6 +149,10 @@ pub fn Desktop() -> Element {
     let sidebar_style: Signal<String> = use_context_provider(|| Signal::new("solid".to_string()));
     // Any sub-app can request opening another app by setting this to Some(app_id).
     let mut app_open_req: Signal<Option<String>> = use_context_provider(|| Signal::new(None));
+
+    // Browser URL request: Lenses (and Conductor) can push a URL here to open it in the Browser.
+    let _browser_url_req: fsd_browser::app::BrowserUrlRequest =
+        use_context_provider(|| Signal::new(None));
 
     // Handle app-open requests from sub-apps (e.g. Conductor's "Install Service" → Store).
     use_effect(move || {
@@ -834,6 +842,16 @@ fn AppWindowContent(title_key: String) -> Element {
                 LayoutC { ProfileApp {} }
             }
         },
+        "app-browser" => rsx! {
+            AppShell { mode: AppMode::Window,
+                BrowserApp {}
+            }
+        },
+        "app-lenses" => rsx! {
+            AppShell { mode: AppMode::Window,
+                LensesApp {}
+            }
+        },
         "app-ai" => rsx! {
             AppShell { mode: AppMode::Window,
                 LayoutA { AiApp {} }
@@ -861,7 +879,9 @@ fn app_id_to_label(id: &str) -> &str {
         "bots"      => "Bots",
         "conductor" => "Conductor",
         "store"     => "Store",
-        "builder"    => "Builder",
+        "builder"   => "Builder",
+        "browser"   => "Browser",
+        "lenses"    => "Lenses",
         "settings"  => "Settings",
         "profile"   => "Profile",
         "ai"        => "AI Assistant",
