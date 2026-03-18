@@ -1,5 +1,6 @@
 /// Appearance settings — theme selector, wallpaper, theme editor, animation/chrome toggles.
 use dioxus::prelude::*;
+use fsn_i18n;
 
 /// Appearance settings component.
 ///
@@ -112,7 +113,7 @@ pub fn AppearanceSettings() -> Element {
             style: "padding: 24px; max-width: 680px; height: 100%;",
 
             // ── Section: Color Theme ───────────────────────────────────────
-            h3 { style: "margin-top: 0; margin-bottom: 16px; font-size: 16px;", "Color Theme" }
+            h3 { style: "margin-top: 0; margin-bottom: 16px; font-size: 16px;", {fsn_i18n::t("settings.appearance.color_theme")} }
 
             div { style: "display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 28px;",
                 for (id, name, colors) in themes.iter().copied() {
@@ -167,7 +168,7 @@ pub fn AppearanceSettings() -> Element {
 
             // ── Section: Store Themes ──────────────────────────────────────
             if !store_themes.read().is_empty() {
-                h3 { style: "margin-bottom: 12px; font-size: 16px;", "Installed Themes" }
+                h3 { style: "margin-bottom: 12px; font-size: 16px;", {fsn_i18n::t("settings.appearance.installed_themes")} }
 
                 // Remove confirm dialog
                 if let Some(ref theme_id) = theme_remove_confirm.read().clone() {
@@ -179,10 +180,10 @@ pub fn AppearanceSettings() -> Element {
                                     border: 1px solid var(--fsn-color-border-default); \
                                     border-radius: var(--fsn-radius-lg); padding: 24px; \
                                     max-width: 380px; width: 100%;",
-                            h3 { style: "margin: 0 0 12px 0;", "Remove theme?" }
+                            h3 { style: "margin: 0 0 12px 0;", {fsn_i18n::t("settings.appearance.remove_theme_title")} }
                             p {
                                 style: "color: var(--fsn-color-text-muted); font-size: 14px; margin-bottom: 20px;",
-                                "This will delete the theme CSS file from disk."
+                                {fsn_i18n::t("settings.appearance.remove_theme_body")}
                             }
                             div { style: "display: flex; gap: 8px; justify-content: flex-end;",
                                 button {
@@ -190,7 +191,7 @@ pub fn AppearanceSettings() -> Element {
                                             border: 1px solid var(--fsn-color-border-default); \
                                             border-radius: var(--fsn-radius-md); cursor: pointer;",
                                     onclick: move |_| *theme_remove_confirm.write() = None,
-                                    "Cancel"
+                                    {fsn_i18n::t("actions.cancel")}
                                 }
                                 button {
                                     style: "padding: 8px 16px; background: var(--fsn-color-error, #ef4444); \
@@ -204,7 +205,7 @@ pub fn AppearanceSettings() -> Element {
                                             *theme_remove_confirm.write() = None;
                                         }
                                     },
-                                    "Remove"
+                                    {fsn_i18n::t("actions.remove")}
                                 }
                             }
                         }
@@ -245,7 +246,7 @@ pub fn AppearanceSettings() -> Element {
                                                     }
                                                 }
                                             },
-                                            "Apply"
+                                            {fsn_i18n::t("actions.apply")}
                                         }
                                     }
                                     button {
@@ -258,7 +259,7 @@ pub fn AppearanceSettings() -> Element {
                                             let id = pkg_id.clone();
                                             move |_| *theme_remove_confirm.write() = Some(id.clone())
                                         },
-                                        "Remove"
+                                        {fsn_i18n::t("actions.remove")}
                                     }
                                 }
                             }
@@ -268,16 +269,16 @@ pub fn AppearanceSettings() -> Element {
             }
 
             // ── Section: Window Chrome ─────────────────────────────────────
-            h3 { style: "margin-bottom: 12px; font-size: 16px;", "Window Chrome" }
+            h3 { style: "margin-bottom: 12px; font-size: 16px;", {fsn_i18n::t("settings.appearance.window_chrome")} }
 
             div { style: "display: flex; flex-direction: column; gap: 16px; margin-bottom: 28px;",
 
                 // Animation toggle
                 div { style: "display: flex; align-items: center; justify-content: space-between;",
                     div {
-                        div { style: "font-size: 14px; font-weight: 500;", "Animations" }
+                        div { style: "font-size: 14px; font-weight: 500;", {fsn_i18n::t("settings.appearance.animations")} }
                         div { style: "font-size: 12px; color: var(--fsn-text-muted); margin-top: 2px;",
-                            "Disable for reduced motion or better performance"
+                            {fsn_i18n::t("settings.appearance.animations_hint")}
                         }
                     }
                     label {
@@ -295,7 +296,7 @@ pub fn AppearanceSettings() -> Element {
                 // Window glass opacity
                 div {
                     div { style: "display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;",
-                        div { style: "font-size: 14px; font-weight: 500;", "Window Transparency" }
+                        div { style: "font-size: 14px; font-weight: 500;", {fsn_i18n::t("settings.appearance.transparency")} }
                         span { style: "font-size: 12px; color: var(--fsn-text-muted);",
                             "{opacity_pct}%"
                         }
@@ -314,14 +315,14 @@ pub fn AppearanceSettings() -> Element {
                     }
                     div { style: "display: flex; justify-content: space-between; font-size: 11px; \
                                   color: var(--fsn-text-muted); margin-top: 4px;",
-                        span { "Transparent" }
-                        span { "Opaque" }
+                        span { {fsn_i18n::t("settings.appearance.transparent")} }
+                        span { {fsn_i18n::t("settings.appearance.opaque")} }
                     }
                 }
             }
 
             // ── Section: Component Style ───────────────────────────────────
-            h3 { style: "margin-top: 0; margin-bottom: 16px; font-size: 16px;", "Component Style" }
+            h3 { style: "margin-top: 0; margin-bottom: 16px; font-size: 16px;", {fsn_i18n::t("settings.appearance.component_style")} }
 
             div { style: "display: flex; flex-direction: column; gap: 20px; margin-bottom: 28px;",
                 {
@@ -332,7 +333,7 @@ pub fn AppearanceSettings() -> Element {
                     rsx! {
                         // Window Chrome
                         div {
-                            div { style: "font-size: 14px; font-weight: 500; margin-bottom: 8px;", "Window Chrome" }
+                            div { style: "font-size: 14px; font-weight: 500; margin-bottom: 8px;", {fsn_i18n::t("settings.appearance.window_chrome")} }
                             div { style: "display: flex; gap: 8px; flex-wrap: wrap;",
                                 for (id, label) in chrome_options.iter().copied() {
                                     {
@@ -358,7 +359,7 @@ pub fn AppearanceSettings() -> Element {
 
                         // Button Style
                         div {
-                            div { style: "font-size: 14px; font-weight: 500; margin-bottom: 8px;", "Button Style" }
+                            div { style: "font-size: 14px; font-weight: 500; margin-bottom: 8px;", {fsn_i18n::t("settings.appearance.button_style")} }
                             div { style: "display: flex; gap: 8px; flex-wrap: wrap;",
                                 for (id, label) in btn_options.iter().copied() {
                                     {
@@ -384,7 +385,7 @@ pub fn AppearanceSettings() -> Element {
 
                         // Sidebar Style
                         div {
-                            div { style: "font-size: 14px; font-weight: 500; margin-bottom: 8px;", "Sidebar Style" }
+                            div { style: "font-size: 14px; font-weight: 500; margin-bottom: 8px;", {fsn_i18n::t("settings.appearance.sidebar_style")} }
                             div { style: "display: flex; gap: 8px; flex-wrap: wrap;",
                                 for (id, label) in sidebar_options.iter().copied() {
                                     {
@@ -412,14 +413,14 @@ pub fn AppearanceSettings() -> Element {
             }
 
             // ── Section: Wallpaper ─────────────────────────────────────────
-            h3 { style: "margin-bottom: 12px; font-size: 16px;", "Wallpaper" }
+            h3 { style: "margin-bottom: 12px; font-size: 16px;", {fsn_i18n::t("settings.appearance.wallpaper")} }
 
             div { style: "display: flex; flex-direction: column; gap: 8px; margin-bottom: 28px;",
                 // Solid color
                 div { style: "display: flex; gap: 8px; align-items: center;",
                     span { style: "font-size: 13px; color: var(--fsn-color-text-muted); \
                                    min-width: 48px; flex-shrink: 0;",
-                        "Color"
+                        {fsn_i18n::t("settings.appearance.wallpaper_color")}
                     }
                     input {
                         r#type: "color",
@@ -439,7 +440,7 @@ pub fn AppearanceSettings() -> Element {
                 div { style: "display: flex; gap: 6px; flex-wrap: wrap; align-items: center;",
                     span { style: "font-size: 13px; color: var(--fsn-color-text-muted); \
                                    min-width: 48px; flex-shrink: 0;",
-                        "Gradients"
+                        {fsn_i18n::t("settings.appearance.wallpaper_gradients")}
                     }
                     {
                         let presets: &[(&str, &str, &str)] = &[
@@ -536,7 +537,7 @@ pub fn AppearanceSettings() -> Element {
                             }
                         },
                     }
-                    "📁 Upload from file"
+                    {fsn_i18n::t("settings.appearance.btn_upload_file")}
                 }
 
                 // Reset
@@ -552,12 +553,12 @@ pub fn AppearanceSettings() -> Element {
                         }
                         wallpaper_url.set(String::new());
                     },
-                    "Reset to default"
+                    {fsn_i18n::t("settings.appearance.btn_reset_wallpaper")}
                 }
             }
 
             // ── Section: Theme Editor (B4) ─────────────────────────────────
-            h3 { style: "margin-bottom: 8px; font-size: 16px;", "Custom Theme Editor" }
+            h3 { style: "margin-bottom: 8px; font-size: 16px;", {fsn_i18n::t("settings.appearance.custom_editor")} }
             p { style: "font-size: 12px; color: var(--fsn-text-muted); margin-bottom: 12px; line-height: 1.5;",
                 "Paste CSS with "
                 code { style: "font-family: var(--fsn-font-mono); \
@@ -571,7 +572,8 @@ pub fn AppearanceSettings() -> Element {
                                padding: 1px 4px; border-radius: 3px;",
                     "--fsn-"
                 }
-                " prefix is added automatically."
+                " "
+                {fsn_i18n::t("settings.appearance.editor_prefix_hint")}
             }
 
             // Required vars hint
@@ -612,7 +614,7 @@ pub fn AppearanceSettings() -> Element {
                               border: 1px solid var(--fsn-success); \
                               border-radius: var(--fsn-radius-md); \
                               font-size: 12px; color: var(--fsn-success);",
-                    "✓ Theme applied"
+                    {fsn_i18n::t("settings.appearance.editor_applied")}
                 }
             }
 
@@ -625,14 +627,14 @@ pub fn AppearanceSettings() -> Element {
                     onclick: move |_| {
                         let css = custom_css.read().clone();
                         if css.trim().is_empty() {
-                            editor_error.set(Some("Theme CSS is empty.".into()));
+                            editor_error.set(Some(fsn_i18n::t("settings.appearance.editor_empty_error")));
                             return;
                         }
                         let missing = validate_theme_vars(&css);
                         if !missing.is_empty() {
-                            editor_error.set(Some(format!(
-                                "Missing required variables: {}",
-                                missing.join(", ")
+                            editor_error.set(Some(fsn_i18n::t_with(
+                                "settings.appearance.editor_missing_vars",
+                                &[("vars", &missing.join(", "))],
                             )));
                             return;
                         }
@@ -644,7 +646,7 @@ pub fn AppearanceSettings() -> Element {
                         editor_saved.set(true);
                         editor_error.set(None);
                     },
-                    "Apply Preview"
+                    {fsn_i18n::t("settings.appearance.btn_apply_preview")}
                 }
                 button {
                     style: "padding: 8px 14px; background: transparent; \
@@ -657,7 +659,7 @@ pub fn AppearanceSettings() -> Element {
                         editor_error.set(None);
                         editor_saved.set(false);
                     },
-                    "Clear"
+                    {fsn_i18n::t("actions.clear")}
                 }
             }
 

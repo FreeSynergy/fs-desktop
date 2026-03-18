@@ -149,7 +149,7 @@ pub fn LanguageSettings() -> Element {
     let installed          = use_signal(load_installed);
     let mut selected       = use_signal(load_active_language);
     let mut show_available = use_signal(|| false);
-    let mut saved_msg      = use_signal(|| Option::<&'static str>::None);
+    let mut saved_msg      = use_signal(|| Option::<bool>::None);
 
     let count = installed.read().len();
     let list_style = if count >= 8 {
@@ -164,17 +164,17 @@ pub fn LanguageSettings() -> Element {
             class: "fsd-language",
             style: "padding: 24px; max-width: 500px;",
 
-            h3 { style: "margin-top: 0;", "Language" }
+            h3 { style: "margin-top: 0;", {fsn_i18n::t("settings.language.title")} }
 
             // ── Installed language list ────────────────────────────────────────
             div { style: "margin-bottom: 16px;",
                 label {
                     style: "display: block; font-weight: 500; margin-bottom: 8px;",
-                    "Interface Language"
+                    {fsn_i18n::t("settings.language.interface_label")}
                     span {
                         style: "margin-left: 8px; font-size: 12px; font-weight: 400; \
                                 color: var(--fsn-color-text-muted);",
-                        "({count} installed)"
+                        {fsn_i18n::t_with("settings.language.installed_count", &[("count", &count.to_string())])}
                     }
                 }
                 div { style: "{list_style}",
@@ -216,8 +216,10 @@ pub fn LanguageSettings() -> Element {
                 },
                 span { "🌐" }
                 span {
-                    if *show_available.read() { "Hide available languages" }
-                    else { "Install more languages…" }
+                    {
+                        if *show_available.read() { fsn_i18n::t("settings.language.btn_hide") }
+                        else { fsn_i18n::t("settings.language.btn_show_more") }
+                    }
                 }
             }
 
@@ -262,14 +264,14 @@ pub fn LanguageSettings() -> Element {
                             *sig.write() = code;
                         }
 
-                        saved_msg.set(Some("Language applied."));
+                        saved_msg.set(Some(true));
                     },
-                    "Apply"
+                    {fsn_i18n::t("actions.apply")}
                 }
-                if let Some(msg) = *saved_msg.read() {
+                if saved_msg.read().is_some() {
                     span {
                         style: "font-size: 12px; color: var(--fsn-color-text-muted);",
-                        "{msg}"
+                        {fsn_i18n::t("settings.language.applied")}
                     }
                 }
             }
@@ -371,14 +373,14 @@ fn AvailableLanguages(
             div {
                 style: "padding: 8px 14px; border-bottom: 1px solid var(--fsn-color-border-default); \
                         font-size: 12px; font-weight: 500; color: var(--fsn-color-text-muted);",
-                "Available to install"
+                {fsn_i18n::t("settings.language.available_heading")}
             }
 
             if *loading.read() {
                 div {
                     style: "padding: 16px; text-align: center; color: var(--fsn-color-text-muted); \
                             font-size: 13px;",
-                    "Loading…"
+                    {fsn_i18n::t("labels.loading")}
                 }
             } else if let Some(err) = error.read().as_deref() {
                 div {
@@ -389,7 +391,7 @@ fn AvailableLanguages(
                 div {
                     style: "padding: 16px; text-align: center; color: var(--fsn-color-text-muted); \
                             font-size: 13px;",
-                    "All available languages are already installed."
+                    {fsn_i18n::t("settings.language.all_installed")}
                 }
             } else {
                 div {
@@ -458,7 +460,7 @@ fn AvailableLangRow(
                     let locale = locale.clone();
                     move |_| on_install.call(locale.clone())
                 },
-                if installing { "…" } else { "Install" }
+                { if installing { fsn_i18n::t("labels.loading") } else { fsn_i18n::t("actions.install") } }
             }
         }
     }

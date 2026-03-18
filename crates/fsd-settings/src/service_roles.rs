@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use dioxus::prelude::*;
+use fsn_i18n;
 use serde::{Deserialize, Serialize};
 
 // ── Data types ────────────────────────────────────────────────────────────────
@@ -221,10 +222,9 @@ pub fn ServiceRoles() -> Element {
             class: "fsd-service-roles",
             style: "padding: 24px;",
 
-            h3 { style: "margin-top: 0;", "Service Roles" }
+            h3 { style: "margin-top: 0;", {fsn_i18n::t("settings.roles.title")} }
             p { style: "color: var(--fsn-color-text-muted); margin-bottom: 24px;",
-                "Assign which installed service handles each system function. \
-                 Similar to MIME types — but for capabilities."
+                {fsn_i18n::t("settings.roles.description")}
             }
 
             div {
@@ -254,11 +254,11 @@ pub fn ServiceRoles() -> Element {
                     style: "padding: 8px 24px; background: var(--fsn-color-primary); color: white; border: none; border-radius: var(--fsn-radius-md); cursor: pointer;",
                     onclick: move |_| {
                         match save_role_assignments(&config.read()) {
-                            Ok(()) => *save_msg.write() = Some("Saved.".into()),
+                            Ok(()) => *save_msg.write() = Some(fsn_i18n::t("notifications.saved")),
                             Err(e) => *save_msg.write() = Some(format!("Error: {e}")),
                         }
                     },
-                    "Save"
+                    {fsn_i18n::t("actions.save")}
                 }
                 if let Some(msg) = save_msg.read().as_deref() {
                     span { style: "font-size: 13px; color: var(--fsn-color-text-muted);", "{msg}" }
@@ -316,7 +316,7 @@ fn RoleRow(
                         }
                     }
                 },
-                option { value: "", "— not assigned —" }
+                option { value: "", {fsn_i18n::t("settings.roles.not_assigned")} }
                 for provider in &providers {
                     option { value: "{provider}", selected: *provider == assigned, "{provider}" }
                 }

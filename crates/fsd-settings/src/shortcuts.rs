@@ -1,5 +1,6 @@
 /// Keyboard shortcuts — action registry, persistence, and settings UI.
 use dioxus::prelude::*;
+use fsn_i18n;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -9,7 +10,7 @@ use crate::config_path;
 #[derive(Clone, PartialEq, Debug)]
 pub struct ActionDef {
     pub id: &'static str,
-    pub label: &'static str,
+    pub label: String,
     pub category: &'static str,
     pub default_shortcut: Option<&'static str>,
 }
@@ -17,20 +18,20 @@ pub struct ActionDef {
 /// All desktop actions. The source of truth for shortcut defaults.
 pub fn register_actions() -> Vec<ActionDef> {
     vec![
-        ActionDef { id: "app.settings",      label: "Open Settings",      category: "App",        default_shortcut: Some("Ctrl+,") },
-        ActionDef { id: "app.launcher",       label: "App Launcher",       category: "App",        default_shortcut: Some("Ctrl+Space") },
-        ActionDef { id: "app.quit",           label: "Quit",               category: "App",        default_shortcut: Some("Ctrl+Q") },
-        ActionDef { id: "view.fullscreen",    label: "Fullscreen",         category: "View",       default_shortcut: Some("F11") },
-        ActionDef { id: "view.sidebar.show",  label: "Show Sidebar",       category: "View",       default_shortcut: None },
-        ActionDef { id: "store.open",         label: "Open Store",         category: "Tools",      default_shortcut: Some("Ctrl+S") },
-        ActionDef { id: "store.install",      label: "Install Package",    category: "Tools",      default_shortcut: Some("Ctrl+I") },
-        ActionDef { id: "tasks.open",         label: "Open Tasks",         category: "Tools",      default_shortcut: Some("Ctrl+T") },
-        ActionDef { id: "conductor.open",     label: "Open Conductor",     category: "Tools",      default_shortcut: None },
-        ActionDef { id: "studio.open",        label: "Open Studio",        category: "Tools",      default_shortcut: None },
-        ActionDef { id: "bots.open",          label: "Open Bots",          category: "Tools",      default_shortcut: None },
-        ActionDef { id: "help.open",          label: "Open Help",          category: "Help",       default_shortcut: Some("F1") },
-        ActionDef { id: "help.shortcuts",     label: "Keyboard Shortcuts", category: "Help",       default_shortcut: None },
-        ActionDef { id: "window.close",       label: "Close Window",       category: "Window",     default_shortcut: Some("Escape") },
+        ActionDef { id: "app.settings",      label: fsn_i18n::t("settings.shortcuts.action_open_settings"), category: "App",    default_shortcut: Some("Ctrl+,") },
+        ActionDef { id: "app.launcher",       label: fsn_i18n::t("settings.shortcuts.action_launcher"),      category: "App",    default_shortcut: Some("Ctrl+Space") },
+        ActionDef { id: "app.quit",           label: fsn_i18n::t("settings.shortcuts.action_quit"),          category: "App",    default_shortcut: Some("Ctrl+Q") },
+        ActionDef { id: "view.fullscreen",    label: fsn_i18n::t("settings.shortcuts.action_fullscreen"),    category: "View",   default_shortcut: Some("F11") },
+        ActionDef { id: "view.sidebar.show",  label: fsn_i18n::t("settings.shortcuts.action_sidebar"),       category: "View",   default_shortcut: None },
+        ActionDef { id: "store.open",         label: fsn_i18n::t("settings.shortcuts.action_store"),         category: "Tools",  default_shortcut: Some("Ctrl+S") },
+        ActionDef { id: "store.install",      label: fsn_i18n::t("settings.shortcuts.action_install"),       category: "Tools",  default_shortcut: Some("Ctrl+I") },
+        ActionDef { id: "tasks.open",         label: fsn_i18n::t("settings.shortcuts.action_tasks"),         category: "Tools",  default_shortcut: Some("Ctrl+T") },
+        ActionDef { id: "conductor.open",     label: fsn_i18n::t("settings.shortcuts.action_conductor"),     category: "Tools",  default_shortcut: None },
+        ActionDef { id: "studio.open",        label: fsn_i18n::t("settings.shortcuts.action_studio"),        category: "Tools",  default_shortcut: None },
+        ActionDef { id: "bots.open",          label: fsn_i18n::t("settings.shortcuts.action_bots"),          category: "Tools",  default_shortcut: None },
+        ActionDef { id: "help.open",          label: fsn_i18n::t("settings.shortcuts.action_help"),          category: "Help",   default_shortcut: Some("F1") },
+        ActionDef { id: "help.shortcuts",     label: fsn_i18n::t("settings.shortcuts.action_shortcuts"),     category: "Help",   default_shortcut: None },
+        ActionDef { id: "window.close",       label: fsn_i18n::t("settings.shortcuts.action_close"),         category: "Window", default_shortcut: Some("Escape") },
     ]
 }
 
@@ -156,13 +157,13 @@ pub fn ShortcutsSettings() -> Element {
             tabindex: "0",
             onkeydown: on_key,
 
-            h3 { style: "margin-top: 0;", "Keyboard Shortcuts" }
+            h3 { style: "margin-top: 0;", {fsn_i18n::t("settings.shortcuts.title")} }
 
             // Search
             div { style: "margin-bottom: 20px;",
                 input {
                     r#type: "search",
-                    placeholder: "Search actions…",
+                    placeholder: fsn_i18n::t("settings.shortcuts.search_placeholder"),
                     style: "width: 100%; padding: 8px 12px; border: 1px solid var(--fsn-border); \
                             border-radius: var(--fsn-radius-md); font-size: 13px; \
                             background: var(--fsn-bg-input); color: var(--fsn-text-primary);",
@@ -229,7 +230,7 @@ pub fn ShortcutsSettings() -> Element {
                                                                 recording.set(Some(action_id.clone()));
                                                             }
                                                         },
-                                                        if is_recording { "Press keys…" } else { "{current}" }
+                                                        { if is_recording { fsn_i18n::t("settings.shortcuts.press_keys") } else { current.clone() } }
                                                     }
                                                     // Reset button (only when customized)
                                                     if !is_default {
@@ -241,7 +242,7 @@ pub fn ShortcutsSettings() -> Element {
                                                                 config.write().custom.remove(&action_id2);
                                                                 config.read().save();
                                                             },
-                                                            "Reset"
+                                                            {fsn_i18n::t("actions.reset")}
                                                         }
                                                     }
                                                 }
@@ -261,7 +262,7 @@ pub fn ShortcutsSettings() -> Element {
                             background: var(--fsn-bg-elevated); border: 1px solid var(--fsn-primary); \
                             border-radius: var(--fsn-radius-md); padding: 8px 20px; font-size: 13px; \
                             color: var(--fsn-text-secondary); z-index: 9999;",
-                    "Press a key combo to assign — Escape to cancel"
+                    {fsn_i18n::t("settings.shortcuts.recording_hint")}
                 }
             }
         }

@@ -4,6 +4,7 @@
 /// provider name, discovery URL, and client ID; tokens themselves are never
 /// stored here — they are negotiated at runtime via fsn-auth.
 use dioxus::prelude::*;
+use fsn_i18n;
 use serde::{Deserialize, Serialize};
 
 // ── Data model ────────────────────────────────────────────────────────────────
@@ -110,9 +111,9 @@ pub fn AccountSettings() -> Element {
             div {
                 style: "display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;",
                 div {
-                    h3 { style: "margin: 0 0 4px;", "Accounts" }
+                    h3 { style: "margin: 0 0 4px;", {fsn_i18n::t("settings.accounts.title")} }
                     p { style: "margin: 0; font-size: 13px; color: var(--fsn-color-text-muted);",
-                        "Configure OIDC providers for single sign-on across your services."
+                        {fsn_i18n::t("settings.accounts.description")}
                     }
                 }
                 button {
@@ -123,7 +124,7 @@ pub fn AccountSettings() -> Element {
                         *show_add.write() = !cur;
                         *form.write() = AddProviderForm::default();
                     },
-                    if *show_add.read() { "Cancel" } else { "+ Connect Provider" }
+                    { if *show_add.read() { fsn_i18n::t("actions.cancel") } else { fsn_i18n::t("settings.accounts.btn_connect") } }
                 }
             }
 
@@ -134,11 +135,11 @@ pub fn AccountSettings() -> Element {
                             border-radius: var(--fsn-radius-md); border: 1px solid var(--fsn-color-border-default); \
                             margin-bottom: 20px;",
 
-                    h4 { style: "margin: 0 0 12px;", "New OIDC Provider" }
+                    h4 { style: "margin: 0 0 12px;", {fsn_i18n::t("settings.accounts.form_title")} }
 
                     div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;",
                         div {
-                            label { style: "display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px;", "Name" }
+                            label { style: "display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px;", {fsn_i18n::t("labels.name")} }
                             input {
                                 r#type: "text", placeholder: "e.g. Kanidm",
                                 value: "{form.read().name}",
@@ -147,7 +148,7 @@ pub fn AccountSettings() -> Element {
                             }
                         }
                         div {
-                            label { style: "display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px;", "Client ID" }
+                            label { style: "display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px;", {fsn_i18n::t("settings.accounts.label_client_id")} }
                             input {
                                 r#type: "text", placeholder: "e.g. fsn-desktop",
                                 value: "{form.read().client_id}",
@@ -158,7 +159,7 @@ pub fn AccountSettings() -> Element {
                     }
 
                     div { style: "margin-bottom: 12px;",
-                        label { style: "display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px;", "Discovery URL" }
+                        label { style: "display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px;", {fsn_i18n::t("settings.accounts.label_discovery_url")} }
                         input {
                             r#type: "url", placeholder: "https://auth.example.com",
                             value: "{form.read().discovery_url}",
@@ -168,7 +169,7 @@ pub fn AccountSettings() -> Element {
                     }
 
                     div { style: "margin-bottom: 16px;",
-                        label { style: "display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px;", "Scopes" }
+                        label { style: "display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px;", {fsn_i18n::t("settings.accounts.label_scopes")} }
                         input {
                             r#type: "text", placeholder: "openid email profile",
                             value: "{form.read().scopes}",
@@ -176,7 +177,7 @@ pub fn AccountSettings() -> Element {
                             oninput: move |e| form.write().scopes = e.value(),
                         }
                         p { style: "margin: 4px 0 0; font-size: 11px; color: var(--fsn-color-text-muted);",
-                            "Defaults to \"openid email profile\" if left blank."
+                            {fsn_i18n::t("settings.accounts.scopes_hint")}
                         }
                     }
 
@@ -191,7 +192,7 @@ pub fn AccountSettings() -> Element {
                             *show_add.write() = false;
                             *form.write() = AddProviderForm::default();
                         },
-                        "Save Provider"
+                        {fsn_i18n::t("settings.accounts.btn_save")}
                     }
                 }
             }
@@ -202,9 +203,9 @@ pub fn AccountSettings() -> Element {
                     style: "text-align: center; padding: 40px; background: var(--fsn-color-bg-surface); \
                             border-radius: var(--fsn-radius-md); border: 1px dashed var(--fsn-color-border-default); \
                             margin-bottom: 16px;",
-                    p { style: "color: var(--fsn-color-text-muted); margin: 0;", "No providers connected yet." }
+                    p { style: "color: var(--fsn-color-text-muted); margin: 0;", {fsn_i18n::t("settings.accounts.empty")} }
                     p { style: "font-size: 12px; color: var(--fsn-color-text-muted); margin: 8px 0 0;",
-                        "Connect an OIDC provider (e.g. Kanidm) to enable SSO for your services."
+                        {fsn_i18n::t("settings.accounts.empty_hint")}
                     }
                 }
             }
@@ -259,7 +260,7 @@ pub fn AccountSettings() -> Element {
                             button {
                                 style: "color: var(--fsn-color-error); background: none; border: none; \
                                         cursor: pointer; font-size: 18px; flex-shrink: 0;",
-                                title: "Disconnect",
+                                title: fsn_i18n::t("settings.accounts.btn_disconnect"),
                                 onclick: move |_| {
                                     providers.write().remove(idx);
                                     save();

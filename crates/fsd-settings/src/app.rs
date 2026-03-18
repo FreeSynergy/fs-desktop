@@ -1,6 +1,7 @@
 /// Settings — root component: all settings sections in one place.
 use dioxus::prelude::*;
 use fsn_components::{FsnSidebar, FsnSidebarItem, FSN_SIDEBAR_CSS};
+use fsn_i18n;
 
 use crate::appearance::AppearanceSettings;
 use crate::language::LanguageSettings;
@@ -20,14 +21,27 @@ pub enum SettingsSection {
 }
 
 impl SettingsSection {
-    pub fn label(&self) -> &str {
+    /// Stable identifier used for routing — never translated.
+    pub fn id(&self) -> &str {
         match self {
-            Self::Appearance   => "Appearance",
-            Self::Language     => "Language",
-            Self::ServiceRoles => "Service Roles",
-            Self::Accounts     => "Accounts",
-            Self::Desktop      => "Desktop",
-            Self::Shortcuts    => "Shortcuts",
+            Self::Appearance   => "appearance",
+            Self::Language     => "language",
+            Self::ServiceRoles => "service_roles",
+            Self::Accounts     => "accounts",
+            Self::Desktop      => "desktop",
+            Self::Shortcuts    => "shortcuts",
+        }
+    }
+
+    /// Translated display label.
+    pub fn label(&self) -> String {
+        match self {
+            Self::Appearance   => fsn_i18n::t("settings.section.appearance"),
+            Self::Language     => fsn_i18n::t("settings.section.language"),
+            Self::ServiceRoles => fsn_i18n::t("settings.section.roles"),
+            Self::Accounts     => fsn_i18n::t("settings.section.accounts"),
+            Self::Desktop      => fsn_i18n::t("settings.section.desktop"),
+            Self::Shortcuts    => fsn_i18n::t("settings.section.shortcuts"),
         }
     }
 
@@ -42,16 +56,16 @@ impl SettingsSection {
         }
     }
 
-    /// Look up a section by its label string.
-    pub fn from_label(label: &str) -> Option<Self> {
-        match label {
-            "Appearance"   => Some(Self::Appearance),
-            "Language"     => Some(Self::Language),
-            "Service Roles"=> Some(Self::ServiceRoles),
-            "Accounts"     => Some(Self::Accounts),
-            "Desktop"      => Some(Self::Desktop),
-            "Shortcuts"    => Some(Self::Shortcuts),
-            _              => None,
+    /// Look up a section by its stable ID string.
+    pub fn from_id(id: &str) -> Option<Self> {
+        match id {
+            "appearance"    => Some(Self::Appearance),
+            "language"      => Some(Self::Language),
+            "service_roles" => Some(Self::ServiceRoles),
+            "accounts"      => Some(Self::Accounts),
+            "desktop"       => Some(Self::Desktop),
+            "shortcuts"     => Some(Self::Shortcuts),
+            _               => None,
         }
     }
 }
@@ -71,7 +85,7 @@ pub fn SettingsApp() -> Element {
     let mut active = use_signal(|| SettingsSection::Appearance);
 
     let sidebar_items: Vec<FsnSidebarItem> = ALL_SECTIONS.iter()
-        .map(|s| FsnSidebarItem::new(s.label(), s.icon(), s.label()))
+        .map(|s| FsnSidebarItem::new(s.id(), s.icon(), s.label()))
         .collect();
 
     rsx! {
@@ -86,7 +100,7 @@ pub fn SettingsApp() -> Element {
                         flex-shrink: 0; background: var(--fsn-bg-surface);",
                 h2 {
                     style: "margin: 0; font-size: 16px; font-weight: 600; color: var(--fsn-text-primary);",
-                    "Settings"
+                    {fsn_i18n::t("settings.title")}
                 }
             }
 
@@ -97,9 +111,9 @@ pub fn SettingsApp() -> Element {
             // Collapsible sidebar navigation
             FsnSidebar {
                 items:     sidebar_items,
-                active_id: active.read().label().to_string(),
+                active_id: active.read().id().to_string(),
                 on_select: move |id: String| {
-                    if let Some(section) = SettingsSection::from_label(&id) {
+                    if let Some(section) = SettingsSection::from_id(&id) {
                         active.set(section);
                     }
                 },

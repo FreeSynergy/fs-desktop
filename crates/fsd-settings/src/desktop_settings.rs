@@ -2,6 +2,7 @@
 use std::path::PathBuf;
 
 use dioxus::prelude::*;
+use fsn_i18n;
 use serde::{Deserialize, Serialize};
 
 use crate::config_path;
@@ -54,11 +55,11 @@ impl DisplayMode {
         }
     }
 
-    pub fn description(&self) -> &str {
+    pub fn description(&self) -> String {
         match self {
-            Self::Window => "Native OS window (default)",
-            Self::Web    => "Browser / web server",
-            Self::Tui    => "Terminal UI",
+            Self::Window => fsn_i18n::t("settings.desktop.mode_window"),
+            Self::Web    => fsn_i18n::t("settings.desktop.mode_web"),
+            Self::Tui    => fsn_i18n::t("settings.desktop.mode_tui"),
         }
     }
 
@@ -170,13 +171,13 @@ pub fn DesktopSettings() -> Element {
             class: "fsd-desktop-settings",
             style: "padding: 24px; max-width: 500px;",
 
-            h3 { style: "margin-top: 0;", "Desktop" }
+            h3 { style: "margin-top: 0;", {fsn_i18n::t("settings.desktop.title")} }
 
             // Display Mode
             div { style: "margin-bottom: 24px;",
-                label { style: "display: block; font-weight: 500; margin-bottom: 4px;", "Display Mode" }
+                label { style: "display: block; font-weight: 500; margin-bottom: 4px;", {fsn_i18n::t("settings.desktop.display_mode")} }
                 p { style: "font-size: 13px; color: var(--fsn-color-text-muted); margin: 0 0 8px;",
-                    "Takes effect on the next launch."
+                    {fsn_i18n::t("settings.desktop.next_launch_hint")}
                 }
                 div { style: "display: flex; flex-direction: column; gap: 6px;",
                     for mode in [DisplayMode::Window, DisplayMode::Web, DisplayMode::Tui] {
@@ -187,7 +188,7 @@ pub fn DesktopSettings() -> Element {
 
             // Taskbar Position
             div { style: "margin-bottom: 24px;",
-                label { style: "display: block; font-weight: 500; margin-bottom: 8px;", "Taskbar Position" }
+                label { style: "display: block; font-weight: 500; margin-bottom: 8px;", {fsn_i18n::t("settings.desktop.taskbar_position")} }
                 div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 8px;",
                     TaskbarPosBtn { pos: TaskbarPosition::Bottom, config }
                     TaskbarPosBtn { pos: TaskbarPosition::Top,    config }
@@ -198,7 +199,7 @@ pub fn DesktopSettings() -> Element {
 
             // Sidebar Position
             div { style: "margin-bottom: 24px;",
-                label { style: "display: block; font-weight: 500; margin-bottom: 8px;", "Sidebar Position" }
+                label { style: "display: block; font-weight: 500; margin-bottom: 8px;", {fsn_i18n::t("settings.desktop.sidebar_position")} }
                 div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 8px;",
                     SidebarPosBtn { pos: SidebarPosition::Left,   config }
                     SidebarPosBtn { pos: SidebarPosition::Right,  config }
@@ -213,7 +214,7 @@ pub fn DesktopSettings() -> Element {
             button {
                 style: "padding: 8px 24px; background: var(--fsn-color-primary); color: white; border: none; border-radius: var(--fsn-radius-md); cursor: pointer;",
                 onclick: move |_| config.read().save(),
-                "Save"
+                {fsn_i18n::t("actions.save")}
             }
         }
     }
@@ -266,7 +267,7 @@ fn SidebarCollapseToggle(config: Signal<DesktopConfig>) -> Element {
                 onchange: move |evt| config.write().sidebar.default_collapsed = evt.checked(),
             }
             label { style: "font-size: 14px; color: var(--fsn-text-primary);",
-                "Start with sidebar collapsed"
+                {fsn_i18n::t("settings.desktop.sidebar_collapsed")}
             }
         }
     }
