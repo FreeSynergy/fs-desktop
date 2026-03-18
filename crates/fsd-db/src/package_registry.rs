@@ -14,10 +14,13 @@ pub struct InstalledPackage {
     pub id: String,
     /// Human-readable display name.
     pub name: String,
-    /// Package kind: `"language"`, `"theme"`, `"widget"`, `"plugin"`, etc.
+    /// Package kind: `"language"`, `"theme"`, `"widget"`, `"plugin"`, `"app"`, etc.
     pub kind: String,
     /// Installed version (SemVer).
     pub version: String,
+    /// Emoji or icon identifier for sidebar display (e.g. `"🌐"`).
+    #[serde(default)]
+    pub icon: String,
     /// Absolute path to the downloaded file on disk, or `None` if no file was saved.
     pub file_path: Option<String>,
 }

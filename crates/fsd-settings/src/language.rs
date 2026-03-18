@@ -137,6 +137,7 @@ async fn install_language_pack(locale: LocaleInfo) -> Result<(), String> {
         name:      locale.name.clone(),
         kind:      "language".into(),
         version:   locale.version.clone(),
+        icon:      String::new(),
         file_path,
     })
     .map_err(|e| format!("Registry error: {e}"))

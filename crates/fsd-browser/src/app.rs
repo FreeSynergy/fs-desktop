@@ -52,7 +52,8 @@ pub fn BrowserApp() -> Element {
     let mut status_msg: Signal<Option<String>> = use_signal(|| None);
 
     // K3: Accept service URL requests from Conductor via context
-    let url_request: Option<BrowserUrlRequest> = use_context();
+    // try_consume_context returns None if no BrowserUrlRequest was provided upstream.
+    let url_request: Option<BrowserUrlRequest> = try_consume_context::<BrowserUrlRequest>();
     use_effect(move || {
         if let Some(mut req) = url_request {
             let maybe_url = req.read().clone();

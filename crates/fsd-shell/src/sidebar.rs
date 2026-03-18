@@ -19,20 +19,39 @@ pub struct SidebarSection {
     pub items: Vec<SidebarNavItem>,
 }
 
+/// Build the Apps section from the PackageRegistry.
+///
+/// Only packages with `kind = "app"` are shown. The display label is resolved
+/// via i18n (`shell.nav.<id>`) with a fallback to the package name so that
+/// third-party apps installed from the Store also get a label even if they
+/// have no built-in translation key.
+fn installed_app_items() -> Vec<SidebarNavItem> {
+    fsd_db::package_registry::PackageRegistry::by_kind("app")
+        .into_iter()
+        .map(|pkg| {
+            let key = format!("shell.nav.{}", pkg.id);
+            let label = fsn_i18n::t(&key);
+            // Fall back to the package name when no translation key exists.
+            let label = if label == key { pkg.name.clone() } else { label };
+            SidebarNavItem {
+                id:    pkg.id,
+                label,
+                icon:  pkg.icon,
+            }
+        })
+        .collect()
+}
+
 /// Default sidebar sections for the shell.
+///
+/// The **Apps** section is built dynamically from the PackageRegistry so that
+/// only installed apps appear. The **System** section (Settings, Profile, AI,
+/// Help) is always present — these are not user-installable.
 pub fn default_sidebar_sections() -> Vec<SidebarSection> {
     vec![
         SidebarSection {
             label: "Apps",
-            items: vec![
-                SidebarNavItem { id: "tasks".into(),     label: fsn_i18n::t("shell.nav.tasks"),     icon: "📋".into() },
-                SidebarNavItem { id: "bots".into(),      label: fsn_i18n::t("shell.nav.bots"),      icon: "🤖".into() },
-                SidebarNavItem { id: "conductor".into(), label: fsn_i18n::t("shell.nav.conductor"), icon: "🎛".into() },
-                SidebarNavItem { id: "browser".into(),   label: fsn_i18n::t("shell.nav.browser"),   icon: "🌐".into() },
-                SidebarNavItem { id: "lenses".into(),    label: fsn_i18n::t("shell.nav.lenses"),    icon: "🔍".into() },
-                SidebarNavItem { id: "store".into(),     label: fsn_i18n::t("shell.nav.store"),     icon: "📦".into() },
-                SidebarNavItem { id: "builder".into(),   label: fsn_i18n::t("shell.nav.builder"),   icon: "🔧".into() },
-            ],
+            items: installed_app_items(),
         },
         SidebarSection {
             label: "System",

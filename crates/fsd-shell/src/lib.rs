@@ -1,4 +1,5 @@
 pub mod ai_view;
+pub mod builtin_apps;
 pub mod theme_loader;
 pub mod app_shell;
 pub mod context_menu;

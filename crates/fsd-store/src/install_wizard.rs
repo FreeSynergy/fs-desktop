@@ -96,6 +96,7 @@ async fn do_install(package: PackageEntry, env_vars: String) -> Result<(), Strin
         name:      package.name.clone(),
         kind:      package.kind.kind_str(),
         version:   package.version.clone(),
+        icon:      String::new(),
         file_path,
     })
     .map_err(|e| format!("Registry error: {e}"))

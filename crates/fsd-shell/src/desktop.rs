@@ -115,6 +115,10 @@ fn init_i18n() -> String {
 /// Root desktop component.
 #[component]
 pub fn Desktop() -> Element {
+    // Pre-register all built-in apps in PackageRegistry (idempotent).
+    // Must run before default_sidebar_sections() reads from the registry.
+    crate::builtin_apps::ensure_registered();
+
     // Initialize i18n once and expose the active language as a reactive context.
     // fsd-settings writes to this via LangContext when the user switches languages,
     // triggering a full re-render with the new language active.
