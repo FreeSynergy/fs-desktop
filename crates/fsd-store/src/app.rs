@@ -40,19 +40,19 @@ impl StoreTab {
         }
     }
 
-    pub fn label(&self) -> &'static str {
+    pub fn label(&self) -> String {
         match self {
-            Self::All       => "All",
-            Self::Services  => "Services",
-            Self::Plugins   => "Plugins",
-            Self::Languages => "Languages",
-            Self::Themes    => "Themes",
-            Self::Widgets   => "Widgets",
-            Self::Bots      => "Bots",
-            Self::Bridges   => "Bridges",
-            Self::Tasks     => "Tasks",
-            Self::Installed => "Installed",
-            Self::Updates   => "Updates",
+            Self::All       => fsn_i18n::t("store.tab.all"),
+            Self::Services  => fsn_i18n::t("store.tab.services"),
+            Self::Plugins   => fsn_i18n::t("store.tab.plugins"),
+            Self::Languages => fsn_i18n::t("store.tab.languages"),
+            Self::Themes    => fsn_i18n::t("store.tab.themes"),
+            Self::Widgets   => fsn_i18n::t("store.tab.widgets"),
+            Self::Bots      => fsn_i18n::t("store.tab.bots"),
+            Self::Bridges   => fsn_i18n::t("store.tab.bridges"),
+            Self::Tasks     => fsn_i18n::t("store.tab.tasks"),
+            Self::Installed => fsn_i18n::t("store.tab.installed"),
+            Self::Updates   => fsn_i18n::t("store.tab.updates"),
         }
     }
 
@@ -73,9 +73,21 @@ impl StoreTab {
         }
     }
 
-    /// Stable string ID (same as label).
+    /// Stable string ID (not translated — used for routing/selection).
     pub fn id(&self) -> &'static str {
-        self.label()
+        match self {
+            Self::All       => "All",
+            Self::Services  => "Services",
+            Self::Plugins   => "Plugins",
+            Self::Languages => "Languages",
+            Self::Themes    => "Themes",
+            Self::Widgets   => "Widgets",
+            Self::Bots      => "Bots",
+            Self::Bridges   => "Bridges",
+            Self::Tasks     => "Tasks",
+            Self::Installed => "Installed",
+            Self::Updates   => "Updates",
+        }
     }
 
     /// Look up a tab by its ID string.
@@ -165,7 +177,7 @@ pub fn StoreApp() -> Element {
                         flex-shrink: 0; background: var(--fsn-bg-surface);",
                 h2 {
                     style: "margin: 0; font-size: 16px; font-weight: 600; color: var(--fsn-text-primary);",
-                    "Store"
+                    {fsn_i18n::t("store.title")}
                 }
             }
 
@@ -190,7 +202,7 @@ pub fn StoreApp() -> Element {
                             border-bottom: 1px solid var(--fsn-color-border-default);",
                     input {
                         r#type: "search",
-                        placeholder: "Search packages…",
+                        placeholder: fsn_i18n::t("store.search_placeholder"),
                         style: "width: 100%; padding: 8px 12px; \
                                 border: 1px solid var(--fsn-color-border-default); \
                                 border-radius: var(--fsn-radius-md); font-size: 14px; \
@@ -234,17 +246,18 @@ fn UpdatesList(catalog_versions: Vec<(String, String)>) -> Element {
         div {
             style: "text-align: center; color: var(--fsn-text-muted); padding: 48px;",
             p { style: "font-size: 24px; margin-bottom: 12px;", "↑" }
-            p { style: "margin-bottom: 8px;", "Update detection requires deployment metadata." }
+            p { style: "margin-bottom: 8px;", {fsn_i18n::t("store.updates.no_metadata")} }
             p { style: "font-size: 13px;",
                 "Run "
                 code { style: "background: var(--fsn-bg-elevated); padding: 2px 6px; border-radius: 4px;",
                     "fsn deploy"
                 }
-                " to check and apply updates for all deployed services."
+                " "
+                {fsn_i18n::t("store.updates.run_deploy")}
             }
             if !catalog_versions.is_empty() {
                 p { style: "margin-top: 16px; font-size: 13px;",
-                    "{catalog_versions.len()} package(s) available in the catalog."
+                    {fsn_i18n::t_with("store.updates.catalog_count", &[("n", catalog_versions.len().to_string().as_str())])}
                 }
             }
         }

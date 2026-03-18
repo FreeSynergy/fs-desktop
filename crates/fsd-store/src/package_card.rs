@@ -52,7 +52,7 @@ pub fn PackageCard(package: PackageEntry, on_details: EventHandler<MouseEvent>) 
                     span {
                         style: "margin-left: auto; font-size: 11px; color: var(--fsn-color-success, #22c55e); \
                                 background: rgba(34,197,94,0.12); padding: 2px 8px; border-radius: 999px;",
-                        "Installed"
+                        {fsn_i18n::t("store.status.installed")}
                     }
                 }
             }
@@ -86,19 +86,19 @@ pub fn PackageCard(package: PackageEntry, on_details: EventHandler<MouseEvent>) 
                     if package.update_available {
                         button {
                             style: "width: 100%; padding: 8px; background: var(--fsn-color-warning); color: white; border: none; border-radius: var(--fsn-radius-md); cursor: pointer; font-size: 13px;",
-                            "Update available"
+                            {fsn_i18n::t("store.status.update_available")}
                         }
                     } else {
                         button {
                             style: "width: 100%; padding: 8px; background: var(--fsn-color-bg-overlay); border: 1px solid var(--fsn-color-border-default); border-radius: var(--fsn-radius-md); cursor: default; font-size: 13px;",
                             disabled: true,
-                            "Installed ✓"
+                            {fsn_i18n::t("store.status.installed")}
                         }
                     }
                 } else {
                     button {
                         style: "width: 100%; padding: 8px; background: var(--fsn-color-primary); color: white; border: none; border-radius: var(--fsn-radius-md); cursor: pointer; font-size: 13px;",
-                        "Install"
+                        {fsn_i18n::t("actions.install")}
                     }
                 }
             }

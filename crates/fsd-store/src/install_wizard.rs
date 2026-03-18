@@ -17,14 +17,14 @@ pub enum WizardStep {
 }
 
 impl WizardStep {
-    pub fn label(&self) -> &str {
+    pub fn label(&self) -> String {
         match self {
-            Self::Overview   => "Overview",
-            Self::Configure  => "Configure",
-            Self::Confirm    => "Confirm",
-            Self::Installing => "Installing",
-            Self::Done       => "Done",
-            Self::Error      => "Error",
+            Self::Overview   => fsn_i18n::t("store.wizard.step_overview"),
+            Self::Configure  => fsn_i18n::t("store.wizard.step_configure"),
+            Self::Confirm    => fsn_i18n::t("store.wizard.step_confirm"),
+            Self::Installing => fsn_i18n::t("store.wizard.step_installing"),
+            Self::Done       => fsn_i18n::t("store.wizard.step_done"),
+            Self::Error      => fsn_i18n::t("status.error"),
         }
     }
 
@@ -313,7 +313,7 @@ pub fn InstallWizard(package: PackageEntry, on_cancel: EventHandler<()>) -> Elem
                     WizardStepDot {
                         key: "{i}",
                         index: i,
-                        label: s.label().to_string(),
+                        label: s.label(),
                         active: current == *s,
                         done: matches!((&current, s),
                             (WizardStep::Confirm, WizardStep::Overview)
@@ -330,10 +330,15 @@ pub fn InstallWizard(package: PackageEntry, on_cancel: EventHandler<()>) -> Elem
                 style: "flex: 1; overflow: auto; padding: 24px;",
                 match &current {
                     WizardStep::Overview => rsx! {
-                        h3 { style: "margin-top: 0;", "Install {package.name}" }
+                        h3 { style: "margin-top: 0;",
+                            {fsn_i18n::t_with("store.wizard.overview_title", &[("name", package.name.as_str())])}
+                        }
                         p { style: "color: var(--fsn-color-text-secondary);", "{package.description}" }
                         p { style: "color: var(--fsn-color-text-muted); font-size: 13px;",
-                            "Version: {package.version} · Type: {package.kind.label()}"
+                            {fsn_i18n::t_with("store.wizard.version_type", &[
+                                ("version", package.version.as_str()),
+                                ("kind", package.kind.label()),
+                            ])}
                         }
                         if !package.tags.is_empty() {
                             div { style: "display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px;",
@@ -351,7 +356,9 @@ pub fn InstallWizard(package: PackageEntry, on_cancel: EventHandler<()>) -> Elem
                         }
                     },
                     WizardStep::Configure => rsx! {
-                        h3 { style: "margin-top: 0;", "Configure {package.name}" }
+                        h3 { style: "margin-top: 0;",
+                            {fsn_i18n::t_with("store.wizard.configure_title", &[("name", package.name.as_str())])}
+                        }
                         { match &package.kind {
                             PackageKind::Container => rsx! {
                                 ContainerConfigureStep {
@@ -361,32 +368,32 @@ pub fn InstallWizard(package: PackageEntry, on_cancel: EventHandler<()>) -> Elem
                             },
                             PackageKind::Language => rsx! {
                                 p { style: "color: var(--fsn-color-text-muted);",
-                                    "The language pack will be downloaded and saved locally. \
-                                     Select it in Settings → Language after installation."
+                                    {fsn_i18n::t("store.wizard.configure_language")}
                                 }
                             },
                             PackageKind::Theme => rsx! {
                                 p { style: "color: var(--fsn-color-text-muted);",
-                                    "The theme CSS will be downloaded and saved locally. \
-                                     Activate it in Settings → Appearance after installation."
+                                    {fsn_i18n::t("store.wizard.configure_theme")}
                                 }
                             },
                             PackageKind::Widget => rsx! {
                                 p { style: "color: var(--fsn-color-text-muted);",
-                                    "The widget will be registered. Add it to your desktop \
-                                     via Edit Desktop → Add Widget."
+                                    {fsn_i18n::t("store.wizard.configure_widget")}
                                 }
                             },
                             _ => rsx! {
                                 p { style: "color: var(--fsn-color-text-muted);",
-                                    "No additional configuration required for this package type."
+                                    {fsn_i18n::t("store.wizard.configure_none")}
                                 }
                             },
                         }}
                     },
                     WizardStep::Confirm => rsx! {
-                        h3 { style: "margin-top: 0;", "Ready to install" }
-                        p { "Click Install to download and register {package.name} v{package.version}." }
+                        h3 { style: "margin-top: 0;", {fsn_i18n::t("store.wizard.confirm_title")} }
+                        p { {fsn_i18n::t_with("store.wizard.confirm_body", &[
+                            ("name", package.name.as_str()),
+                            ("version", package.version.as_str()),
+                        ])} }
                         div {
                             style: "margin-top: 12px; padding: 12px 16px; \
                                     background: var(--fsn-color-bg-surface); \
@@ -404,7 +411,7 @@ pub fn InstallWizard(package: PackageEntry, on_cancel: EventHandler<()>) -> Elem
                                         border-radius: var(--fsn-radius-md); font-size: 12px; \
                                         color: var(--fsn-color-text-muted);",
                                 p { style: "margin: 0 0 4px 0;",
-                                    "The compose file will be saved to:"
+                                    {fsn_i18n::t("store.wizard.compose_saved_to")}
                                 }
                                 code {
                                     style: "font-size: 11px;",
@@ -413,7 +420,8 @@ pub fn InstallWizard(package: PackageEntry, on_cancel: EventHandler<()>) -> Elem
                                 p { style: "margin: 8px 0 0 0;",
                                     "Then "
                                     code { "fsn conductor install" }
-                                    " will generate the Quadlet unit and start the service."
+                                    " "
+                                    {fsn_i18n::t("store.wizard.compose_conductor_hint")}
                                 }
                             }
                         }
@@ -427,12 +435,12 @@ pub fn InstallWizard(package: PackageEntry, on_cancel: EventHandler<()>) -> Elem
                                             border: 1px solid var(--fsn-color-error, #ef4444); \
                                             border-radius: var(--fsn-radius-md); \
                                             padding: 12px; font-size: 13px; text-align: left;",
-                                    p { strong { "Installation failed" } }
+                                    p { strong { {fsn_i18n::t("store.wizard.install_failed")} } }
                                     p { "{err}" }
                                 }
                             } else {
                                 p { style: "font-size: 32px; margin-bottom: 12px;", "⏳" }
-                                p { "Installing {package.name}…" }
+                                p { {fsn_i18n::t_with("store.wizard.installing", &[("name", package.name.as_str())])} }
                             }
                         }
                     },
@@ -440,15 +448,15 @@ pub fn InstallWizard(package: PackageEntry, on_cancel: EventHandler<()>) -> Elem
                         div { style: "text-align: center; padding: 48px;",
                             p { style: "font-size: 48px; margin-bottom: 12px;", "✓" }
                             p { style: "font-size: 18px; font-weight: 600;",
-                                "{package.name} installed"
+                                {fsn_i18n::t_with("store.wizard.done_title", &[("name", package.name.as_str())])}
                             }
                             p { style: "color: var(--fsn-color-text-muted); font-size: 13px; margin-top: 8px;",
                                 { match &package.kind {
-                                    PackageKind::Container => "Open Conductor to start and configure the service.",
-                                    PackageKind::Language  => "Select it in Settings → Language.",
-                                    PackageKind::Theme     => "Activate it in Settings → Appearance.",
-                                    PackageKind::Widget    => "Add it via Edit Desktop → Add Widget.",
-                                    _                      => "Package is ready to use.",
+                                    PackageKind::Container => fsn_i18n::t("store.wizard.done_container"),
+                                    PackageKind::Language  => fsn_i18n::t("store.wizard.done_language"),
+                                    PackageKind::Theme     => fsn_i18n::t("store.wizard.done_theme"),
+                                    PackageKind::Widget    => fsn_i18n::t("store.wizard.done_widget"),
+                                    _                      => fsn_i18n::t("store.wizard.done_generic"),
                                 }}
                             }
                         }
@@ -456,7 +464,7 @@ pub fn InstallWizard(package: PackageEntry, on_cancel: EventHandler<()>) -> Elem
                     WizardStep::Error => rsx! {
                         div { style: "text-align: center; padding: 48px; color: var(--fsn-color-error, #ef4444);",
                             p { style: "font-size: 32px;", "✗" }
-                            p { "Installation failed." }
+                            p { {fsn_i18n::t("store.wizard.error_body")} }
                         }
                     },
                 }
@@ -474,9 +482,9 @@ pub fn InstallWizard(package: PackageEntry, on_cancel: EventHandler<()>) -> Elem
                             border-radius: var(--fsn-radius-md); cursor: pointer;",
                     onclick: move |_| on_cancel.call(()),
                     { if matches!(*step.read(), WizardStep::Done | WizardStep::Error) {
-                        "Close"
+                        fsn_i18n::t("actions.close")
                     } else {
-                        "Cancel"
+                        fsn_i18n::t("actions.cancel")
                     }}
                 }
 
@@ -508,7 +516,7 @@ pub fn InstallWizard(package: PackageEntry, on_cancel: EventHandler<()>) -> Elem
                                     }
                                 });
                             },
-                            "Install"
+                            {fsn_i18n::t("actions.install")}
                         }
                     },
                     _ => rsx! {
@@ -522,7 +530,7 @@ pub fn InstallWizard(package: PackageEntry, on_cancel: EventHandler<()>) -> Elem
                                     step.set(n);
                                 }
                             },
-                            "Next →"
+                            {fsn_i18n::t("actions.next")}
                         }
                     },
                 }}
@@ -540,17 +548,15 @@ fn ContainerConfigureStep(loading: bool, mut env_vars_text: Signal<String>) -> E
     rsx! {
         div {
             p { style: "color: var(--fsn-color-text-secondary); margin-bottom: 16px;",
-                "Enter environment variables for this service (one per line, KEY=VALUE)."
+                {fsn_i18n::t("store.wizard.env_vars_hint")}
             }
             p { style: "color: var(--fsn-color-text-muted); font-size: 12px; margin-bottom: 12px;",
-                "These will be saved to "
-                code { ".env" }
-                " next to the compose file. Leave values empty to fill in later."
+                {fsn_i18n::t("store.wizard.env_vars_body")}
             }
 
             if loading {
                 p { style: "color: var(--fsn-color-text-muted); font-size: 13px;",
-                    "Detecting variables…"
+                    {fsn_i18n::t("store.wizard.detecting_vars")}
                 }
             } else {
                 textarea {
@@ -566,8 +572,7 @@ fn ContainerConfigureStep(loading: bool, mut env_vars_text: Signal<String>) -> E
                     oninput: move |e| env_vars_text.set(e.value()),
                 }
                 p { style: "color: var(--fsn-color-text-muted); font-size: 11px; margin-top: 6px;",
-                    "Tip: You can also edit this file later at "
-                    code { "~/.local/share/fsn/services/<name>/.env" }
+                    {fsn_i18n::t("store.wizard.env_tip")}
                 }
             }
         }

@@ -92,9 +92,9 @@ pub fn PackageBrowser(
             div {
                 style: "display: flex; gap: 6px; margin-bottom: 12px;",
                 for (label, variant) in [
-                    ("All",       InstallFilter::All),
-                    ("Installed", InstallFilter::Installed),
-                    ("Available", InstallFilter::Available),
+                    (fsn_i18n::t("store.filter.all"),       InstallFilter::All),
+                    (fsn_i18n::t("store.filter.installed"), InstallFilter::Installed),
+                    (fsn_i18n::t("store.filter.available"), InstallFilter::Available),
                 ] {
                     {
                         let active = *install_filter.read() == variant;
@@ -122,23 +122,23 @@ pub fn PackageBrowser(
             if *loading.read() {
                 LoadingOverlay {
                     size: SpinnerSize::Lg,
-                    message: Some("Loading catalog…".to_string()),
+                    message: Some(fsn_i18n::t("store.loading_catalog")),
                 }
             } else if let Some(err) = error.read().as_deref() {
                 div {
                     style: "color: var(--fsn-color-error); background: rgba(239,68,68,0.1); \
                             border: 1px solid var(--fsn-color-error); border-radius: 6px; \
                             padding: 12px; font-size: 13px;",
-                    p { strong { "Store unavailable" } }
+                    p { strong { {fsn_i18n::t("store.unavailable")} } }
                     p { "{err}" }
                     p { style: "color: var(--fsn-color-text-muted); font-size: 12px;",
-                        "Using offline cache if available. Check your internet connection."
+                        {fsn_i18n::t("store.offline_hint")}
                     }
                 }
             } else if filtered.is_empty() {
                 div {
                     style: "text-align: center; color: var(--fsn-color-text-muted); padding: 48px;",
-                    p { "No packages match \"{search}\"." }
+                    p { {fsn_i18n::t_with("store.no_match", &[("search", search.as_str())])} }
                 }
             } else {
                 div {

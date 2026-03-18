@@ -45,10 +45,12 @@ pub fn PackageDetail(package: PackageEntry, on_back: EventHandler<()>) -> Elemen
                                 border: 1px solid var(--fsn-color-border-default); \
                                 border-radius: var(--fsn-radius-lg); padding: 24px; \
                                 max-width: 400px; width: 100%;",
-                        h3 { style: "margin: 0 0 12px 0;", "Remove {package.name}?" }
+                        h3 { style: "margin: 0 0 12px 0;",
+                            {fsn_i18n::t_with("store.dialog.remove_title", &[("name", package.name.as_str())])}
+                        }
                         p {
                             style: "color: var(--fsn-color-text-muted); font-size: 14px; margin-bottom: 20px;",
-                            "This will unregister the package and delete any downloaded files."
+                            {fsn_i18n::t("store.dialog.remove_body")}
                         }
                         div {
                             style: "display: flex; gap: 8px; justify-content: flex-end;",
@@ -57,7 +59,7 @@ pub fn PackageDetail(package: PackageEntry, on_back: EventHandler<()>) -> Elemen
                                         border: 1px solid var(--fsn-color-border-default); \
                                         border-radius: var(--fsn-radius-md); cursor: pointer;",
                                 onclick: move |_| remove_confirm.set(false),
-                                "Cancel"
+                                {fsn_i18n::t("actions.cancel")}
                             }
                             button {
                                 style: "padding: 8px 16px; background: var(--fsn-color-error, #ef4444); \
@@ -71,7 +73,7 @@ pub fn PackageDetail(package: PackageEntry, on_back: EventHandler<()>) -> Elemen
                                         remove_confirm.set(false);
                                     }
                                 },
-                                "Remove"
+                                {fsn_i18n::t("actions.remove")}
                             }
                         }
                     }
@@ -86,13 +88,13 @@ pub fn PackageDetail(package: PackageEntry, on_back: EventHandler<()>) -> Elemen
                 button {
                     style: "background: none; border: none; cursor: pointer; \
                             color: var(--fsn-color-text-muted); font-size: 20px; padding: 0 4px;",
-                    title: "Back to browser",
+                    title: fsn_i18n::t("store.back_to_browser"),
                     onclick: move |_| on_back.call(()),
                     "‹"
                 }
                 span {
                     style: "font-size: 14px; color: var(--fsn-color-text-muted);",
-                    "Store"
+                    {fsn_i18n::t("store.title")}
                 }
                 span { style: "color: var(--fsn-color-text-muted);", "/" }
                 span {
@@ -167,7 +169,7 @@ pub fn PackageDetail(package: PackageEntry, on_back: EventHandler<()>) -> Elemen
                                         border-radius: var(--fsn-radius-md); cursor: default; \
                                         font-size: 14px;",
                                 disabled: true,
-                                "Installed ✓"
+                                {fsn_i18n::t("store.status.installed")}
                             }
                             button {
                                 style: "padding: 6px 16px; background: transparent; \
@@ -176,7 +178,7 @@ pub fn PackageDetail(package: PackageEntry, on_back: EventHandler<()>) -> Elemen
                                         border-radius: var(--fsn-radius-md); cursor: pointer; \
                                         font-size: 12px;",
                                 onclick: move |_| remove_confirm.set(true),
-                                "Remove"
+                                {fsn_i18n::t("actions.remove")}
                             }
                         } else {
                             button {
@@ -185,7 +187,7 @@ pub fn PackageDetail(package: PackageEntry, on_back: EventHandler<()>) -> Elemen
                                         border-radius: var(--fsn-radius-md); cursor: pointer; \
                                         font-size: 14px; font-weight: 600;",
                                 onclick: move |_| show_wizard.set(true),
-                                "Install"
+                                {fsn_i18n::t("actions.install")}
                             }
                         }
                     }
@@ -197,7 +199,7 @@ pub fn PackageDetail(package: PackageEntry, on_back: EventHandler<()>) -> Elemen
                         style: "font-size: 14px; font-weight: 600; \
                                 text-transform: uppercase; letter-spacing: 0.06em; \
                                 color: var(--fsn-color-text-muted); margin: 0 0 12px 0;",
-                        "Description"
+                        {fsn_i18n::t("labels.description")}
                     }
                     p {
                         style: "font-size: 14px; line-height: 1.7; \
@@ -213,7 +215,7 @@ pub fn PackageDetail(package: PackageEntry, on_back: EventHandler<()>) -> Elemen
                             style: "font-size: 14px; font-weight: 600; \
                                     text-transform: uppercase; letter-spacing: 0.06em; \
                                     color: var(--fsn-color-text-muted); margin: 0 0 12px 0;",
-                            "Capabilities"
+                            {fsn_i18n::t("store.section.capabilities")}
                         }
                         div {
                             style: "display: flex; flex-wrap: wrap; gap: 8px;",
@@ -230,15 +232,15 @@ pub fn PackageDetail(package: PackageEntry, on_back: EventHandler<()>) -> Elemen
                         style: "font-size: 14px; font-weight: 600; \
                                 text-transform: uppercase; letter-spacing: 0.06em; \
                                 color: var(--fsn-color-text-muted); margin: 0 0 12px 0;",
-                        "Package Info"
+                        {fsn_i18n::t("store.section.package_info")}
                     }
                     div {
                         style: "background: var(--fsn-color-bg-surface); \
                                 border: 1px solid var(--fsn-color-border-default); \
                                 border-radius: var(--fsn-radius-md); overflow: hidden;",
-                        MetaRow { label: "ID",       value: package.id.clone() }
-                        MetaRow { label: "Version",  value: package.version.clone() }
-                        MetaRow { label: "Category", value: package.category.clone() }
+                        MetaRow { label: fsn_i18n::t("labels.id"),      value: package.id.clone() }
+                        MetaRow { label: fsn_i18n::t("labels.version"), value: package.version.clone() }
+                        MetaRow { label: "Category".to_string(),        value: package.category.clone() }
                     }
                 }
             }

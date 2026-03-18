@@ -55,7 +55,7 @@ pub fn InstalledList(catalog_versions: Vec<(String, String)>) -> Element {
         loop {
             let units = list_fsn_units().await;
             if units.is_empty() {
-                error.set(Some("No installed FSN services found.".into()));
+                error.set(Some(fsn_i18n::t("store.installed.no_services")));
             } else {
                 let mut rows = Vec::new();
                 for unit in &units {
@@ -107,7 +107,7 @@ pub fn InstalledList(catalog_versions: Vec<(String, String)>) -> Element {
                 style: "font-size: 13px; font-weight: 600; text-transform: uppercase; \
                         letter-spacing: 0.07em; color: var(--fsn-color-text-muted); \
                         margin: 0 0 12px 0;",
-                "Services"
+                {fsn_i18n::t("store.tab.services")}
             }
 
             if let Some(err) = error.read().as_deref() {
@@ -120,9 +120,7 @@ pub fn InstalledList(catalog_versions: Vec<(String, String)>) -> Element {
             if entries.read().is_empty() && error.read().is_none() {
                 div {
                     style: "color: var(--fsn-color-text-muted); font-size: 13px; padding: 12px 0 24px 0;",
-                    "No FSN services installed. Deploy a project with "
-                    code { "fsn deploy" }
-                    " to install services."
+                    {fsn_i18n::t("store.installed.no_services")}
                 }
             } else if !entries.read().is_empty() {
                 table {
@@ -155,7 +153,7 @@ pub fn InstalledList(catalog_versions: Vec<(String, String)>) -> Element {
                 style: "font-size: 13px; font-weight: 600; text-transform: uppercase; \
                         letter-spacing: 0.07em; color: var(--fsn-color-text-muted); \
                         margin: 0 0 12px 0;",
-                "Store Packages"
+                {fsn_i18n::t("store.section.store_packages")}
             }
 
             {
@@ -164,7 +162,7 @@ pub fn InstalledList(catalog_versions: Vec<(String, String)>) -> Element {
                     rsx! {
                         div {
                             style: "color: var(--fsn-color-text-muted); font-size: 13px; padding: 12px 0;",
-                            "No packages installed from the Store yet."
+                            {fsn_i18n::t("store.installed.no_packages")}
                         }
                     }
                 } else {
@@ -208,7 +206,11 @@ fn InstalledRow(
     on_remove: EventHandler<InstalledEntry>,
 ) -> Element {
     let status_color = if entry.running { "var(--fsn-success)" } else { "var(--fsn-text-muted)" };
-    let status_label = if entry.running { "Running" } else { "Stopped" };
+    let status_label = if entry.running {
+        fsn_i18n::t("status.running")
+    } else {
+        fsn_i18n::t("status.stopped")
+    };
 
     rsx! {
         tr {
@@ -225,7 +227,7 @@ fn InstalledRow(
                         let e = entry.clone();
                         move |_| on_remove.call(e.clone())
                     },
-                    "Remove"
+                    {fsn_i18n::t("actions.remove")}
                 }
             }
         }
@@ -264,7 +266,7 @@ fn RegPackageRow(
                         let p = pkg.clone();
                         move |_| on_remove.call(p.clone())
                     },
-                    "Remove"
+                    {fsn_i18n::t("actions.remove")}
                 }
             }
         }
@@ -288,14 +290,12 @@ fn RegRemoveDialog(
                         border: 1px solid var(--fsn-color-border-default); \
                         border-radius: var(--fsn-radius-lg); padding: 24px; \
                         max-width: 400px; width: 100%;",
-                h3 { style: "margin: 0 0 12px 0;", "Remove {pkg.name}?" }
+                h3 { style: "margin: 0 0 12px 0;",
+                    {fsn_i18n::t_with("store.dialog.remove_title", &[("name", pkg.name.as_str())])}
+                }
                 p {
                     style: "color: var(--fsn-color-text-muted); font-size: 14px; margin-bottom: 20px;",
-                    "This will unregister the package"
-                    if pkg.file_path.is_some() {
-                        " and delete its local file"
-                    }
-                    "."
+                    {fsn_i18n::t("store.dialog.remove_body")}
                 }
                 div {
                     style: "display: flex; gap: 8px; justify-content: flex-end;",
@@ -304,14 +304,14 @@ fn RegRemoveDialog(
                                 border: 1px solid var(--fsn-color-border-default); \
                                 border-radius: var(--fsn-radius-md); cursor: pointer;",
                         onclick: move |_| on_cancel.call(()),
-                        "Cancel"
+                        {fsn_i18n::t("actions.cancel")}
                     }
                     button {
                         style: "padding: 8px 16px; background: var(--fsn-color-error, #ef4444); \
                                 color: white; border: none; \
                                 border-radius: var(--fsn-radius-md); cursor: pointer;",
                         onclick: move |_| on_confirm.call(()),
-                        "Remove"
+                        {fsn_i18n::t("actions.remove")}
                     }
                 }
             }
@@ -332,23 +332,24 @@ fn RemoveConfirmDialog(
             style: "position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000;",
             div {
                 style: "background: var(--fsn-color-bg-surface); border: 1px solid var(--fsn-color-border-default); border-radius: var(--fsn-radius-lg); padding: 24px; max-width: 400px; width: 100%;",
-                h3 { style: "margin: 0 0 12px 0;", "Remove {entry.name}?" }
+                h3 { style: "margin: 0 0 12px 0;",
+                    {fsn_i18n::t_with("store.dialog.remove_service_title", &[("name", entry.name.as_str())])}
+                }
                 p {
                     style: "color: var(--fsn-color-text-muted); font-size: 14px; margin-bottom: 20px;",
-                    "This will stop the service and disable its systemd unit. "
-                    "Data volumes will not be deleted."
+                    {fsn_i18n::t("store.dialog.remove_service_body")}
                 }
                 div {
                     style: "display: flex; gap: 8px; justify-content: flex-end;",
                     button {
                         style: "padding: 8px 16px; background: var(--fsn-color-bg-surface); border: 1px solid var(--fsn-color-border-default); border-radius: var(--fsn-radius-md); cursor: pointer;",
                         onclick: move |_| on_cancel.call(()),
-                        "Cancel"
+                        {fsn_i18n::t("actions.cancel")}
                     }
                     button {
                         style: "padding: 8px 16px; background: var(--fsn-color-error, #ef4444); color: white; border: none; border-radius: var(--fsn-radius-md); cursor: pointer;",
                         onclick: move |_| on_confirm.call(()),
-                        "Remove"
+                        {fsn_i18n::t("actions.remove")}
                     }
                 }
             }
