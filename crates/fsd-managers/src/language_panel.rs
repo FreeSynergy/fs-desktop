@@ -31,6 +31,7 @@ pub fn LanguageManagerPanel() -> Element {
                     {
                         let is_active = lang.id == *selected.read();
                         let lang_id   = lang.id.clone();
+                        let flag_svg  = lang.flag_svg().to_string();
                         let bg = if is_active {
                             "background: var(--fsn-sidebar-active-bg, rgba(77,139,245,0.15)); \
                              color: var(--fsn-sidebar-active, #4d8bf5);"
@@ -47,11 +48,26 @@ pub fn LanguageManagerPanel() -> Element {
                                     selected.set(lang_id.clone());
                                     saved.set(false);
                                 },
-                                span { style: "font-size: 16px;",
+                                // Selection indicator
+                                span { style: "font-size: 16px; flex-shrink: 0;",
                                     if is_active { "◉" } else { "○" }
                                 }
-                                span { style: "font-size: 14px; flex: 1;", "{lang.display_name}" }
-                                span { style: "font-size: 12px; opacity: 0.55;", "{lang.locale}" }
+                                // Flag icon
+                                if !flag_svg.is_empty() {
+                                    span {
+                                        style: "flex-shrink: 0; width: 24px; height: 14px; \
+                                                display: inline-flex; align-items: center; \
+                                                border-radius: 2px; overflow: hidden;",
+                                        dangerous_inner_html: "{flag_svg}",
+                                    }
+                                }
+                                // Language name + locale
+                                span { style: "font-size: 14px; font-weight: 500; flex: 1;",
+                                    "{lang.display_name}"
+                                }
+                                span { style: "font-size: 12px; opacity: 0.55;",
+                                    "{lang.locale}"
+                                }
                             }
                         }
                     }

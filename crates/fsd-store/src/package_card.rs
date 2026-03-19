@@ -53,11 +53,18 @@ pub fn PackageCard(
                 div {
                     style: "width: 40px; height: 40px; border-radius: var(--fsn-radius-md); background: var(--fsn-color-bg-overlay); display: flex; align-items: center; justify-content: center; font-size: 20px;",
                     if let Some(icon) = &package.icon {
-                        img {
-                            src: "{icon}",
-                            width: "32",
-                            height: "32",
-                            style: "object-fit: contain;",
+                        if icon.trim_start().starts_with("<svg") {
+                            span {
+                                style: "width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;",
+                                dangerous_inner_html: "{icon}",
+                            }
+                        } else {
+                            img {
+                                src: "{icon}",
+                                width: "32",
+                                height: "32",
+                                style: "object-fit: contain;",
+                            }
                         }
                     } else {
                         MissingIcon { size: 32 }
