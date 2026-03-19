@@ -78,7 +78,7 @@ pub fn resolve_icon(icon: &str) -> String {
         icon.to_string()
     } else {
         format!(
-            "https://raw.githubusercontent.com/FreeSynergy/Node.Store/main/{}",
+            "https://raw.githubusercontent.com/FreeSynergy/Store/main/{}",
             icon
         )
     }
@@ -305,7 +305,7 @@ fn catalog_to_entries(catalog: Catalog<NodePackage>) -> Vec<PackageEntry> {
             kind:             PackageKind::Language,
             capabilities:     vec![],
             tags:             vec!["language".to_string(), locale.direction],
-            icon:             None,
+            icon:             locale.icon.map(|i| resolve_icon(&i)),
             store_path:       locale.path,
             installed,
             update_available: false,
