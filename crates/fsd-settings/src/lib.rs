@@ -5,7 +5,6 @@ pub mod language;
 pub mod accounts;
 pub mod desktop_settings;
 pub mod shortcuts;
-pub mod repositories;
 
 /// Register app-specific i18n strings for fsd-settings (`settings.*` keys).
 /// Called once at desktop startup before any component renders.

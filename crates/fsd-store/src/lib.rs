@@ -5,6 +5,7 @@ pub mod installed_list;
 pub mod package_card;
 pub mod install_wizard;
 pub mod package_detail;
+pub mod store_settings;
 
 pub use app::StoreApp;
 pub use install_wizard::{do_install, InstallPopup, InstallResult};

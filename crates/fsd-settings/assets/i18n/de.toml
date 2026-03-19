@@ -4,13 +4,12 @@
 title = "Einstellungen"
 
 [settings.section]
-appearance   = "Erscheinungsbild"
-language     = "Sprache"
-roles        = "Dienstrollen"
-accounts     = "Konten"
-desktop      = "Desktop"
-shortcuts    = "Tastenkürzel"
-repositories = "Repositories"
+appearance = "Erscheinungsbild"
+language   = "Sprache"
+roles      = "Dienstrollen"
+accounts   = "Konten"
+desktop    = "Desktop"
+shortcuts  = "Tastenkürzel"
 
 [settings.appearance]
 color_theme         = "Farbdesign"
@@ -77,18 +76,6 @@ sidebar_collapsed = "Mit eingeklappter Seitenleiste starten"
 mode_window       = "Natives OS-Fenster (Standard)"
 mode_web          = "Browser / Webserver"
 mode_tui          = "Terminal-Oberfläche"
-
-[settings.repos]
-title          = "Repositories"
-description    = "Paketquellen konfigurieren, aus denen Dienste gesucht und installiert werden."
-btn_add        = "+ Repository hinzufügen"
-empty          = "Keine Repositories konfiguriert."
-badge_primary  = "offiziell"
-badge_disabled = "deaktiviert"
-label_name     = "Name"
-label_url      = "URL"
-label_git_url  = "Git-URL"
-label_local_path = "Lokaler Pfad"
 
 [settings.shortcuts]
 title          = "Tastenkürzel"

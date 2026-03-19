@@ -57,7 +57,16 @@ run_deploy    = "Run fsn deploy to check and apply updates for all deployed serv
 catalog_count = "{n} package(s) available in the catalog."
 
 [store.settings]
-title = "Repository Settings"
+title          = "Repository Settings"
+description    = "Configure package stores to browse and install services from."
+btn_add        = "+ Add Repository"
+empty          = "No repositories configured."
+badge_primary  = "official"
+badge_disabled = "disabled"
+label_name     = "Name"
+label_url      = "URL"
+label_git_url  = "Git URL"
+label_local_path = "Local Path"
 
 [store.install]
 success = "Installation successful"

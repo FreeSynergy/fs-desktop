@@ -8,6 +8,7 @@ use crate::installed_list::InstalledList;
 use crate::node_package::{NodePackage, PackageKind};
 use crate::package_card::PackageEntry;
 use crate::package_detail::PackageDetail;
+use crate::store_settings::StoreSettings;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum StoreTab {
@@ -266,18 +267,6 @@ pub fn StoreApp() -> Element {
                 }
             }
             } // end sidebar + content row
-        }
-    }
-}
-
-/// Placeholder settings page for the store.
-#[component]
-fn StoreSettings() -> Element {
-    rsx! {
-        div {
-            style: "padding: 32px; color: var(--fsn-color-text-secondary);",
-            h2 { style: "margin: 0 0 12px 0;", {fsn_i18n::t("store.settings.title")} }
-            p { style: "color: var(--fsn-color-text-muted);", "Repository Settings — TODO" }
         }
     }
 }

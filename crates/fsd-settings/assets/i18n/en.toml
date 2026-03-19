@@ -4,13 +4,12 @@
 title = "Settings"
 
 [settings.section]
-appearance   = "Appearance"
-language     = "Language"
-roles        = "Service Roles"
-accounts     = "Accounts"
-desktop      = "Desktop"
-shortcuts    = "Shortcuts"
-repositories = "Repositories"
+appearance = "Appearance"
+language   = "Language"
+roles      = "Service Roles"
+accounts   = "Accounts"
+desktop    = "Desktop"
+shortcuts  = "Shortcuts"
 
 [settings.appearance]
 color_theme         = "Color Theme"
@@ -77,18 +76,6 @@ sidebar_collapsed = "Start with sidebar collapsed"
 mode_window       = "Native OS window (default)"
 mode_web          = "Browser / web server"
 mode_tui          = "Terminal UI"
-
-[settings.repos]
-title          = "Repositories"
-description    = "Configure package stores to browse and install services from."
-btn_add        = "+ Add Repository"
-empty          = "No repositories configured."
-badge_primary  = "official"
-badge_disabled = "disabled"
-label_name     = "Name"
-label_url      = "URL"
-label_git_url  = "Git URL"
-label_local_path = "Local Path"
 
 [settings.shortcuts]
 title          = "Keyboard Shortcuts"

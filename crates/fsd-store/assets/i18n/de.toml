@@ -55,7 +55,16 @@ run_deploy    = "fsn deploy ausführen, um Updates zu prüfen und anzuwenden."
 catalog_count = "{n} Paket(e) im Katalog verfügbar."
 
 [store.settings]
-title = "Repository-Einstellungen"
+title          = "Repository-Einstellungen"
+description    = "Paketquellen konfigurieren, aus denen Dienste gesucht und installiert werden."
+btn_add        = "+ Repository hinzufügen"
+empty          = "Keine Repositories konfiguriert."
+badge_primary  = "offiziell"
+badge_disabled = "deaktiviert"
+label_name     = "Name"
+label_url      = "URL"
+label_git_url  = "Git-URL"
+label_local_path = "Lokaler Pfad"
 
 [store.install]
 success = "Installation erfolgreich"
