@@ -20,20 +20,34 @@ pub enum InstallFilter {
     Updatable,
 }
 
-/// Prepend the raw GitHub base URL to relative icon paths.
+/// Resolve an icon field to a usable URL, or `None` if it cannot be used as an `<img>` src.
 ///
-/// A path is considered relative if it does NOT start with `http`, does NOT
-/// start with `<` (inline SVG / emoji markup), and has more than one character
-/// (i.e. is not a single emoji glyph).
-pub fn resolve_icon(icon: &str) -> String {
-    if icon.starts_with("http") || icon.starts_with('<') || icon.chars().count() <= 1 {
-        icon.to_string()
-    } else {
-        format!(
-            "https://raw.githubusercontent.com/FreeSynergy/Store/main/{}",
-            icon
-        )
+/// Returns `Some(url)` only for:
+/// - Absolute HTTP(S) URLs
+/// - Relative paths (converted to raw.githubusercontent.com URLs)
+///
+/// Returns `None` for emoji glyphs, single characters, or empty strings so the
+/// caller can fall back to the `MissingIcon` placeholder instead of a broken `<img>`.
+pub fn resolve_icon(icon: &str) -> Option<String> {
+    if icon.is_empty() {
+        return None;
     }
+    // Single Unicode scalar = emoji or single glyph — not a URL
+    if icon.chars().count() <= 1 {
+        return None;
+    }
+    if icon.starts_with("http") {
+        return Some(icon.to_string());
+    }
+    if icon.starts_with('<') {
+        // Inline SVG markup — not a path, skip for now
+        return None;
+    }
+    // Relative path → prepend GitHub raw base
+    Some(format!(
+        "https://raw.githubusercontent.com/FreeSynergy/Store/main/{}",
+        icon
+    ))
 }
 
 /// Package browser component. `kind` filters by package type (None = show all).
@@ -61,7 +75,7 @@ pub fn PackageBrowser(
                     entries.extend(catalog_to_entries(desktop));
                 }
 
-                match client.fetch_catalog::<NodePackage>("Node", false).await {
+                match client.fetch_catalog::<NodePackage>("node", false).await {
                     Ok(catalog) => {
                         entries.extend(catalog_to_entries(catalog));
                         // Shared catalog: language packs, themes, widgets, etc.
@@ -196,7 +210,7 @@ fn catalog_to_entries(catalog: Catalog<NodePackage>) -> Vec<PackageEntry> {
         .into_iter()
         .map(|p| {
             let installed = installed_ids.contains(&p.id);
-            let icon = p.icon.map(|i| resolve_icon(&i));
+            let icon = p.icon.and_then(|i| resolve_icon(&i));
             PackageEntry {
                 id:               p.id,
                 name:             p.name,
@@ -232,7 +246,7 @@ fn catalog_to_entries(catalog: Catalog<NodePackage>) -> Vec<PackageEntry> {
             kind:             PackageKind::Language,
             capabilities:     vec![],
             tags:             vec!["language".to_string(), locale.direction],
-            icon:             locale.icon.map(|i| resolve_icon(&i)),
+            icon:             locale.icon.and_then(|i| resolve_icon(&i)),
             store_path:       locale.path,
             installed,
             update_available: false,

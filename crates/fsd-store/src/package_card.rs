@@ -26,6 +26,8 @@ pub struct PackageEntry {
     pub author: String,
 }
 
+use crate::missing_icon::MissingIcon;
+
 /// Package card component.
 #[component]
 pub fn PackageCard(
@@ -48,9 +50,14 @@ pub fn PackageCard(
                 div {
                     style: "width: 40px; height: 40px; border-radius: var(--fsn-radius-md); background: var(--fsn-color-bg-overlay); display: flex; align-items: center; justify-content: center; font-size: 20px;",
                     if let Some(icon) = &package.icon {
-                        img { src: "{icon}", width: "32", height: "32" }
+                        img {
+                            src: "{icon}",
+                            width: "32",
+                            height: "32",
+                            style: "object-fit: contain;",
+                        }
                     } else {
-                        "{package.kind.icon()}"
+                        MissingIcon { size: 32 }
                     }
                 }
                 div {

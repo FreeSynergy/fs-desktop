@@ -26,6 +26,18 @@ pub struct RepoEntry {
 
 fn bool_true() -> bool { true }
 
+/// The one official FreeSynergy Store — always present, always primary.
+pub fn official_store() -> RepoEntry {
+    RepoEntry {
+        name:       "FreeSynergy Store".to_string(),
+        url:        "https://raw.githubusercontent.com/FreeSynergy/Store/main".to_string(),
+        git_url:    Some("https://github.com/FreeSynergy/Store".to_string()),
+        local_path: None,
+        enabled:    true,
+        primary:    true,
+    }
+}
+
 fn config_path() -> std::path::PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
     std::path::PathBuf::from(home).join(".config").join("fsn").join("settings.toml")
@@ -42,7 +54,15 @@ struct PartialSettings {
 pub fn load_repos() -> Vec<RepoEntry> {
     let content = std::fs::read_to_string(config_path()).unwrap_or_default();
     let parsed: PartialSettings = toml::from_str(&content).unwrap_or_default();
-    parsed.stores
+    let mut stores = parsed.stores;
+
+    // Always ensure the official store is present at index 0 as primary.
+    let official = official_store();
+    let already_present = stores.iter().any(|r| r.primary || r.url == official.url);
+    if !already_present {
+        stores.insert(0, official);
+    }
+    stores
 }
 
 pub fn save_repos(repos: &[RepoEntry]) -> Result<(), String> {

@@ -6,6 +6,7 @@ use dioxus::prelude::*;
 use fsd_db::package_registry::PackageRegistry;
 
 use crate::install_wizard::{do_install, InstallPopup, InstallResult};
+use crate::missing_icon::MissingIcon;
 use crate::node_package::PackageKind;
 use crate::package_card::PackageEntry;
 
@@ -138,7 +139,7 @@ pub fn PackageDetail(
                                 style: "object-fit: contain;",
                             }
                         } else {
-                            span { "📦" }
+                            MissingIcon { size: 48 }
                         }
                     }
 
