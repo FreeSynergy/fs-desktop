@@ -129,7 +129,7 @@ async fn fetch_catalog_map() -> std::collections::HashMap<String, PackageEntry> 
     let mut client = StoreClient::node_store();
     let mut map    = std::collections::HashMap::new();
 
-    for namespace in &["desktop", "node", "shared"] {
+    for namespace in &["apps", "desktop", "node", "shared"] {
         if let Ok(catalog) = client.fetch_catalog::<NodePackage>(namespace, false).await {
             for pkg in catalog.packages {
                 let icon = pkg.icon.and_then(|i| resolve_icon(&i));

@@ -72,6 +72,11 @@ pub fn PackageBrowser(
                 let mut client = StoreClient::node_store();
                 let mut entries = Vec::new();
 
+                // Apps catalog: standalone FreeSynergy binaries
+                if let Ok(apps) = client.fetch_catalog::<NodePackage>("apps", false).await {
+                    entries.extend(catalog_to_entries(apps));
+                }
+
                 // Desktop catalog: managers
                 if let Ok(desktop) = client.fetch_catalog::<NodePackage>("desktop", false).await {
                     entries.extend(catalog_to_entries(desktop));
