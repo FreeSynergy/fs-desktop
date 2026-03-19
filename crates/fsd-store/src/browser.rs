@@ -6,6 +6,7 @@ use fsn_store::{Catalog, StoreClient};
 
 use crate::node_package::{NodePackage, PackageKind};
 use crate::package_card::{PackageCard, PackageEntry};
+use crate::state::INSTALL_COUNTER;
 
 /// Language codes that are always considered installed without needing a Store install.
 /// English is the only truly built-in language — it is the fallback for all i18n lookups
@@ -63,6 +64,21 @@ pub fn PackageBrowser(
     let mut loading: Signal<bool>           = use_signal(|| true);
     let mut error: Signal<Option<String>>   = use_signal(|| None);
     let mut install_filter = use_signal(|| InstallFilter::All);
+
+    // Refresh installed flags whenever a package is installed or removed.
+    {
+        let mut packages = packages.clone();
+        use_effect(move || {
+            let _ = INSTALL_COUNTER.read(); // subscribe to changes
+            let installed_ids: std::collections::HashSet<String> = PackageRegistry::load()
+                .into_iter()
+                .map(|p| p.id)
+                .collect();
+            packages.write().iter_mut().for_each(|p| {
+                p.installed = installed_ids.contains(&p.id);
+            });
+        });
+    }
 
     {
         let packages = packages.clone();

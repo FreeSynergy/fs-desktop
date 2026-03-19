@@ -23,7 +23,7 @@ pub fn PackageDetail(
 ) -> Element {
     let mut installing:     Signal<bool>                  = use_signal(|| false);
     let mut install_result: Signal<Option<InstallResult>> = use_signal(|| None);
-    let mut installed       = use_signal(|| package.installed);
+    let mut installed       = use_signal(|| PackageRegistry::is_installed(&package.id));
     let mut remove_confirm  = use_signal(|| false);
 
     rsx! {
