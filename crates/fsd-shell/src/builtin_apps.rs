@@ -75,12 +75,13 @@ pub fn ensure_registered() {
     for pkg in BUILTIN_PKGS {
         if !PackageRegistry::is_installed(pkg.id) {
             let entry = InstalledPackage {
-                id:        pkg.id.to_string(),
-                name:      pkg.name.to_string(),
-                kind:      pkg.kind.to_string(),
-                version:   pkg.version.to_string(),
-                icon:      pkg.icon.to_string(),
-                file_path: None,
+                id:           pkg.id.to_string(),
+                name:         pkg.name.to_string(),
+                kind:         pkg.kind.to_string(),
+                version:      pkg.version.to_string(),
+                icon:         pkg.icon.to_string(),
+                file_path:    None,
+                installed_by: None,
             };
             let _ = PackageRegistry::install(entry);
         }
