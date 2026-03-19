@@ -875,24 +875,29 @@ fn AppWindowContent(title_key: String) -> Element {
                 LayoutA { ConductorApp {} }
             }
         },
-        "app-theme-manager" => rsx! {
-            AppShell { mode: AppMode::Window,
-                LayoutA { ThemeManagerApp {} }
-            }
-        },
-        "app-bot-manager" => rsx! {
-            AppShell { mode: AppMode::Window,
-                LayoutA { BotManagerApp {} }
-            }
-        },
-        "app-language-manager" => rsx! {
+        "app-language-manager" | "app-manager-language" => rsx! {
             AppShell { mode: AppMode::Window,
                 LayoutA { LanguageManagerPanel {} }
             }
         },
-        "app-icons-manager" => rsx! {
+        "app-icons-manager" | "app-manager-icons" => rsx! {
             AppShell { mode: AppMode::Window,
                 LayoutA { IconsManagerPanel {} }
+            }
+        },
+        "app-theme-manager" | "app-manager-theme" => rsx! {
+            AppShell { mode: AppMode::Window,
+                LayoutA { ThemeManagerApp {} }
+            }
+        },
+        "app-manager-container-app" => rsx! {
+            AppShell { mode: AppMode::Window,
+                LayoutA { ConductorApp {} }
+            }
+        },
+        "app-bot-manager" | "app-manager-bots" => rsx! {
+            AppShell { mode: AppMode::Window,
+                LayoutA { BotManagerApp {} }
             }
         },
         "app-settings" => rsx! {
@@ -953,11 +958,16 @@ fn app_id_to_label(id: &str) -> &str {
         "profile"       => "Profile",
         "ai"            => "AI Assistant",
         "help"          => "Help",
-        "container"        => "Container Manager",
-        "theme-manager"    => "Theme Manager",
-        "bot-manager"      => "Bot Manager",
-        "language-manager" => "Language Manager",
-        "icons-manager"    => "Icons Manager",
+        "container"           => "Container Manager",
+        "theme-manager"       => "Theme Manager",
+        "bot-manager"         => "Bot Manager",
+        "language-manager"    => "Language Manager",
+        "icons-manager"       => "Icons Manager",
+        "manager-language"    => "Language Manager",
+        "manager-theme"       => "Theme Manager",
+        "manager-icons"       => "Icons Manager",
+        "manager-container-app" => "Container App Manager",
+        "manager-bots"        => "Bots Manager",
         other           => other,
     }
 }
