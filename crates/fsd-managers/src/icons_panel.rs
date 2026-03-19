@@ -9,7 +9,7 @@ pub fn IconsManagerPanel() -> Element {
         std::env::var("FSN_ICONS_ROOT")
             .unwrap_or_else(|_| "../FreeSynergy.Icons".into())
     );
-    let mgr  = IconManager::new(icons_root);
+    let mgr  = IconManager::new(icons_root, vec![]);
     let sets = mgr.sets();
 
     rsx! {
