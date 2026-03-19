@@ -547,7 +547,8 @@ pub fn Desktop() -> Element {
                             div { style: "position: relative;",
                                 button {
                                     onclick: on_toggle_picker,
-                                    style: "background: var(--fsn-color-primary, #06b6d4); \
+                                    style: "display: flex; align-items: center; gap: 4px; \
+                                            background: var(--fsn-color-primary, #06b6d4); \
                                             color: #fff; \
                                             border: none; border-radius: 6px; \
                                             padding: 7px 14px; \

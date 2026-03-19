@@ -26,7 +26,12 @@ pub fn launch_virtual_dom_blocking(virtual_dom: VirtualDom, mut desktop_config: 
 
         match window_event {
             Event::NewEvents(StartCause::Init) => app.handle_start_cause_init(),
-            Event::LoopDestroyed => app.handle_loop_destroyed(),
+            Event::LoopDestroyed => {
+                app.handle_loop_destroyed();
+                // WebKitGTK on Linux corrupts glibc's heap metadata during normal cleanup.
+                // Exit here so the OS cleans up memory instead of letting WebKit tear down.
+                std::process::exit(0);
+            }
             Event::WindowEvent {
                 event, window_id, ..
             } => match event {
