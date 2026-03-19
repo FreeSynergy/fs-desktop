@@ -18,6 +18,8 @@ struct BuiltinManager {
     description: &'static str,
     icon:        &'static str,
     category:    &'static str,
+    license:     &'static str,
+    author:      &'static str,
 }
 
 const BUILTIN_MANAGERS: &[BuiltinManager] = &[
@@ -27,6 +29,8 @@ const BUILTIN_MANAGERS: &[BuiltinManager] = &[
         description: "Install and switch interface language packs.",
         icon:        "🌐",
         category:    "managers.language",
+        license:     "MIT",
+        author:      "Kal El",
     },
     BuiltinManager {
         id:          "manager-theme",
@@ -34,6 +38,8 @@ const BUILTIN_MANAGERS: &[BuiltinManager] = &[
         description: "Browse and apply desktop color themes.",
         icon:        "🎨",
         category:    "managers.theme",
+        license:     "MIT",
+        author:      "Kal El",
     },
     BuiltinManager {
         id:          "manager-icons",
@@ -41,6 +47,8 @@ const BUILTIN_MANAGERS: &[BuiltinManager] = &[
         description: "Install custom icon sets for the desktop.",
         icon:        "🖼",
         category:    "managers.icons",
+        license:     "MIT",
+        author:      "Kal El",
     },
     BuiltinManager {
         id:          "manager-container-app",
@@ -48,6 +56,8 @@ const BUILTIN_MANAGERS: &[BuiltinManager] = &[
         description: "Manage Podman container apps and services.",
         icon:        "📦",
         category:    "managers.container_app",
+        license:     "MIT",
+        author:      "Kal El",
     },
     BuiltinManager {
         id:          "manager-bots",
@@ -55,6 +65,8 @@ const BUILTIN_MANAGERS: &[BuiltinManager] = &[
         description: "Configure and manage automation bots.",
         icon:        "🤖",
         category:    "managers.bots",
+        license:     "MIT",
+        author:      "Kal El",
     },
 ];
 
@@ -252,8 +264,8 @@ fn builtin_manager_entries() -> Vec<PackageEntry> {
             store_path:       None,
             installed:        installed_ids.contains(m.id),
             update_available: false,
-            license:          String::new(),
-            author:           String::new(),
+            license:          m.license.to_string(),
+            author:           m.author.to_string(),
         }
     }).collect()
 }
@@ -309,8 +321,8 @@ fn catalog_to_entries(catalog: Catalog<NodePackage>) -> Vec<PackageEntry> {
             store_path:       locale.path,
             installed,
             update_available: false,
-            license:          String::new(),
-            author:           String::new(),
+            license:          "MIT".to_string(),
+            author:           "Kal El".to_string(),
         });
     }
 
