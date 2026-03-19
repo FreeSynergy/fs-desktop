@@ -15,6 +15,7 @@ back_to_browser    = "Back to browser"
 all       = "All"
 installed = "Installed"
 available = "Available"
+updatable = "Updatable"
 
 [store.tab]
 all       = "All"
@@ -29,6 +30,7 @@ bridges   = "Bridges"
 tasks     = "Tasks"
 installed = "Installed"
 updates   = "Updates"
+settings  = "Settings"
 
 [store.status]
 installed        = "Installed ✓"
@@ -53,6 +55,13 @@ no_services = "No FSN services installed. Deploy a project with fsn deploy to in
 no_metadata   = "Update detection requires deployment metadata."
 run_deploy    = "Run fsn deploy to check and apply updates for all deployed services."
 catalog_count = "{n} package(s) available in the catalog."
+
+[store.settings]
+title = "Repository Settings"
+
+[store.install]
+success = "Installation successful"
+failed  = "Installation failed"
 
 [store.wizard]
 step_overview    = "Overview"

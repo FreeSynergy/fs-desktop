@@ -20,11 +20,20 @@ pub struct PackageEntry {
     pub store_path: Option<String>,
     pub installed: bool,
     pub update_available: bool,
+    #[serde(default)]
+    pub license: String,
+    #[serde(default)]
+    pub author: String,
 }
 
 /// Package card component.
 #[component]
-pub fn PackageCard(package: PackageEntry, on_details: EventHandler<MouseEvent>) -> Element {
+pub fn PackageCard(
+    package:    PackageEntry,
+    on_details: EventHandler<MouseEvent>,
+    #[props(default)]
+    on_install: Option<EventHandler<MouseEvent>>,
+) -> Element {
     rsx! {
         div {
             class: "fsd-package-card",
@@ -98,6 +107,12 @@ pub fn PackageCard(package: PackageEntry, on_details: EventHandler<MouseEvent>) 
                 } else {
                     button {
                         style: "width: 100%; padding: 8px; background: var(--fsn-color-primary); color: white; border: none; border-radius: var(--fsn-radius-md); cursor: pointer; font-size: 13px;",
+                        onclick: move |evt| {
+                            if let Some(ref handler) = on_install {
+                                evt.stop_propagation();
+                                handler.call(evt);
+                            }
+                        },
                         {fsn_i18n::t("actions.install")}
                     }
                 }

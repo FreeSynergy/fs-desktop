@@ -23,6 +23,7 @@ pub enum StoreTab {
     Tasks,
     Installed,
     Updates,
+    Settings,
 }
 
 impl StoreTab {
@@ -38,7 +39,7 @@ impl StoreTab {
             Self::Bots      => Some(PackageKind::BotCommand),
             Self::Bridges   => Some(PackageKind::Bridge),
             Self::Tasks     => Some(PackageKind::Task),
-            Self::All | Self::Installed | Self::Updates => None,
+            Self::All | Self::Installed | Self::Updates | Self::Settings => None,
         }
     }
 
@@ -56,6 +57,7 @@ impl StoreTab {
             Self::Tasks     => fsn_i18n::t("store.tab.tasks"),
             Self::Installed => fsn_i18n::t("store.tab.installed"),
             Self::Updates   => fsn_i18n::t("store.tab.updates"),
+            Self::Settings  => fsn_i18n::t("store.tab.settings"),
         }
     }
 
@@ -74,6 +76,7 @@ impl StoreTab {
             Self::Tasks     => r#"<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><polyline points="3 6 4 7 6 5"/><polyline points="3 12 4 13 6 11"/><polyline points="3 18 4 19 6 17"/></svg>"#,
             Self::Installed => r#"<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>"#,
             Self::Updates   => r#"<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/></svg>"#,
+            Self::Settings  => r#"<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>"#,
         }
     }
 
@@ -92,6 +95,7 @@ impl StoreTab {
             Self::Tasks     => "Tasks",
             Self::Installed => "Installed",
             Self::Updates   => "Updates",
+            Self::Settings  => "Settings",
         }
     }
 
@@ -109,6 +113,7 @@ impl StoreTab {
             "Tasks"     => Self::Tasks,
             "Installed" => Self::Installed,
             "Updates"   => Self::Updates,
+            "Settings"  => Self::Settings,
             _           => Self::All,
         }
     }
@@ -127,6 +132,7 @@ const ALL_TABS: &[StoreTab] = &[
     StoreTab::Tasks,
     StoreTab::Installed,
     StoreTab::Updates,
+    StoreTab::Settings,
 ];
 
 /// Root Store component.
@@ -168,9 +174,20 @@ pub fn StoreApp() -> Element {
     let tab = active_tab.read().clone();
     let kind_filter = tab.kind_filter();
 
+    // ALL_TABS without Settings → regular sidebar items
     let sidebar_items: Vec<FsnSidebarItem> = ALL_TABS.iter()
+        .filter(|t| !matches!(t, StoreTab::Settings))
         .map(|t| FsnSidebarItem::new(t.id(), t.icon(), t.label()))
         .collect();
+
+    // Settings is always pinned at the bottom
+    let pinned_items: Vec<FsnSidebarItem> = vec![
+        FsnSidebarItem::new(
+            StoreTab::Settings.id(),
+            StoreTab::Settings.icon(),
+            StoreTab::Settings.label(),
+        ),
+    ];
 
     rsx! {
         style { "{FSN_SIDEBAR_CSS}" }
@@ -192,29 +209,32 @@ pub fn StoreApp() -> Element {
             div {
                 style: "display: flex; flex: 1; overflow: hidden;",
 
-            // Left sidebar navigation
+            // Left sidebar navigation — Settings pinned at bottom
             FsnSidebar {
-                items:     sidebar_items,
-                active_id: active_tab.read().id().to_string(),
-                on_select: move |id: String| active_tab.set(StoreTab::from_id(&id)),
+                items:        sidebar_items,
+                pinned_items,
+                active_id:    active_tab.read().id().to_string(),
+                on_select:    move |id: String| active_tab.set(StoreTab::from_id(&id)),
             }
 
             // Right content area
             div {
                 style: "flex: 1; display: flex; flex-direction: column; overflow: hidden;",
 
-                // Search header
-                div {
-                    style: "padding: 16px; background: var(--fsn-color-bg-surface); \
-                            border-bottom: 1px solid var(--fsn-color-border-default);",
-                    input {
-                        r#type: "search",
-                        placeholder: fsn_i18n::t("store.search_placeholder"),
-                        style: "width: 100%; padding: 8px 12px; \
-                                border: 1px solid var(--fsn-color-border-default); \
-                                border-radius: var(--fsn-radius-md); font-size: 14px; \
-                                background: var(--fsn-bg-input); color: var(--fsn-text-primary);",
-                        oninput: move |e| *search.write() = e.value(),
+                // Search header (hidden on Settings)
+                if *active_tab.read() != StoreTab::Settings {
+                    div {
+                        style: "padding: 16px; background: var(--fsn-color-bg-surface); \
+                                border-bottom: 1px solid var(--fsn-color-border-default);",
+                        input {
+                            r#type: "search",
+                            placeholder: fsn_i18n::t("store.search_placeholder"),
+                            style: "width: 100%; padding: 8px 12px; \
+                                    border: 1px solid var(--fsn-color-border-default); \
+                                    border-radius: var(--fsn-radius-md); font-size: 14px; \
+                                    background: var(--fsn-bg-input); color: var(--fsn-text-primary);",
+                            oninput: move |e| *search.write() = e.value(),
+                        }
                     }
                 }
 
@@ -232,6 +252,9 @@ pub fn StoreApp() -> Element {
                                 catalog_versions: catalog_versions.read().clone(),
                             }
                         },
+                        StoreTab::Settings => rsx! {
+                            StoreSettings {}
+                        },
                         _ => rsx! {
                             PackageBrowser {
                                 search: search.read().clone(),
@@ -243,6 +266,18 @@ pub fn StoreApp() -> Element {
                 }
             }
             } // end sidebar + content row
+        }
+    }
+}
+
+/// Placeholder settings page for the store.
+#[component]
+fn StoreSettings() -> Element {
+    rsx! {
+        div {
+            style: "padding: 32px; color: var(--fsn-color-text-secondary);",
+            h2 { style: "margin: 0 0 12px 0;", {fsn_i18n::t("store.settings.title")} }
+            p { style: "color: var(--fsn-color-text-muted);", "Repository Settings — TODO" }
         }
     }
 }

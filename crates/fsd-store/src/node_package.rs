@@ -18,6 +18,8 @@ pub enum PackageKind {
     BotCommand,
     Bridge,
     Task,
+    /// A bundle of multiple packages installed together.
+    Bundle,
 }
 
 impl PackageKind {
@@ -32,6 +34,7 @@ impl PackageKind {
         PackageKind::BotCommand,
         PackageKind::Bridge,
         PackageKind::Task,
+        PackageKind::Bundle,
     ];
 
     pub fn label(&self) -> &'static str {
@@ -45,6 +48,7 @@ impl PackageKind {
             PackageKind::BotCommand => "Bot Command",
             PackageKind::Bridge     => "Bridge",
             PackageKind::Task       => "Task",
+            PackageKind::Bundle     => "Bundle",
         }
     }
 
@@ -59,6 +63,7 @@ impl PackageKind {
             PackageKind::BotCommand => "🤖",
             PackageKind::Bridge     => "🌉",
             PackageKind::Task       => "⚡",
+            PackageKind::Bundle     => "📁",
         }
     }
 
@@ -74,6 +79,7 @@ impl PackageKind {
             PackageKind::BotCommand => "bot".into(),
             PackageKind::Bridge     => "bridge".into(),
             PackageKind::Task       => "task".into(),
+            PackageKind::Bundle     => "bundle".into(),
         }
     }
 }

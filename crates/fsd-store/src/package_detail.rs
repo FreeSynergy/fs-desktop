@@ -1,39 +1,50 @@
 /// Package detail panel — shown when the user clicks a package card.
 ///
 /// Displays icon, name, description, tags, capability badges, metadata, and an
-/// Install/Remove button. Opens the InstallWizard for uninstalled packages.
+/// Install/Remove button. Uses InstallPopup for install result feedback.
 use dioxus::prelude::*;
 use fsd_db::package_registry::PackageRegistry;
 
-use crate::install_wizard::InstallWizard;
+use crate::install_wizard::{do_install, InstallPopup, InstallResult};
+use crate::node_package::PackageKind;
 use crate::package_card::PackageEntry;
 
 // ── PackageDetail ─────────────────────────────────────────────────────────────
 
 /// Full-page or side-panel detail view for a single package.
 #[component]
-pub fn PackageDetail(package: PackageEntry, on_back: EventHandler<()>) -> Element {
-    let mut show_wizard   = use_signal(|| false);
-    let mut installed     = use_signal(|| package.installed);
-    let mut remove_confirm = use_signal(|| false);
-
-    if *show_wizard.read() {
-        return rsx! {
-            InstallWizard {
-                package: package.clone(),
-                on_cancel: move |_| {
-                    show_wizard.set(false);
-                    installed.set(PackageRegistry::is_installed(&package.id));
-                },
-            }
-        };
-    }
+pub fn PackageDetail(
+    package: PackageEntry,
+    on_back: EventHandler<()>,
+    #[props(default)]
+    on_select_package: Option<EventHandler<String>>,
+) -> Element {
+    let mut installing:     Signal<bool>                  = use_signal(|| false);
+    let mut install_result: Signal<Option<InstallResult>> = use_signal(|| None);
+    let mut installed       = use_signal(|| package.installed);
+    let mut remove_confirm  = use_signal(|| false);
 
     rsx! {
         div {
             class: "fsd-package-detail fsd-page-fade",
             style: "display: flex; flex-direction: column; height: 100%; \
                     background: var(--fsn-color-bg-base);",
+
+            // Install result popup
+            if let Some(result) = install_result.read().clone() {
+                {
+                    let pkg_id = package.id.clone();
+                    rsx! {
+                        InstallPopup {
+                            result,
+                            on_close: move |_| {
+                                installed.set(PackageRegistry::is_installed(&pkg_id));
+                                install_result.set(None);
+                            },
+                        }
+                    }
+                }
+            }
 
             // Remove confirm dialog
             if *remove_confirm.read() {
@@ -180,13 +191,36 @@ pub fn PackageDetail(package: PackageEntry, on_back: EventHandler<()>) -> Elemen
                                 onclick: move |_| remove_confirm.set(true),
                                 {fsn_i18n::t("actions.remove")}
                             }
+                        } else if *installing.read() {
+                            button {
+                                style: "padding: 10px 24px; background: var(--fsn-color-bg-overlay); \
+                                        border: 1px solid var(--fsn-color-border-default); \
+                                        border-radius: var(--fsn-radius-md); cursor: default; \
+                                        font-size: 14px;",
+                                disabled: true,
+                                "⏳ Installing…"
+                            }
                         } else {
                             button {
                                 style: "padding: 10px 24px; background: var(--fsn-color-primary); \
                                         color: white; border: none; \
                                         border-radius: var(--fsn-radius-md); cursor: pointer; \
                                         font-size: 14px; font-weight: 600;",
-                                onclick: move |_| show_wizard.set(true),
+                                onclick: {
+                                    let pkg = package.clone();
+                                    move |_| {
+                                        let pkg2 = pkg.clone();
+                                        installing.set(true);
+                                        spawn(async move {
+                                            let result = match do_install(pkg2, String::new()).await {
+                                                Ok(())  => InstallResult::Success,
+                                                Err(e)  => InstallResult::Failed(e),
+                                            };
+                                            installing.set(false);
+                                            install_result.set(Some(result));
+                                        });
+                                    }
+                                },
                                 {fsn_i18n::t("actions.install")}
                             }
                         }
@@ -208,8 +242,54 @@ pub fn PackageDetail(package: PackageEntry, on_back: EventHandler<()>) -> Elemen
                     }
                 }
 
+                // Bundle: Included Packages section
+                if package.kind == PackageKind::Bundle && !package.capabilities.is_empty() {
+                    div { style: "margin-bottom: 32px;",
+                        h3 {
+                            style: "font-size: 14px; font-weight: 600; \
+                                    text-transform: uppercase; letter-spacing: 0.06em; \
+                                    color: var(--fsn-color-text-muted); margin: 0 0 12px 0;",
+                            "Included Packages"
+                        }
+                        div { style: "display: flex; flex-direction: column; gap: 6px;",
+                            for cap in &package.capabilities {
+                                {
+                                    let cap_id = cap.clone();
+                                    let has_handler = on_select_package.is_some();
+                                    rsx! {
+                                        div {
+                                            key: "{cap_id}",
+                                            style: if has_handler {
+                                                "display: flex; align-items: center; gap: 8px; \
+                                                 padding: 8px 14px; \
+                                                 background: var(--fsn-color-bg-surface); \
+                                                 border: 1px solid var(--fsn-color-border-default); \
+                                                 border-radius: var(--fsn-radius-md); \
+                                                 font-size: 13px; cursor: pointer;"
+                                            } else {
+                                                "display: flex; align-items: center; gap: 8px; \
+                                                 padding: 8px 14px; \
+                                                 background: var(--fsn-color-bg-surface); \
+                                                 border: 1px solid var(--fsn-color-border-default); \
+                                                 border-radius: var(--fsn-radius-md); font-size: 13px;"
+                                            },
+                                            onclick: move |_| {
+                                                if let Some(ref handler) = on_select_package {
+                                                    handler.call(cap_id.clone());
+                                                }
+                                            },
+                                            span { "✦" }
+                                            span { "{cap}" }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Capabilities
-                if !package.capabilities.is_empty() {
+                if package.kind != PackageKind::Bundle && !package.capabilities.is_empty() {
                     div { style: "margin-bottom: 32px;",
                         h3 {
                             style: "font-size: 14px; font-weight: 600; \
@@ -222,6 +302,51 @@ pub fn PackageDetail(package: PackageEntry, on_back: EventHandler<()>) -> Elemen
                             for cap in &package.capabilities {
                                 CapabilityBadge { label: cap.clone() }
                             }
+                        }
+                    }
+                }
+
+                // Completeness checklist
+                div { style: "margin-bottom: 32px;",
+                    h3 {
+                        style: "font-size: 14px; font-weight: 600; \
+                                text-transform: uppercase; letter-spacing: 0.06em; \
+                                color: var(--fsn-color-text-muted); margin: 0 0 12px 0;",
+                        "Completeness"
+                    }
+                    div {
+                        style: "background: var(--fsn-color-bg-surface); \
+                                border: 1px solid var(--fsn-color-border-default); \
+                                border-radius: var(--fsn-radius-md); overflow: hidden;",
+                        CompletenessRow {
+                            label: "Icon".to_string(),
+                            ok: package.icon.is_some(),
+                        }
+                        CompletenessRow {
+                            label: "Description".to_string(),
+                            ok: !package.description.is_empty(),
+                        }
+                        CompletenessRow {
+                            label: "Tags".to_string(),
+                            ok: !package.tags.is_empty(),
+                        }
+                        if package.kind == PackageKind::Language {
+                            CompletenessRow {
+                                label: "License".to_string(),
+                                ok: false,
+                                // Language packs don't require a license field — show N/A
+                                na: true,
+                            }
+                        } else {
+                            CompletenessRow {
+                                label: "License".to_string(),
+                                ok: !package.license.is_empty(),
+                                na: false,
+                            }
+                        }
+                        CompletenessRow {
+                            label: "Author".to_string(),
+                            ok: !package.author.is_empty(),
                         }
                     }
                 }
@@ -261,6 +386,37 @@ fn CapabilityBadge(label: String) -> Element {
                     border-radius: var(--fsn-radius-md); font-size: 13px;",
             span { "✦" }
             span { "{label}" }
+        }
+    }
+}
+
+// ── CompletenessRow ───────────────────────────────────────────────────────────
+
+#[component]
+fn CompletenessRow(
+    label: String,
+    ok:    bool,
+    #[props(default = false)]
+    na:    bool,
+) -> Element {
+    let (icon, color) = if na {
+        ("N/A", "var(--fsn-color-text-muted)")
+    } else if ok {
+        ("✅", "var(--fsn-color-success, #22c55e)")
+    } else {
+        ("❌", "var(--fsn-color-error, #ef4444)")
+    };
+
+    rsx! {
+        div {
+            style: "display: flex; padding: 9px 16px; \
+                    border-bottom: 1px solid var(--fsn-color-border-default); \
+                    font-size: 13px; align-items: center; gap: 10px;",
+            span {
+                style: "min-width: 100px; color: var(--fsn-color-text-muted);",
+                "{label}"
+            }
+            span { style: "color: {color};", "{icon}" }
         }
     }
 }

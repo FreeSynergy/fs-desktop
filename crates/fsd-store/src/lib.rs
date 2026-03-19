@@ -7,6 +7,7 @@ pub mod install_wizard;
 pub mod package_detail;
 
 pub use app::StoreApp;
+pub use install_wizard::{do_install, InstallPopup, InstallResult};
 
 /// Register app-specific i18n strings for fsd-store (`store.*` keys).
 /// Called once at desktop startup before any component renders.

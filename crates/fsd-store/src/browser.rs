@@ -64,6 +64,24 @@ pub enum InstallFilter {
     All,
     Installed,
     Available,
+    /// Only packages where `update_available` is true.
+    Updatable,
+}
+
+/// Prepend the raw GitHub base URL to relative icon paths.
+///
+/// A path is considered relative if it does NOT start with `http`, does NOT
+/// start with `<` (inline SVG / emoji markup), and has more than one character
+/// (i.e. is not a single emoji glyph).
+pub fn resolve_icon(icon: &str) -> String {
+    if icon.starts_with("http") || icon.starts_with('<') || icon.chars().count() <= 1 {
+        icon.to_string()
+    } else {
+        format!(
+            "https://raw.githubusercontent.com/FreeSynergy/Node.Store/main/{}",
+            icon
+        )
+    }
 }
 
 /// Package browser component. `kind` filters by package type (None = show all).
@@ -131,6 +149,7 @@ pub fn PackageBrowser(
                 InstallFilter::All       => true,
                 InstallFilter::Installed => p.installed,
                 InstallFilter::Available => !p.installed,
+                InstallFilter::Updatable => p.update_available,
             };
             matches_search && matches_kind && matches_install
         })
@@ -146,6 +165,7 @@ pub fn PackageBrowser(
                     (fsn_i18n::t("store.filter.all"),       InstallFilter::All),
                     (fsn_i18n::t("store.filter.installed"), InstallFilter::Installed),
                     (fsn_i18n::t("store.filter.available"), InstallFilter::Available),
+                    (fsn_i18n::t("store.filter.updatable"), InstallFilter::Updatable),
                 ] {
                     {
                         let active = *install_filter.read() == variant;
@@ -232,6 +252,8 @@ fn builtin_manager_entries() -> Vec<PackageEntry> {
             store_path:       None,
             installed:        installed_ids.contains(m.id),
             update_available: false,
+            license:          String::new(),
+            author:           String::new(),
         }
     }).collect()
 }
@@ -247,6 +269,7 @@ fn catalog_to_entries(catalog: Catalog<NodePackage>) -> Vec<PackageEntry> {
         .into_iter()
         .map(|p| {
             let installed = installed_ids.contains(&p.id);
+            let icon = p.icon.map(|i| resolve_icon(&i));
             PackageEntry {
                 id:               p.id,
                 name:             p.name,
@@ -256,10 +279,12 @@ fn catalog_to_entries(catalog: Catalog<NodePackage>) -> Vec<PackageEntry> {
                 kind:             p.kind,
                 capabilities:     p.capabilities,
                 tags:             p.tags,
-                icon:             p.icon,
+                icon,
                 store_path:       p.path,
                 installed,
                 update_available: false,
+                license:          p.license,
+                author:           p.author,
             }
         })
         .collect();
@@ -284,6 +309,8 @@ fn catalog_to_entries(catalog: Catalog<NodePackage>) -> Vec<PackageEntry> {
             store_path:       locale.path,
             installed,
             update_available: false,
+            license:          String::new(),
+            author:           String::new(),
         });
     }
 

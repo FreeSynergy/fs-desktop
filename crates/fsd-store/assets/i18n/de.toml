@@ -13,6 +13,7 @@ back_to_browser    = "Zurück zum Browser"
 all       = "Alle"
 installed = "Installiert"
 available = "Verfügbar"
+updatable = "Aktualisierbar"
 
 [store.tab]
 all       = "Alle"
@@ -27,6 +28,7 @@ bridges   = "Bridges"
 tasks     = "Aufgaben"
 installed = "Installiert"
 updates   = "Updates"
+settings  = "Einstellungen"
 
 [store.status]
 installed        = "Installiert ✓"
@@ -51,6 +53,13 @@ no_services = "Keine FSN-Dienste installiert. Mit fsn deploy ein Projekt deploye
 no_metadata   = "Update-Erkennung erfordert Deployment-Metadaten."
 run_deploy    = "fsn deploy ausführen, um Updates zu prüfen und anzuwenden."
 catalog_count = "{n} Paket(e) im Katalog verfügbar."
+
+[store.settings]
+title = "Repository-Einstellungen"
+
+[store.install]
+success = "Installation erfolgreich"
+failed  = "Installation fehlgeschlagen"
 
 [store.wizard]
 step_overview    = "Übersicht"

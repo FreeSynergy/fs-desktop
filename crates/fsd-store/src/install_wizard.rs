@@ -1,4 +1,4 @@
-/// Install wizard — step-by-step configuration before first start.
+/// Install logic and result popup — replaces the multi-step install wizard.
 use dioxus::prelude::*;
 use fsd_db::package_registry::{InstalledPackage, PackageRegistry};
 use fsn_store::StoreClient;
@@ -6,43 +6,19 @@ use fsn_store::StoreClient;
 use crate::node_package::PackageKind;
 use crate::package_card::PackageEntry;
 
+// ── InstallResult ──────────────────────────────────────────────────────────────
+
+/// Result of an install operation.
 #[derive(Clone, PartialEq, Debug)]
-pub enum WizardStep {
-    Overview,
-    Configure,
-    Confirm,
-    Installing,
-    Done,
-    Error,
-}
-
-impl WizardStep {
-    pub fn label(&self) -> String {
-        match self {
-            Self::Overview   => fsn_i18n::t("store.wizard.step_overview"),
-            Self::Configure  => fsn_i18n::t("store.wizard.step_configure"),
-            Self::Confirm    => fsn_i18n::t("store.wizard.step_confirm"),
-            Self::Installing => fsn_i18n::t("store.wizard.step_installing"),
-            Self::Done       => fsn_i18n::t("store.wizard.step_done"),
-            Self::Error      => fsn_i18n::t("status.error"),
-        }
-    }
-
-    pub fn next(&self) -> Option<Self> {
-        match self {
-            Self::Overview   => Some(Self::Configure),
-            Self::Configure  => Some(Self::Confirm),
-            Self::Confirm    => Some(Self::Installing),
-            // Installing transitions via async callback, not next()
-            _ => None,
-        }
-    }
+pub enum InstallResult {
+    Success,
+    Failed(String),
 }
 
 // ── async install logic ────────────────────────────────────────────────────────
 
 /// Downloads and registers a package. Returns Ok on success.
-async fn do_install(package: PackageEntry, env_vars: String) -> Result<(), String> {
+pub async fn do_install(package: PackageEntry, env_vars: String) -> Result<(), String> {
     let home    = std::env::var("HOME").unwrap_or_else(|_| ".".into());
     let fsn_dir = std::path::PathBuf::from(&home).join(".local/share/fsn");
 
@@ -215,7 +191,7 @@ pub async fn fetch_container_env_vars(package: &PackageEntry) -> Vec<String> {
 /// Simple line-by-line extraction of `KEY` or `KEY: ...` or `KEY=...` from a
 /// YAML environment section. Good enough for showing input fields; the
 /// Conductor will do the proper analysis when installing.
-fn extract_env_var_names(yaml: &str) -> Vec<String> {
+pub fn extract_env_var_names(yaml: &str) -> Vec<String> {
     let mut in_env = false;
     let mut vars   = Vec::new();
 
@@ -253,366 +229,63 @@ fn extract_env_var_names(yaml: &str) -> Vec<String> {
     vars
 }
 
-// ── InstallWizard component ────────────────────────────────────────────────────
+// ── InstallPopup ───────────────────────────────────────────────────────────────
 
-/// Install wizard — guides the user through pre-install configuration.
+/// Simple centered modal overlay shown after an install attempt.
 #[component]
-pub fn InstallWizard(package: PackageEntry, on_cancel: EventHandler<()>) -> Element {
-    let mut step          = use_signal(|| WizardStep::Overview);
-    let mut install_error = use_signal(|| Option::<String>::None);
-
-    // Container-specific: env var keys detected from compose file
-    let mut detected_vars: Signal<Vec<String>> = use_signal(Vec::new);
-    // Container-specific: user-entered env var values (KEY=VALUE per line in textarea)
-    let mut env_vars_text: Signal<String>      = use_signal(String::new);
-    // Whether we are currently fetching env vars
-    let mut loading_vars: Signal<bool>         = use_signal(|| false);
-
-    let visible_steps = [
-        WizardStep::Overview,
-        WizardStep::Configure,
-        WizardStep::Confirm,
-    ];
-
-    let current = step.read().clone();
-
-    // When entering Configure step for a Container package, fetch env vars once.
-    {
-        let pkg = package.clone();
-        use_effect(move || {
-            if *step.read() == WizardStep::Configure
-                && pkg.kind == PackageKind::Container
-                && detected_vars.read().is_empty()
-                && !*loading_vars.read()
-            {
-                loading_vars.set(true);
-                let pkg2 = pkg.clone();
-                spawn(async move {
-                    let vars = fetch_container_env_vars(&pkg2).await;
-                    // Pre-fill textarea with KEY= lines
-                    let prefill: String = vars.iter()
-                        .map(|k| format!("{k}=\n"))
-                        .collect();
-                    detected_vars.set(vars);
-                    env_vars_text.set(prefill);
-                    loading_vars.set(false);
-                });
-            }
-        });
-    }
+pub fn InstallPopup(result: InstallResult, on_close: EventHandler<()>) -> Element {
+    let (icon, title, detail) = match &result {
+        InstallResult::Success => (
+            "✅",
+            fsn_i18n::t("store.install.success"),
+            String::new(),
+        ),
+        InstallResult::Failed(err) => (
+            "❌",
+            fsn_i18n::t("store.install.failed"),
+            err.clone(),
+        ),
+    };
 
     rsx! {
+        // Overlay backdrop
         div {
-            class: "fsd-install-wizard",
-            style: "display: flex; flex-direction: column; height: 100%;",
+            style: "position: fixed; inset: 0; background: rgba(0,0,0,0.55); \
+                    display: flex; align-items: center; justify-content: center; z-index: 2000;",
+            onclick: move |_| on_close.call(()),
 
-            // Step indicator
+            // Modal card — stop propagation so clicking inside doesn't close
             div {
-                style: "display: flex; align-items: center; padding: 16px; \
-                        border-bottom: 1px solid var(--fsn-color-border-default);",
-                for (i, s) in visible_steps.iter().enumerate() {
-                    WizardStepDot {
-                        key: "{i}",
-                        index: i,
-                        label: s.label(),
-                        active: current == *s,
-                        done: matches!((&current, s),
-                            (WizardStep::Confirm, WizardStep::Overview)
-                            | (WizardStep::Confirm, WizardStep::Configure)
-                            | (WizardStep::Installing, _)
-                            | (WizardStep::Done, _)),
-                        last: i >= visible_steps.len() - 1,
+                style: "background: var(--fsn-color-bg-surface); \
+                        border: 1px solid var(--fsn-color-border-default); \
+                        border-radius: var(--fsn-radius-lg); \
+                        padding: 40px 32px; max-width: 360px; width: 100%; \
+                        text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.4);",
+                onclick: move |e| e.stop_propagation(),
+
+                p { style: "font-size: 48px; margin: 0 0 16px 0;", "{icon}" }
+                p { style: "font-size: 18px; font-weight: 600; margin: 0 0 12px 0;",
+                    "{title}"
+                }
+                if !detail.is_empty() {
+                    p {
+                        style: "font-size: 13px; color: var(--fsn-color-error, #ef4444); \
+                                background: rgba(239,68,68,0.08); \
+                                border: 1px solid var(--fsn-color-error, #ef4444); \
+                                border-radius: var(--fsn-radius-md); \
+                                padding: 10px 12px; margin: 0 0 20px 0; \
+                                text-align: left; word-break: break-word;",
+                        "{detail}"
                     }
                 }
-            }
-
-            // Step content
-            div {
-                style: "flex: 1; overflow: auto; padding: 24px;",
-                match &current {
-                    WizardStep::Overview => rsx! {
-                        h3 { style: "margin-top: 0;",
-                            {fsn_i18n::t_with("store.wizard.overview_title", &[("name", package.name.as_str())])}
-                        }
-                        p { style: "color: var(--fsn-color-text-secondary);", "{package.description}" }
-                        p { style: "color: var(--fsn-color-text-muted); font-size: 13px;",
-                            {fsn_i18n::t_with("store.wizard.version_type", &[
-                                ("version", package.version.as_str()),
-                                ("kind", package.kind.label()),
-                            ])}
-                        }
-                        if !package.tags.is_empty() {
-                            div { style: "display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px;",
-                                for tag in &package.tags {
-                                    span {
-                                        key: "{tag}",
-                                        style: "font-size: 11px; padding: 2px 8px; border-radius: 999px; \
-                                                background: var(--fsn-color-bg-overlay); \
-                                                border: 1px solid var(--fsn-color-border-default); \
-                                                color: var(--fsn-color-text-muted);",
-                                        "{tag}"
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    WizardStep::Configure => rsx! {
-                        h3 { style: "margin-top: 0;",
-                            {fsn_i18n::t_with("store.wizard.configure_title", &[("name", package.name.as_str())])}
-                        }
-                        { match &package.kind {
-                            PackageKind::Container => rsx! {
-                                ContainerConfigureStep {
-                                    loading: *loading_vars.read(),
-                                    env_vars_text,
-                                }
-                            },
-                            PackageKind::Language => rsx! {
-                                p { style: "color: var(--fsn-color-text-muted);",
-                                    {fsn_i18n::t("store.wizard.configure_language")}
-                                }
-                            },
-                            PackageKind::Theme => rsx! {
-                                p { style: "color: var(--fsn-color-text-muted);",
-                                    {fsn_i18n::t("store.wizard.configure_theme")}
-                                }
-                            },
-                            PackageKind::Widget => rsx! {
-                                p { style: "color: var(--fsn-color-text-muted);",
-                                    {fsn_i18n::t("store.wizard.configure_widget")}
-                                }
-                            },
-                            _ => rsx! {
-                                p { style: "color: var(--fsn-color-text-muted);",
-                                    {fsn_i18n::t("store.wizard.configure_none")}
-                                }
-                            },
-                        }}
-                    },
-                    WizardStep::Confirm => rsx! {
-                        h3 { style: "margin-top: 0;", {fsn_i18n::t("store.wizard.confirm_title")} }
-                        p { {fsn_i18n::t_with("store.wizard.confirm_body", &[
-                            ("name", package.name.as_str()),
-                            ("version", package.version.as_str()),
-                        ])} }
-                        div {
-                            style: "margin-top: 12px; padding: 12px 16px; \
-                                    background: var(--fsn-color-bg-surface); \
-                                    border: 1px solid var(--fsn-color-border-default); \
-                                    border-radius: var(--fsn-radius-md); font-size: 13px;",
-                            div { "Package: {package.name}" }
-                            div { "Version: {package.version}" }
-                            div { "Type: {package.kind.label()}" }
-                        }
-                        if package.kind == PackageKind::Container {
-                            div {
-                                style: "margin-top: 12px; padding: 10px 14px; \
-                                        background: var(--fsn-color-bg-surface); \
-                                        border: 1px solid var(--fsn-color-border-default); \
-                                        border-radius: var(--fsn-radius-md); font-size: 12px; \
-                                        color: var(--fsn-color-text-muted);",
-                                p { style: "margin: 0 0 4px 0;",
-                                    {fsn_i18n::t("store.wizard.compose_saved_to")}
-                                }
-                                code {
-                                    style: "font-size: 11px;",
-                                    "~/.local/share/fsn/services/{package.id}/"
-                                }
-                                p { style: "margin: 8px 0 0 0;",
-                                    "Then "
-                                    code { "fsn conductor install" }
-                                    " "
-                                    {fsn_i18n::t("store.wizard.compose_conductor_hint")}
-                                }
-                            }
-                        }
-                    },
-                    WizardStep::Installing => rsx! {
-                        div { style: "text-align: center; padding: 48px;",
-                            if let Some(err) = install_error.read().as_deref() {
-                                div {
-                                    style: "color: var(--fsn-color-error, #ef4444); \
-                                            background: rgba(239,68,68,0.1); \
-                                            border: 1px solid var(--fsn-color-error, #ef4444); \
-                                            border-radius: var(--fsn-radius-md); \
-                                            padding: 12px; font-size: 13px; text-align: left;",
-                                    p { strong { {fsn_i18n::t("store.wizard.install_failed")} } }
-                                    p { "{err}" }
-                                }
-                            } else {
-                                p { style: "font-size: 32px; margin-bottom: 12px;", "⏳" }
-                                p { {fsn_i18n::t_with("store.wizard.installing", &[("name", package.name.as_str())])} }
-                            }
-                        }
-                    },
-                    WizardStep::Done => rsx! {
-                        div { style: "text-align: center; padding: 48px;",
-                            p { style: "font-size: 48px; margin-bottom: 12px;", "✓" }
-                            p { style: "font-size: 18px; font-weight: 600;",
-                                {fsn_i18n::t_with("store.wizard.done_title", &[("name", package.name.as_str())])}
-                            }
-                            p { style: "color: var(--fsn-color-text-muted); font-size: 13px; margin-top: 8px;",
-                                { match &package.kind {
-                                    PackageKind::Container => fsn_i18n::t("store.wizard.done_container"),
-                                    PackageKind::Language  => fsn_i18n::t("store.wizard.done_language"),
-                                    PackageKind::Theme     => fsn_i18n::t("store.wizard.done_theme"),
-                                    PackageKind::Widget    => fsn_i18n::t("store.wizard.done_widget"),
-                                    _                      => fsn_i18n::t("store.wizard.done_generic"),
-                                }}
-                            }
-                        }
-                    },
-                    WizardStep::Error => rsx! {
-                        div { style: "text-align: center; padding: 48px; color: var(--fsn-color-error, #ef4444);",
-                            p { style: "font-size: 32px;", "✗" }
-                            p { {fsn_i18n::t("store.wizard.error_body")} }
-                        }
-                    },
-                }
-            }
-
-            // Navigation buttons
-            div {
-                style: "display: flex; justify-content: space-between; padding: 16px; \
-                        border-top: 1px solid var(--fsn-color-border-default);",
-
-                // Left: Cancel / Close
                 button {
-                    style: "padding: 8px 16px; background: var(--fsn-color-bg-surface); \
-                            border: 1px solid var(--fsn-color-border-default); \
-                            border-radius: var(--fsn-radius-md); cursor: pointer;",
-                    onclick: move |_| on_cancel.call(()),
-                    { if matches!(*step.read(), WizardStep::Done | WizardStep::Error) {
-                        fsn_i18n::t("actions.close")
-                    } else {
-                        fsn_i18n::t("actions.cancel")
-                    }}
+                    style: "padding: 10px 32px; background: var(--fsn-color-primary); \
+                            color: white; border: none; \
+                            border-radius: var(--fsn-radius-md); cursor: pointer; \
+                            font-size: 14px; font-weight: 600;",
+                    onclick: move |_| on_close.call(()),
+                    {fsn_i18n::t("actions.close")}
                 }
-
-                // Right: Next / Install (hidden when Installing or Done)
-                { match &current {
-                    WizardStep::Installing => rsx! {
-                        span {} // placeholder — buttons hidden while installing
-                    },
-                    WizardStep::Done | WizardStep::Error => rsx! {
-                        span {}
-                    },
-                    WizardStep::Confirm => rsx! {
-                        button {
-                            style: "padding: 8px 20px; background: var(--fsn-color-primary); \
-                                    color: white; border: none; \
-                                    border-radius: var(--fsn-radius-md); cursor: pointer; \
-                                    font-weight: 600;",
-                            onclick: move |_| {
-                                let pkg   = package.clone();
-                                let envs  = env_vars_text.read().clone();
-                                step.set(WizardStep::Installing);
-                                spawn(async move {
-                                    match do_install(pkg, envs).await {
-                                        Ok(()) => step.set(WizardStep::Done),
-                                        Err(e) => {
-                                            install_error.set(Some(e));
-                                            // Stay on Installing step so error is visible
-                                        }
-                                    }
-                                });
-                            },
-                            {fsn_i18n::t("actions.install")}
-                        }
-                    },
-                    _ => rsx! {
-                        button {
-                            style: "padding: 8px 20px; background: var(--fsn-color-primary); \
-                                    color: white; border: none; \
-                                    border-radius: var(--fsn-radius-md); cursor: pointer;",
-                            onclick: move |_| {
-                                let next = step.read().next();
-                                if let Some(n) = next {
-                                    step.set(n);
-                                }
-                            },
-                            {fsn_i18n::t("actions.next")}
-                        }
-                    },
-                }}
-            }
-        }
-    }
-}
-
-// ── ContainerConfigureStep ────────────────────────────────────────────────────
-
-/// Configure step for container packages: editable KEY=VALUE textarea.
-/// Pre-filled with detected variable names from the compose file.
-#[component]
-fn ContainerConfigureStep(loading: bool, mut env_vars_text: Signal<String>) -> Element {
-    rsx! {
-        div {
-            p { style: "color: var(--fsn-color-text-secondary); margin-bottom: 16px;",
-                {fsn_i18n::t("store.wizard.env_vars_hint")}
-            }
-            p { style: "color: var(--fsn-color-text-muted); font-size: 12px; margin-bottom: 12px;",
-                {fsn_i18n::t("store.wizard.env_vars_body")}
-            }
-
-            if loading {
-                p { style: "color: var(--fsn-color-text-muted); font-size: 13px;",
-                    {fsn_i18n::t("store.wizard.detecting_vars")}
-                }
-            } else {
-                textarea {
-                    style: "width: 100%; min-height: 200px; padding: 10px 12px; \
-                            font-family: monospace; font-size: 13px; \
-                            background: var(--fsn-color-bg-elevated); \
-                            border: 1px solid var(--fsn-color-border-default); \
-                            border-radius: var(--fsn-radius-md); \
-                            color: var(--fsn-color-text-primary); \
-                            resize: vertical; box-sizing: border-box;",
-                    placeholder: "KEY=value\nANOTHER_KEY=value",
-                    value: "{env_vars_text.read()}",
-                    oninput: move |e| env_vars_text.set(e.value()),
-                }
-                p { style: "color: var(--fsn-color-text-muted); font-size: 11px; margin-top: 6px;",
-                    {fsn_i18n::t("store.wizard.env_tip")}
-                }
-            }
-        }
-    }
-}
-
-// ── WizardStepDot ─────────────────────────────────────────────────────────────
-
-#[component]
-fn WizardStepDot(
-    index: usize,
-    label: String,
-    active: bool,
-    done: bool,
-    last: bool,
-) -> Element {
-    let bg    = if active { "var(--fsn-color-primary)" }
-                else if done { "var(--fsn-color-success, #22c55e)" }
-                else { "var(--fsn-color-bg-overlay)" };
-    let color = if active || done { "white" } else { "var(--fsn-color-text-muted)" };
-    let text  = if active { "var(--fsn-color-text-primary)" } else { "var(--fsn-color-text-muted)" };
-    let num   = index + 1;
-    let inner = if done { "✓".to_string() } else { num.to_string() };
-
-    rsx! {
-        div {
-            style: "display: flex; align-items: center; gap: 4px;",
-            div {
-                style: "width: 24px; height: 24px; border-radius: 50%; \
-                        display: flex; align-items: center; justify-content: center; \
-                        font-size: 12px; background: {bg}; color: {color};",
-                "{inner}"
-            }
-            span {
-                style: "font-size: 13px; color: {text};",
-                "{label}"
-            }
-            if !last {
-                span { style: "margin: 0 8px; color: var(--fsn-color-text-muted);", "›" }
             }
         }
     }
