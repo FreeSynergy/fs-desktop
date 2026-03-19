@@ -91,3 +91,9 @@ chrono = { version = "0.4", features = ["serde"] }
 # Logging
 tracing            = { version = "0.1" }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# ── Local patches ─────────────────────────────────────────────────────────────
+# Remove once dioxus-desktop exposes with_navigation_handler in a published release.
+# Tracking: https://github.com/DioxusLabs/dioxus/pull/5390
+[patch.crates-io]
+dioxus-desktop = { path = "vendor/dioxus-desktop" }

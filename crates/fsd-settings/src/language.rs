@@ -138,12 +138,13 @@ async fn install_language_pack(locale: LocaleInfo) -> Result<(), String> {
     };
 
     PackageRegistry::install(InstalledPackage {
-        id:        locale.code.clone(),
-        name:      locale.name.clone(),
-        kind:      "language".into(),
-        version:   locale.version.clone(),
-        icon:      String::new(),
+        id:           locale.code.clone(),
+        name:         locale.name.clone(),
+        kind:         "language".into(),
+        version:      locale.version.clone(),
+        icon:         String::new(),
         file_path,
+        installed_by: None,
     })
     .map_err(|e| format!("Registry error: {e}"))
 }
@@ -257,8 +258,10 @@ pub fn LanguageSettings() -> Element {
                     },
                     span { "🌐" }
                     span {
-                        if *show_available.read() { fsn_i18n::t("settings.language.btn_hide") }
-                        else { fsn_i18n::t("settings.language.btn_show_more") }
+                        {
+                            if *show_available.read() { fsn_i18n::t("settings.language.btn_hide") }
+                            else { fsn_i18n::t("settings.language.btn_show_more") }
+                        }
                     }
                 }
 
