@@ -139,11 +139,13 @@ pub fn Desktop() -> Element {
     let db = db_ctx.0.clone();
 
     // Initialize i18n once and expose the active language as a reactive context.
-    // fsd-settings writes to this via LangContext when the user switches languages,
-    // triggering a full re-render with the new language active.
-    let _lang_ctx = use_context_provider(|| {
+    // fsd-settings writes to this via LangContext when the user switches languages.
+    // Reading the signal here subscribes Desktop to re-render on language change,
+    // which causes all inline RSX (header, sidebar, taskbar, shell text) to update.
+    let lang_ctx = use_context_provider(|| {
         fsd_settings::LangContext(Signal::new(init_i18n()))
     });
+    let _active_lang = lang_ctx.0.read().clone();
 
     // Wallpaper CSS is provided as context so child apps (e.g. AppearanceSettings) can update it.
     let wallpaper_bg: Signal<String> = use_context_provider(|| {
@@ -368,10 +370,11 @@ pub fn Desktop() -> Element {
 
         div {
             id: "fsd-desktop",
-            "data-theme": "{theme_attr}",
-            "data-chrome-style":  "{chrome_style.read()}",
-            "data-btn-style":     "{btn_style.read()}",
-            "data-sidebar-style": "{sidebar_style.read()}",
+            "data-theme":          "{theme_attr}",
+            "data-lang":           "{_active_lang}",
+            "data-chrome-style":   "{chrome_style.read()}",
+            "data-btn-style":      "{btn_style.read()}",
+            "data-sidebar-style":  "{sidebar_style.read()}",
             style: "
                 width: 100vw; height: 100vh; overflow: hidden;
                 display: flex; flex-direction: column;

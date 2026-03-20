@@ -75,25 +75,12 @@ struct LangEntry {
 #[derive(Clone, PartialEq, Debug)]
 enum LangTab { Active, Install, Edit }
 
-// ── Persistence (active language file) ────────────────────────────────────────
+// ── Persistence ───────────────────────────────────────────────────────────────
 
-fn active_language_path() -> std::path::PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
-    std::path::PathBuf::from(home).join(".local/share/fsn/settings/language")
-}
-
+/// Returns the currently active language code, read from the user's locale inventory.
+/// Falls back to "en" when no preference is saved.
 pub fn load_active_language() -> String {
-    std::fs::read_to_string(active_language_path())
-        .map(|s| s.trim().to_string())
-        .unwrap_or_else(|_| "en".to_string())
-}
-
-fn save_active_language(code: &str) {
-    let path = active_language_path();
-    if let Some(parent) = path.parent() {
-        let _ = std::fs::create_dir_all(parent);
-    }
-    let _ = std::fs::write(path, code);
+    LanguageManager::new().effective_settings().language
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -275,7 +262,7 @@ pub fn LanguageSettings() -> Element {
                                                     cursor: pointer;",
                                             onclick: move |_| {
                                                 let code = selected.read().clone();
-                                                save_active_language(&code);
+                                                // Load user-installed pack from disk before switching.
                                                 if code != "en" {
                                                     let home = std::env::var("HOME")
                                                         .unwrap_or_else(|_| ".".into());
@@ -287,8 +274,9 @@ pub fn LanguageSettings() -> Element {
                                                         let _ = fsn_i18n::add_toml_lang(&code, &content);
                                                     }
                                                 }
-                                                fsn_i18n::set_active_lang(&code);
+                                                // Persist to inventory, switch global i18n, trigger UI re-render.
                                                 let _ = LanguageManager::new().set_active(&code);
+                                                fsn_i18n::set_active_lang(&code);
                                                 if let Some(LangContext(mut sig)) =
                                                     dioxus::prelude::try_consume_context::<LangContext>()
                                                 {
