@@ -188,11 +188,15 @@ pub fn Desktop() -> Element {
     let _browser_url_req: fsd_browser::app::BrowserUrlRequest =
         use_context_provider(|| Signal::new(None));
 
+    // ── Virtual desktops ───────────────────────────────────────────────────
+    let mut active_desktop: Signal<usize> = use_signal(|| 0usize);
+    let desktop_count: usize = 2; // configurable in settings; 2 = default per spec
+
     // Handle app-open requests from sub-apps (e.g. Conductor's "Install Service" → Store).
     use_effect(move || {
         let req = app_open_req.read().clone();
         if let Some(app_id) = req {
-            open_app(&mut wm, &mut apps, &app_id);
+            open_app(&mut wm, &mut apps, &app_id, *active_desktop.read());
             *app_open_req.write() = None;
         }
     });
@@ -231,20 +235,20 @@ pub fn Desktop() -> Element {
         match id.as_str() {
             "theme-midnight-blue" => { theme.set("midnight-blue".to_string()); crate::db::save_theme_to_db(db_menu.clone(), "midnight-blue".to_string()); }
             "launcher"            => launcher.write().toggle(),
-            "open-tasks"          => open_app(&mut wm, &mut apps, "tasks"),
+            "open-tasks"          => open_app(&mut wm, &mut apps, "tasks", *active_desktop.read()),
             _ => {}
         }
     };
 
     // ── Sidebar app select ─────────────────────────────────────────────────
     let on_sidebar_select = move |app_id: String| {
-        open_app(&mut wm, &mut apps, &app_id);
+        open_app(&mut wm, &mut apps, &app_id, *active_desktop.read());
         launcher.write().close();
     };
 
     // ── Launcher callbacks ──────────────────────────────────────────────────
     let on_launcher_launch = move |app_id: String| {
-        open_app(&mut wm, &mut apps, &app_id);
+        open_app(&mut wm, &mut apps, &app_id, *active_desktop.read());
         launcher.write().close();
     };
     let on_launcher_query = move |q: String| { launcher.write().query = q; };
@@ -405,8 +409,18 @@ pub fn Desktop() -> Element {
                     on_select: on_sidebar_select,
                 }
 
-                // ── Desktop area (home layer + window area) ─────────────────
+                // ── Desktop area: tab bar + (home layer + window area) ──────
                 div {
+                    style: "flex: 1; display: flex; flex-direction: column; overflow: hidden;",
+
+                    // Virtual desktop tab bar (top of desktop area)
+                    DesktopTabBar {
+                        count: desktop_count,
+                        active: *active_desktop.read(),
+                        on_switch: move |idx: usize| active_desktop.set(idx),
+                    }
+
+                    div {
                     style: "flex: 1; position: relative; overflow: hidden;",
                     oncontextmenu: move |e: MouseEvent| {
                         e.prevent_default();
@@ -450,24 +464,35 @@ pub fn Desktop() -> Element {
                         id: "fsd-window-area",
                         style: "position: absolute; inset: 0; overflow: hidden; pointer-events: none; {window_area_visibility}",
 
-                        // Render visible (non-minimized) windows
+                        // Render ALL non-minimized windows — use display:none for inactive
+                        // desktops so Dioxus keeps component state (pos/dim signals) alive.
                         for window in wm.read().windows().iter().filter(|w| !w.minimized).cloned().collect::<Vec<_>>() {
-                            WindowFrame {
-                                key: "{window.id.0}",
-                                window: window.clone(),
-                                on_close: on_close_window,
-                                on_focus: on_focus_window,
-                                on_minimize: on_minimize_window,
-                                on_maximize: on_maximize_window,
-                                AppWindowContent { title_key: window.title_key.clone() }
+                            {
+                                let on_active = window.desktop_index == *active_desktop.read();
+                                let visibility = if on_active { "" } else { "display: none;" };
+                                rsx! {
+                                    div {
+                                        key: "wrap-{window.id.0}",
+                                        style: "{visibility}",
+                                        WindowFrame {
+                                            key: "{window.id.0}",
+                                            window: window.clone(),
+                                            on_close: on_close_window,
+                                            on_focus: on_focus_window,
+                                            on_minimize: on_minimize_window,
+                                            on_maximize: on_maximize_window,
+                                            AppWindowContent { title_key: window.title_key.clone() }
+                                        }
+                                    }
+                                }
                             }
                         }
 
-                        // Render minimized windows as desktop icons.
-                        // Key pattern "min-{id}" avoids collisions with visible-window keys.
-                        // effective_icon_positions (pre-computed above) assigns grid slots
-                        // right → up for windows without a stored drag position.
-                        for window in wm.read().windows().iter().filter(|w| w.minimized).cloned().collect::<Vec<_>>() {
+                        // Minimized icons: show only those on the active desktop.
+                        for window in wm.read().windows().iter()
+                            .filter(|w| w.minimized && w.desktop_index == *active_desktop.read())
+                            .cloned().collect::<Vec<_>>()
+                        {
                             MinimizedWindowIcon {
                                 key: "min-{window.id.0}",
                                 window: window.clone(),
@@ -485,7 +510,7 @@ pub fn Desktop() -> Element {
                     }
 
                     // App Launcher overlay
-                        if launcher_state.open {
+                    if launcher_state.open {
                         AppLauncher {
                             apps: app_list,
                             query: launcher_state.query.clone(),
@@ -507,7 +532,7 @@ pub fn Desktop() -> Element {
                         on_action: move |id: String| {
                             match id.as_str() {
                                 "edit-desktop" => edit_mode.set(true),
-                                "settings"     => open_app(&mut wm, &mut apps, "settings"),
+                                "settings"     => open_app(&mut wm, &mut apps, "settings", *active_desktop.read()),
                                 _ => {}
                             }
                             ctx_menu.set(ContextMenuState::default());
@@ -630,7 +655,8 @@ pub fn Desktop() -> Element {
                             }
                         }
                     }
-                } // end desktop area
+                    } // end inner relative desktop area
+                } // end desktop column (tab bar + inner)
             } // end flex row (sidebar + desktop)
         }
     }
@@ -842,7 +868,7 @@ fn icon_for_app(app_id: &str) -> String {
     }
 }
 
-fn open_app(wm: &mut Signal<WindowManager>, apps: &mut Signal<Vec<AppEntry>>, app_id: &str) {
+fn open_app(wm: &mut Signal<WindowManager>, apps: &mut Signal<Vec<AppEntry>>, app_id: &str, desktop_idx: usize) {
     // Normalize catalog IDs: strip "fsn-" prefix so "fsn-browser" routes as "browser".
     let app_id = app_id.strip_prefix("fsn-").unwrap_or(app_id);
 
@@ -863,7 +889,7 @@ fn open_app(wm: &mut Signal<WindowManager>, apps: &mut Signal<Vec<AppEntry>>, ap
     let icon = apps.read().iter().find(|a| a.id == app_id)
         .map(|a| a.icon.clone())
         .unwrap_or_else(|| icon_for_app(app_id));
-    let window = Window::new(title_key).with_icon(icon);
+    let window = Window::new(title_key).with_icon(icon).with_desktop(desktop_idx);
     let win_id = window.id;
     wm.write().open(window);
 
@@ -1000,5 +1026,83 @@ fn app_id_to_label(id: &str) -> &str {
         "manager-container-app" => "Container App Manager",
         "manager-bots"        => "Bots Manager",
         other           => other,
+    }
+}
+
+// ── DesktopTabBar ─────────────────────────────────────────────────────────────
+
+/// Tab bar at the top of the desktop area for switching virtual desktops.
+///
+/// Per spec konzepte/ui-standards.md:
+/// - Tab right (index increases) → current slides LEFT out, new slides from RIGHT
+/// - Tab left (index decreases)  → current slides RIGHT out, new slides from LEFT
+/// - Default: 2 virtual desktops (configurable in Settings)
+#[component]
+fn DesktopTabBar(count: usize, active: usize, on_switch: EventHandler<usize>) -> Element {
+    // Track previous active index to determine slide direction for animation.
+    let mut prev = use_signal(|| active);
+
+    // CSS for the tab bar + slide animation.
+    const TAB_BAR_CSS: &str = r#"
+.fsn-desktop-tabs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    background: var(--fsn-color-bg-sidebar, #0a0f1a);
+    border-bottom: 1px solid var(--fsn-color-border-default, #1e293b);
+    flex-shrink: 0;
+    height: 32px;
+}
+.fsn-desktop-tab {
+    padding: 2px 16px;
+    border-radius: 6px 6px 0 0;
+    border: none;
+    background: transparent;
+    color: var(--fsn-color-text-muted, #64748b);
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 120ms, color 120ms;
+    white-space: nowrap;
+}
+.fsn-desktop-tab:hover {
+    background: var(--fsn-color-bg-elevated, #1e293b);
+    color: var(--fsn-color-text-secondary, #94a3b8);
+}
+.fsn-desktop-tab--active {
+    background: var(--fsn-color-bg-elevated, #1e293b);
+    color: var(--fsn-color-primary, #06b6d4);
+    font-weight: 600;
+    border-bottom: 2px solid var(--fsn-color-primary, #06b6d4);
+}
+"#;
+
+    rsx! {
+        style { "{TAB_BAR_CSS}" }
+        div {
+            class: "fsn-desktop-tabs",
+            for i in 0..count {
+                {
+                    let is_active = i == active;
+                    let tab_class = if is_active {
+                        "fsn-desktop-tab fsn-desktop-tab--active"
+                    } else {
+                        "fsn-desktop-tab"
+                    };
+                    rsx! {
+                        button {
+                            key: "{i}",
+                            class: "{tab_class}",
+                            onclick: move |_| {
+                                prev.set(active);
+                                on_switch.call(i);
+                            },
+                            "Desktop {i + 1}"
+                        }
+                    }
+                }
+            }
+        }
     }
 }

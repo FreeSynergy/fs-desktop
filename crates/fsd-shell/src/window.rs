@@ -96,6 +96,8 @@ pub struct Window {
     pub has_unsaved_changes: bool,
     /// Icon shown when minimized (emoji or text).
     pub icon:                String,
+    /// Virtual desktop this window lives on (0-indexed).
+    pub desktop_index:       usize,
 }
 
 impl Window {
@@ -116,6 +118,7 @@ impl Window {
             active_sidebar_id:   None,
             has_unsaved_changes: false,
             icon:                "🗗".to_string(),
+            desktop_index:       0,
         }
     }
 
@@ -124,6 +127,7 @@ impl Window {
     pub fn with_help(mut self, topic: impl Into<String>) -> Self { self.help_topic = Some(topic.into()); self }
     pub fn with_icon(mut self, icon: impl Into<String>) -> Self { self.icon = icon.into(); self }
     pub fn with_sidebar(mut self, items: Vec<WindowSidebarItem>) -> Self { self.sidebar_items = items; self }
+    pub fn with_desktop(mut self, index: usize) -> Self { self.desktop_index = index; self }
 }
 
 /// Manages all open windows — ordering and visibility.

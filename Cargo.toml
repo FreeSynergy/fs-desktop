@@ -2,7 +2,7 @@
 members = [
     "crates/fsd-db",
     "crates/fsd-shell",
-    "crates/fsd-container-app",
+    "crates/fsd-container",
     "crates/fsd-store",
     "crates/fsd-builder",
     "crates/fsd-settings",
@@ -31,7 +31,7 @@ repository = "https://github.com/FreeSynergy/Desktop"
 # Internal Desktop crates
 fsd-db        = { path = "crates/fsd-db" }
 fsd-shell     = { path = "crates/fsd-shell", default-features = false }
-fsd-container-app = { path = "crates/fsd-container-app" }
+fsd-container = { path = "crates/fsd-container" }
 fsd-store     = { path = "crates/fsd-store" }
 fsd-builder   = { path = "crates/fsd-builder" }
 fsd-settings  = { path = "crates/fsd-settings" }

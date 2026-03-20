@@ -247,6 +247,7 @@ fn build_bridge_resource(
             resource_type: ResourceType::Bridge,
             dependencies: vec![],
             signature: None,
+            platform: None,
             status: ValidationStatus::Incomplete,
             source: None,
         },
