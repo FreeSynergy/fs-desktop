@@ -78,7 +78,7 @@ fn default_menu() -> Vec<MenuItem> {
         MenuItem {
             label: fsn_i18n::t("shell.menu.services"),
             items: vec![
-                MenuAction::Action { label: fsn_i18n::t("shell.menu.open_container_app"), shortcut: None, id: "open-container-app" },
+                MenuAction::Action { label: fsn_i18n::t("shell.menu.open_container"), shortcut: None, id: "open-container-app" },
                 MenuAction::Separator,
                 MenuAction::Action { label: fsn_i18n::t("shell.menu.start_all"), shortcut: None, id: "start-all" },
                 MenuAction::Action { label: fsn_i18n::t("shell.menu.stop_all"),  shortcut: None, id: "stop-all" },

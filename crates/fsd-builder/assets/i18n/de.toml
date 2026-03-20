@@ -4,7 +4,7 @@
 title = "Builder"
 
 [builder.section]
-container_app = "Container App"
+container = "Container"
 bridge        = "Bridge"
 i18n          = "i18n-Editor"
 resources     = "Ressourcen"

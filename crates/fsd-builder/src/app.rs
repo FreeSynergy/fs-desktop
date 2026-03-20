@@ -1,15 +1,15 @@
-/// Builder — root component: ContainerApp builder, Bridge builder, i18n editor, resource browser.
+/// Builder — root component: Container builder, Bridge builder, i18n editor, resource browser.
 use dioxus::prelude::*;
 use fsn_components::{FsnSidebar, FsnSidebarItem, FSN_SIDEBAR_CSS};
 
 use crate::bridge_builder::BridgeBuilder;
-use crate::container_app_builder::ContainerAppBuilder;
+use crate::container_builder::ContainerBuilder;
 use crate::i18n_editor::I18nEditor;
 use crate::resource_browser::ResourceBrowser;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum BuilderTab {
-    ContainerApp,
+    Container,
     Bridge,
     I18n,
     Resources,
@@ -18,7 +18,7 @@ pub enum BuilderTab {
 impl BuilderTab {
     pub fn id(&self) -> &'static str {
         match self {
-            Self::ContainerApp => "container-app",
+            Self::Container => "container-app",
             Self::Bridge       => "bridge",
             Self::I18n         => "i18n",
             Self::Resources    => "resources",
@@ -27,7 +27,7 @@ impl BuilderTab {
 
     pub fn label(&self) -> &'static str {
         match self {
-            Self::ContainerApp => "Container App",
+            Self::Container => "Container",
             Self::Bridge       => "Bridge",
             Self::I18n         => "i18n Editor",
             Self::Resources    => "Resources",
@@ -36,7 +36,7 @@ impl BuilderTab {
 
     pub fn icon(&self) -> &'static str {
         match self {
-            Self::ContainerApp => "📦",
+            Self::Container => "📦",
             Self::Bridge       => "🔗",
             Self::I18n         => "🌐",
             Self::Resources    => "📁",
@@ -45,7 +45,7 @@ impl BuilderTab {
 
     pub fn from_id(id: &str) -> Option<Self> {
         match id {
-            "container-app" => Some(Self::ContainerApp),
+            "container-app" => Some(Self::Container),
             "bridge"        => Some(Self::Bridge),
             "i18n"          => Some(Self::I18n),
             "resources"     => Some(Self::Resources),
@@ -55,7 +55,7 @@ impl BuilderTab {
 }
 
 const ALL_TABS: &[BuilderTab] = &[
-    BuilderTab::ContainerApp,
+    BuilderTab::Container,
     BuilderTab::Bridge,
     BuilderTab::I18n,
     BuilderTab::Resources,
@@ -64,7 +64,7 @@ const ALL_TABS: &[BuilderTab] = &[
 /// Root Builder component.
 #[component]
 pub fn BuilderApp() -> Element {
-    let mut active_tab = use_signal(|| BuilderTab::ContainerApp);
+    let mut active_tab = use_signal(|| BuilderTab::Container);
 
     let sidebar_items: Vec<FsnSidebarItem> = ALL_TABS.iter()
         .map(|t| FsnSidebarItem::new(t.id(), t.icon(), t.label()))
@@ -104,7 +104,7 @@ pub fn BuilderApp() -> Element {
                 div {
                     style: "flex: 1; overflow: auto;",
                     match *active_tab.read() {
-                        BuilderTab::ContainerApp => rsx! { ContainerAppBuilder {} },
+                        BuilderTab::Container => rsx! { ContainerBuilder {} },
                         BuilderTab::Bridge       => rsx! { BridgeBuilder {} },
                         BuilderTab::I18n         => rsx! { I18nEditor {} },
                         BuilderTab::Resources    => rsx! { ResourceBrowser {} },

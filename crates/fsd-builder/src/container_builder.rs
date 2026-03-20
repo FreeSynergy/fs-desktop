@@ -1,4 +1,4 @@
-//! Container App Builder — Docker Compose YAML → ContainerAppResource.
+//! Container App Builder — Docker Compose YAML → ContainerResource.
 //!
 //! Analyzes a pasted Compose file, displays detected services, variables,
 //! and roles, lets the user edit all fields, validates the result, and
@@ -6,7 +6,7 @@
 
 use dioxus::prelude::*;
 use fsn_types::resources::{
-    container_app::{ContainerAppResource, ContainerVariable, VarType},
+    container::{ContainerResource, ContainerVariable, VarType},
     meta::ValidationStatus,
 };
 use serde::Deserialize;
@@ -44,11 +44,11 @@ enum BuilderStep {
 
 /// Container App Builder component.
 #[component]
-pub fn ContainerAppBuilder() -> Element {
+pub fn ContainerBuilder() -> Element {
     let mut step         = use_signal(BuilderStep::default);
     let mut yaml_input   = use_signal(String::new);
     let mut parse_error  = use_signal(|| Option::<String>::None);
-    let mut resource     = use_signal(|| Option::<ContainerAppResource>::None);
+    let mut resource     = use_signal(|| Option::<ContainerResource>::None);
     let mut export_path  = use_signal(String::new);
     let mut export_msg   = use_signal(|| Option::<String>::None);
     let mut ai_status    = use_signal(|| Option::<String>::None);
@@ -65,7 +65,7 @@ pub fn ContainerAppBuilder() -> Element {
                     h3 { "Container App Builder" }
                     p { style: "color: var(--fsn-color-text-muted); margin-bottom: 16px;",
                         "Paste a Docker Compose file. The builder analyzes it and creates \
-                         a ContainerAppResource ready for the FSN Store."
+                         a ContainerResource ready for the FSN Store."
                     }
 
                     div { style: "margin-bottom: 16px;",
@@ -277,7 +277,7 @@ pub fn ContainerAppBuilder() -> Element {
                 BuilderStep::Export => rsx! {
                     h3 { "Export Resource" }
                     p { style: "color: var(--fsn-color-text-muted); margin-bottom: 16px;",
-                        "Save the ContainerAppResource as resource.toml to your local packages directory."
+                        "Save the ContainerResource as resource.toml to your local packages directory."
                     }
 
                     div { style: "margin-bottom: 16px;",
@@ -395,7 +395,7 @@ fn VariableRow(
 
 // ── Compose analysis ──────────────────────────────────────────────────────────
 
-fn analyze_compose_yaml(yaml: &str) -> Result<ContainerAppResource, String> {
+fn analyze_compose_yaml(yaml: &str) -> Result<ContainerResource, String> {
     let compose: ComposeFile = serde_yaml::from_str(yaml)
         .map_err(|e| format!("YAML parse error: {e}"))?;
     if compose.services.is_empty() {
@@ -406,9 +406,9 @@ fn analyze_compose_yaml(yaml: &str) -> Result<ContainerAppResource, String> {
     build_resource(yaml, compose)
 }
 
-fn build_resource(yaml: &str, compose: ComposeFile) -> Result<ContainerAppResource, String> {
+fn build_resource(yaml: &str, compose: ComposeFile) -> Result<ContainerResource, String> {
     use fsn_types::resources::{
-        container_app::{ContainerService, NetworkDef, RoleDep},
+        container::{ContainerService, NetworkDef, RoleDep},
         meta::{ResourceMeta, ResourceType, ValidationStatus},
     };
 
@@ -459,7 +459,7 @@ fn build_resource(yaml: &str, compose: ComposeFile) -> Result<ContainerAppResour
     let networks = vec![NetworkDef { name: format!("{primary_name}-backend"), external: false }];
     let volumes = vec![];
 
-    let mut resource = ContainerAppResource {
+    let mut resource = ContainerResource {
         meta: ResourceMeta {
             id: primary_name.replace([' ', '-'], "_").to_lowercase(),
             name: capitalize(&primary_name),
@@ -469,7 +469,7 @@ fn build_resource(yaml: &str, compose: ComposeFile) -> Result<ContainerAppResour
             license: "MIT".into(),
             icon: std::path::PathBuf::from("icon.svg"),
             tags: roles_provided.iter().map(|r| r.as_str().to_owned()).collect(),
-            resource_type: ResourceType::ContainerApp,
+            resource_type: ResourceType::Container,
             dependencies: vec![],
             signature: None,
             status: ValidationStatus::Incomplete,
@@ -540,7 +540,7 @@ fn detect_roles(image: &str) -> Vec<fsn_types::resources::meta::Role> {
 }
 
 fn analyze_var(name: &str, all_svcs: &[String]) -> ContainerVariable {
-    use fsn_types::resources::container_app::AutoSource;
+    use fsn_types::resources::container::AutoSource;
     use fsn_types::resources::meta::Role;
     let upper = name.to_uppercase();
 
@@ -602,7 +602,7 @@ fn capitalize(s: &str) -> String {
     }
 }
 
-fn save_resource(resource: &ContainerAppResource, dir: &std::path::Path) -> Result<std::path::PathBuf, String> {
+fn save_resource(resource: &ContainerResource, dir: &std::path::Path) -> Result<std::path::PathBuf, String> {
     std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     let path = dir.join("resource.toml");
     let toml = toml::to_string_pretty(resource).map_err(|e| e.to_string())?;

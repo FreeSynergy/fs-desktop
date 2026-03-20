@@ -8,7 +8,7 @@ saved  = "Übernommen."
 language       = "Sprache"
 theme          = "Theme"
 icons          = "Icons"
-container_apps = "Container-Apps"
+containers = "Container-Apps"
 bots           = "Bots"
 
 [managers.language]
@@ -27,7 +27,7 @@ sets_title  = "Icon-Sets"
 select_set  = "Icon-Set in der Sidebar auswählen."
 no_icons    = "Keine Icons entsprechen der Suche."
 
-[managers.container_apps]
+[managers.containers]
 title       = "Container-App-Manager"
 description = "Containerisierte Anwendungen auf diesem Node verwalten."
 empty       = "Noch keine Container-Apps installiert. Im Store Apps installieren."

@@ -1,16 +1,16 @@
 [package]
-name        = "fsd-container-app"
+name        = "fsd-container"
 description = "FreeSynergy Desktop – Container App: container, service and bot management"
 version.workspace   = true
 edition.workspace   = true
 license.workspace   = true
 
 [lib]
-name = "fsd_container_app"
+name = "fsd_container"
 path = "src/lib.rs"
 
 [[bin]]
-name = "fsd-container-app"
+name = "fsd-container"
 path = "src/main.rs"
 
 [features]

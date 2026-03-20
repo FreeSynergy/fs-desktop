@@ -1,6 +1,6 @@
 [package]
 name        = "fsd-builder"
-description = "FreeSynergy Desktop – Builder: ContainerApp builder, Bridge builder, i18n editor, resource browser"
+description = "FreeSynergy Desktop – Builder: Container builder, Bridge builder, i18n editor, resource browser"
 version.workspace   = true
 edition.workspace   = true
 license.workspace   = true

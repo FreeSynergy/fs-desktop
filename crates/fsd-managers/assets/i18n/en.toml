@@ -8,7 +8,7 @@ saved  = "Applied."
 language       = "Language"
 theme          = "Theme"
 icons          = "Icons"
-container_apps = "Container Apps"
+containers = "Container Apps"
 bots           = "Bots"
 
 [managers.language]
@@ -27,7 +27,7 @@ sets_title  = "Icon Sets"
 select_set  = "Select an icon set from the sidebar."
 no_icons    = "No icons match your search."
 
-[managers.container_apps]
+[managers.containers]
 title       = "Container App Manager"
 description = "Manage containerized applications running on this node."
 empty       = "No container apps installed yet. Browse the Store to install apps."

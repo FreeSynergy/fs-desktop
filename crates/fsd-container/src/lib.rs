@@ -5,7 +5,7 @@ pub mod log_viewer;
 pub mod service_detail;
 pub mod service_list;
 
-pub use app::ContainerApp;
+pub use app::Container;
 
 /// Register app-specific i18n strings for fsd-container-app (`container.*` keys).
 /// Called once at desktop startup before any component renders.

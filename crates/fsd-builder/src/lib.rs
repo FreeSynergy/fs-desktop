@@ -1,6 +1,6 @@
 pub mod app;
 pub mod bridge_builder;
-pub mod container_app_builder;
+pub mod container_builder;
 pub mod i18n_editor;
 pub mod ollama;
 pub mod resource_browser;

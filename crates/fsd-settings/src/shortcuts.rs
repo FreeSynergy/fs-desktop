@@ -26,7 +26,7 @@ pub fn register_actions() -> Vec<ActionDef> {
         ActionDef { id: "store.open",         label: fsn_i18n::t("settings.shortcuts.action_store"),         category: "Tools",  default_shortcut: Some("Ctrl+S") },
         ActionDef { id: "store.install",      label: fsn_i18n::t("settings.shortcuts.action_install"),       category: "Tools",  default_shortcut: Some("Ctrl+I") },
         ActionDef { id: "tasks.open",         label: fsn_i18n::t("settings.shortcuts.action_tasks"),         category: "Tools",  default_shortcut: Some("Ctrl+T") },
-        ActionDef { id: "container-app.open", label: fsn_i18n::t("settings.shortcuts.action_container_app"), category: "Tools",  default_shortcut: None },
+        ActionDef { id: "container-app.open", label: fsn_i18n::t("settings.shortcuts.action_container"), category: "Tools",  default_shortcut: None },
         ActionDef { id: "studio.open",        label: fsn_i18n::t("settings.shortcuts.action_studio"),        category: "Tools",  default_shortcut: None },
         ActionDef { id: "bots.open",          label: fsn_i18n::t("settings.shortcuts.action_bots"),          category: "Tools",  default_shortcut: None },
         ActionDef { id: "help.open",          label: fsn_i18n::t("settings.shortcuts.action_help"),          category: "Help",   default_shortcut: Some("F1") },

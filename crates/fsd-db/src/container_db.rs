@@ -9,11 +9,11 @@ use crate::{DbError, db_path, schemas};
 use fsn_db::{DbBackend, DbConnection};
 
 /// Database handle for `fsn-container-app.db`.
-pub struct ContainerAppDb {
+pub struct ContainerDb {
     conn: DbConnection,
 }
 
-impl ContainerAppDb {
+impl ContainerDb {
     /// Open (or create) `~/.local/share/fsn/fsn-container-app.db`, applying the schema.
     pub async fn open() -> Result<Self, DbError> {
         let path = db_path("fsn-container-app.db");
@@ -24,7 +24,7 @@ impl ContainerAppDb {
         })
         .await
         .map_err(|e| DbError::SeaOrm(e.to_string()))?;
-        conn.apply_schema(schemas::container_app::SCHEMA)
+        conn.apply_schema(schemas::container::SCHEMA)
             .await
             .map_err(|e| DbError::SeaOrm(e.to_string()))?;
         Ok(Self { conn })

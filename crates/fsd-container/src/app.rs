@@ -65,7 +65,7 @@ const ALL_SECTIONS: &[ContainerSection] = &[
 
 /// Root component of the Container App Manager.
 #[component]
-pub fn ContainerApp() -> Element {
+pub fn Container() -> Element {
     let mut active = use_signal(|| ContainerSection::Installed);
     let mut selected_service: Signal<Option<String>> = use_signal(|| None);
 

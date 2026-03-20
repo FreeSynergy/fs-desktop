@@ -49,7 +49,7 @@ struct HelpTopic {
 
 const TOPICS: &[HelpTopic] = &[
     HelpTopic { id: "getting-started", title: "Getting Started",    summary: "Learn how to set up your first FreeSynergy.Node deployment." },
-    HelpTopic { id: "container-app",   title: "Container App",      summary: "Manage services, bots, and containers from the Container App view." },
+    HelpTopic { id: "container-app",   title: "Container",      summary: "Manage services, bots, and containers from the Container App view." },
     HelpTopic { id: "store",           title: "Module Store",       summary: "Browse, install, and update service modules from the store." },
     HelpTopic { id: "studio",          title: "Studio",             summary: "Create custom modules, plugins, and language packs." },
     HelpTopic { id: "settings",        title: "Settings",           summary: "Configure appearance, language, service roles, and AI connections." },

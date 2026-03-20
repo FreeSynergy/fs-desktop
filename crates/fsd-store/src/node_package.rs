@@ -10,7 +10,7 @@ pub enum PackageKind {
     App,
     /// A Podman/Quadlet container app (e.g. Kanidm, Forgejo, Outline).
     Container,
-    /// Built-in desktop manager (Language, Theme, Icons, ContainerApp, Bots).
+    /// Built-in desktop manager (Language, Theme, Icons, Container, Bots).
     Manager,
     Language,
     Theme,

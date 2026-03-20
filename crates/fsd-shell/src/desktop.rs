@@ -6,7 +6,7 @@ use fsn_i18n;
 
 use fsd_browser::BrowserApp;
 use fsd_bots::BotManagerApp;
-use fsd_container_app::ContainerApp;
+use fsd_container::Container;
 use fsd_lenses::LensesApp;
 use fsd_managers::{ManagersApp, IconsManagerPanel};
 use fsd_profile::ProfileApp;
@@ -92,7 +92,7 @@ fn init_i18n() -> String {
     fsd_browser::register_i18n();
     fsd_lenses::register_i18n();
     fsd_managers::register_i18n();
-    fsd_container_app::register_i18n();
+    fsd_container::register_i18n();
     fsd_bots::register_i18n();
     fsd_theme_mgr::register_i18n();
     // shell.* + profile.* — registered inline below
@@ -896,7 +896,7 @@ fn AppWindowContent(title_key: String) -> Element {
         },
         "app-container" => rsx! {
             AppShell { mode: AppMode::Window,
-                LayoutA { ContainerApp {} }
+                LayoutA { Container {} }
             }
         },
         "app-language-manager" | "app-manager-language" => rsx! {
@@ -916,7 +916,7 @@ fn AppWindowContent(title_key: String) -> Element {
         },
         "app-manager-container-app" => rsx! {
             AppShell { mode: AppMode::Window,
-                LayoutA { ContainerApp {} }
+                LayoutA { Container {} }
             }
         },
         "app-bot-manager" | "app-manager-bots" => rsx! {
