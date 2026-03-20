@@ -6,6 +6,7 @@ use fsn_i18n;
 use crate::accounts_view::AccountsView;
 use crate::broadcast_view::BroadcastView;
 use crate::gatekeeper_view::GatekeeperView;
+use crate::groups_view::GroupsView;
 use crate::model::{BotKind, MessagingBot, MessagingBotsConfig};
 
 /// Active section in the Bot Manager.
@@ -15,6 +16,7 @@ pub enum BotSection {
     Bots,
     Broadcast,
     Gatekeeper,
+    Groups,
 }
 
 impl BotSection {
@@ -24,6 +26,7 @@ impl BotSection {
             Self::Bots       => "bots",
             Self::Broadcast  => "broadcast",
             Self::Gatekeeper => "gatekeeper",
+            Self::Groups     => "groups",
         }
     }
 
@@ -33,6 +36,7 @@ impl BotSection {
             Self::Bots       => fsn_i18n::t("bots.section.bots"),
             Self::Broadcast  => fsn_i18n::t("bots.section.broadcast"),
             Self::Gatekeeper => fsn_i18n::t("bots.section.gatekeeper"),
+            Self::Groups     => fsn_i18n::t("bots.section.groups"),
         }
     }
 
@@ -42,6 +46,7 @@ impl BotSection {
             Self::Bots       => "🤖",
             Self::Broadcast  => "📢",
             Self::Gatekeeper => "🔒",
+            Self::Groups     => "📁",
         }
     }
 
@@ -51,6 +56,7 @@ impl BotSection {
             "bots"       => Some(Self::Bots),
             "broadcast"  => Some(Self::Broadcast),
             "gatekeeper" => Some(Self::Gatekeeper),
+            "groups"     => Some(Self::Groups),
             _            => None,
         }
     }
@@ -61,6 +67,7 @@ const ALL_SECTIONS: &[BotSection] = &[
     BotSection::Bots,
     BotSection::Broadcast,
     BotSection::Gatekeeper,
+    BotSection::Groups,
 ];
 
 /// Root component of the Bot Manager.
@@ -214,6 +221,10 @@ pub fn BotManagerApp() -> Element {
                                     }
                                 },
                             }
+                        },
+
+                        BotSection::Groups => rsx! {
+                            GroupsView {}
                         },
                     }
                 }

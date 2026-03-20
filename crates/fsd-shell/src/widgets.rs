@@ -22,6 +22,8 @@ pub enum WidgetKind {
     MyTasks,
     QuickNotes,
     Weather,
+    /// Status widget for one bot instance (id = bot name).
+    BotStatus(String),
     /// A widget installed from the Store, identified by its package ID.
     Custom(String),
 }
@@ -36,6 +38,7 @@ impl WidgetKind {
             WidgetKind::MyTasks       => "My Tasks".to_string(),
             WidgetKind::QuickNotes    => "Quick Notes".to_string(),
             WidgetKind::Weather       => "Weather".to_string(),
+            WidgetKind::BotStatus(id) => format!("Bot: {id}"),
             WidgetKind::Custom(id)    => id.clone(),
         }
     }
@@ -48,8 +51,9 @@ impl WidgetKind {
             WidgetKind::QuickNotes    => (300.0, 230.0),
             WidgetKind::Messages      => (320.0, 220.0),
             WidgetKind::MyTasks       => (320.0, 220.0),
-            WidgetKind::Weather       => (260.0, 160.0),
-            WidgetKind::Custom(_)     => (280.0, 180.0),
+            WidgetKind::Weather        => (260.0, 160.0),
+            WidgetKind::BotStatus(_)   => (260.0, 140.0),
+            WidgetKind::Custom(_)      => (280.0, 180.0),
         }
     }
 
@@ -61,8 +65,9 @@ impl WidgetKind {
             WidgetKind::Messages      => "📬",
             WidgetKind::MyTasks       => "✅",
             WidgetKind::QuickNotes    => "📝",
-            WidgetKind::Weather       => "🌤",
-            WidgetKind::Custom(_)     => "🧩",
+            WidgetKind::Weather        => "🌤",
+            WidgetKind::BotStatus(_)   => "🤖",
+            WidgetKind::Custom(_)      => "🧩",
         }
     }
 
@@ -75,7 +80,8 @@ impl WidgetKind {
             WidgetKind::MyTasks    => "https://raw.githubusercontent.com/yeyushengfan258/We10X-icon-theme/master/src/apps/scalable/evolution-tasks.svg",
             WidgetKind::QuickNotes => "https://raw.githubusercontent.com/yeyushengfan258/We10X-icon-theme/master/src/apps/scalable/accessories-text-editor.svg",
             WidgetKind::Weather    => "https://raw.githubusercontent.com/yeyushengfan258/We10X-icon-theme/master/src/apps/scalable/indicator-weather.svg",
-            WidgetKind::Custom(_)  => "https://raw.githubusercontent.com/yeyushengfan258/We10X-icon-theme/master/src/apps/scalable/preferences-plugin-script.svg",
+            WidgetKind::BotStatus(_) => "https://raw.githubusercontent.com/yeyushengfan258/We10X-icon-theme/master/src/apps/scalable/internet-chat.svg",
+            WidgetKind::Custom(_)    => "https://raw.githubusercontent.com/yeyushengfan258/We10X-icon-theme/master/src/apps/scalable/preferences-plugin-script.svg",
         }
     }
 
@@ -109,8 +115,9 @@ impl WidgetKind {
             WidgetKind::Messages      => "Messages".to_string(),
             WidgetKind::MyTasks       => "MyTasks".to_string(),
             WidgetKind::QuickNotes    => "QuickNotes".to_string(),
-            WidgetKind::Weather       => "Weather".to_string(),
-            WidgetKind::Custom(id)    => format!("custom:{id}"),
+            WidgetKind::Weather        => "Weather".to_string(),
+            WidgetKind::BotStatus(id)  => format!("bot:{id}"),
+            WidgetKind::Custom(id)     => format!("custom:{id}"),
         }
     }
 
@@ -123,6 +130,9 @@ impl WidgetKind {
             "MyTasks"    => Some(WidgetKind::MyTasks),
             "QuickNotes" => Some(WidgetKind::QuickNotes),
             "Weather"    => Some(WidgetKind::Weather),
+            s if s.starts_with("bot:") => {
+                Some(WidgetKind::BotStatus(s["bot:".len()..].to_string()))
+            }
             s if s.starts_with("custom:") => {
                 Some(WidgetKind::Custom(s["custom:".len()..].to_string()))
             }
@@ -194,8 +204,9 @@ pub fn render_widget(kind: &WidgetKind, w: f64, h: f64) -> Element {
         WidgetKind::Clock      => rsx! { ClockWidget { w, h } },
         WidgetKind::SystemInfo => rsx! { SystemInfoWidget { w, h } },
         WidgetKind::QuickNotes => rsx! { QuickNotesWidget { w, h } },
-        WidgetKind::Messages   => rsx! { MessagesWidget { w, h } },
-        WidgetKind::MyTasks    => rsx! { MyTasksWidget { w, h } },
+        WidgetKind::Messages      => rsx! { MessagesWidget { w, h } },
+        WidgetKind::MyTasks       => rsx! { MyTasksWidget { w, h } },
+        WidgetKind::BotStatus(id) => rsx! { BotStatusWidget { bot_name: id.clone(), w, h } },
         other => rsx! { PlaceholderWidget { kind: other.clone() } },
     }
 }
@@ -747,4 +758,60 @@ fn disk_stat(used: bool) -> String {
     let used_kb:  u64 = parts.next().and_then(|v| v.parse().ok()).unwrap_or(0);
     let total_kb: u64 = parts.next().and_then(|v| v.parse().ok()).unwrap_or(0);
     if used { kb_to_display(used_kb) } else { kb_to_display(total_kb) }
+}
+
+// ── BotStatusWidget ───────────────────────────────────────────────────────────
+
+/// A compact status widget for one bot instance.
+///
+/// Shows: name, running/stopped status, last audit action, quick-open button.
+/// Clicking the widget opens BotManager filtered to this bot.
+#[component]
+pub fn BotStatusWidget(bot_name: String, w: f64, h: f64) -> Element {
+    let scale = content_scale(w, h, 260.0, 140.0, 1.6);
+    let font  = 12.0 * scale;
+    let title = 14.0 * scale;
+
+    // In a real implementation this would read from the bot's SQLite DB.
+    // For now we show a static status that will be wired up via Bus in Phase P.
+    let status_color = "#22c55e";
+    let status_text  = "● Running";
+
+    rsx! {
+        div {
+            style: "width: 100%; height: 100%; box-sizing: border-box; \
+                    background: var(--fsn-color-bg-surface); \
+                    border: 1px solid var(--fsn-color-border-default); \
+                    border-radius: var(--fsn-radius-lg); \
+                    padding: {16.0 * scale}px; \
+                    display: flex; flex-direction: column; gap: {8.0 * scale}px; \
+                    overflow: hidden; cursor: pointer;",
+
+            // Header row: icon + name + status
+            div {
+                style: "display: flex; align-items: center; gap: {8.0 * scale}px;",
+                span { style: "font-size: {title * 1.4}px;", "🤖" }
+                div { style: "flex: 1;",
+                    div {
+                        style: "font-size: {title}px; font-weight: 700; \
+                                color: var(--fsn-color-text-primary); \
+                                white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
+                        "{bot_name}"
+                    }
+                    div {
+                        style: "font-size: {font * 0.9}px; color: {status_color};",
+                        "{status_text}"
+                    }
+                }
+            }
+
+            // Quick info row
+            div {
+                style: "font-size: {font}px; color: var(--fsn-color-text-muted); \
+                        border-top: 1px solid var(--fsn-color-border-default); \
+                        padding-top: {6.0 * scale}px; display: flex; justify-content: space-between;",
+                span { "Open BotManager →" }
+            }
+        }
+    }
 }

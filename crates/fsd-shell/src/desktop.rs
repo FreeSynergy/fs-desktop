@@ -924,6 +924,13 @@ fn AppWindowContent(title_key: String) -> Element {
                 LayoutA { BotManagerApp {} }
             }
         },
+        // Per-instance bot icons (app-bot-<name>) — all open the BotManager.
+        // In Phase P the BotManager will accept a pre-selected bot name via Context.
+        t if t.starts_with("app-bot-") => rsx! {
+            AppShell { mode: AppMode::Window,
+                LayoutA { BotManagerApp {} }
+            }
+        },
         "app-settings" => rsx! {
             AppShell { mode: AppMode::Window,
                 SettingsApp {}

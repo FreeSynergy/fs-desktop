@@ -48,20 +48,20 @@ fsd-theme = { path = "crates/fsd-theme" }
 fsn-types          = { path = "../FreeSynergy.Lib/fsn-types" }
 fsn-error          = { path = "../FreeSynergy.Lib/fsn-error" }
 fsn-config         = { path = "../FreeSynergy.Lib/fsn-config" }
-fsn-i18n           = { path = "../FreeSynergy.Lib.UI/fsn-i18n" }
-fsn-theme          = { path = "../FreeSynergy.Lib.UI/fsn-theme" }
-fsn-help           = { path = "../FreeSynergy.Lib.UI/fsn-help" }
+fsn-i18n           = { path = "../FreeSynergy.Libs.UI/fsn-i18n" }
+fsn-theme          = { path = "../FreeSynergy.Libs.UI/fsn-theme" }
+fsn-help           = { path = "../FreeSynergy.Libs.UI/fsn-help" }
 fsn-health         = { path = "../FreeSynergy.Lib/fsn-health" }
-fsn-store          = { path = "../FreeSynergy.Lib.Ext/fsn-store" }
-fsn-container      = { path = "../FreeSynergy.Lib.Ext/fsn-container" }
-fsn-plugin-sdk     = { path = "../FreeSynergy.Lib.Ext/fsn-plugin-sdk" }
-fsn-auth           = { path = "../FreeSynergy.Lib.Net/fsn-auth" }
+fsn-store          = { path = "../FreeSynergy.Libs.Ext/fsn-store" }
+fsn-container      = { path = "../FreeSynergy.Libs.Ext/fsn-container" }
+fsn-plugin-sdk     = { path = "../FreeSynergy.Libs.Ext/fsn-plugin-sdk" }
+fsn-auth           = { path = "../FreeSynergy.Libs.Net/fsn-auth" }
 fsn-core           = { path = "../FreeSynergy.Lib/fsn-core" }
-fsn-components         = { path = "../FreeSynergy.Lib.UI/fsn-components" }
+fsn-components     = { path = "../FreeSynergy.Libs.UI/fsn-components" }
 fsn-manager-language   = { path = "../FreeSynergy.Managers/language" }
 fsn-manager-icons      = { path = "../FreeSynergy.Managers/icons" }
 fsn-manager-cursor     = { path = "../FreeSynergy.Managers/cursor" }
-fsn-render         = { path = "../FreeSynergy.Lib.UI/fsn-render" }
+fsn-render         = { path = "../FreeSynergy.Libs.UI/fsn-render" }
 fsn-db             = { path = "../FreeSynergy.Lib/fsn-db" }
 
 # Database (SeaORM)

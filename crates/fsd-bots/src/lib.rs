@@ -3,6 +3,7 @@ pub mod model;
 pub mod accounts_view;
 pub mod broadcast_view;
 pub mod gatekeeper_view;
+pub mod groups_view;
 
 pub use app::BotManagerApp;
 
