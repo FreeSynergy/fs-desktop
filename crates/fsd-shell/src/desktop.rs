@@ -8,7 +8,7 @@ use fsd_browser::BrowserApp;
 use fsd_bots::BotManagerApp;
 use fsd_container_app::ContainerApp;
 use fsd_lenses::LensesApp;
-use fsd_managers::{ManagersApp, LanguageManagerPanel, IconsManagerPanel};
+use fsd_managers::{ManagersApp, IconsManagerPanel};
 use fsd_profile::ProfileApp;
 use fsd_settings::SettingsApp;
 use fsd_store::StoreApp;
