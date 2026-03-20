@@ -901,7 +901,7 @@ fn AppWindowContent(title_key: String) -> Element {
         },
         "app-language-manager" | "app-manager-language" => rsx! {
             AppShell { mode: AppMode::Window,
-                LayoutA { LanguageManagerPanel {} }
+                fsd_settings::LanguageSettings {}
             }
         },
         "app-icons-manager" | "app-manager-icons" => rsx! {

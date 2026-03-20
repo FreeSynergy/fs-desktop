@@ -17,7 +17,7 @@ pub fn register_i18n() {
 }
 
 pub use app::SettingsApp;
-pub use language::{load_active_language, LangContext};
+pub use language::{load_active_language, LangContext, LanguageSettings};
 pub use service_roles::{ServiceRoles, ServiceRole, KNOWN_ROLES};
 pub use desktop_settings::{DesktopConfig, DisplayMode, SidebarConfig, SidebarPosition, TaskbarPosition};
 pub use shortcuts::{ActionDef, ShortcutsConfig, register_actions, resolve_shortcut};
