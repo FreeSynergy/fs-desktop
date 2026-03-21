@@ -1,0 +1,9 @@
+[bots]
+title = "Ботавы менеджар"
+
+[bots.section]
+accounts   = "Аккаунты"
+bots       = "Боты"
+broadcast  = "Распраўкі"
+gatekeeper = "Гейткэйпер"
+groups     = "Групы"

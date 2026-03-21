@@ -1,0 +1,9 @@
+[bots]
+title = "مدير الروبوتات"
+
+[bots.section]
+accounts   = "الحسابات"
+bots       = "الروبوتات"
+broadcast  = "النشر"
+gatekeeper = "المُراقب"
+groups     = "المجموعات"

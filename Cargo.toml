@@ -15,6 +15,7 @@ members = [
     "crates/fsd-lenses",
     "crates/fsd-managers",
     "crates/fsd-theme",
+    "crates/fsd-ai",
 ]
 resolver = "2"
 
@@ -43,6 +44,8 @@ fsd-browser   = { path = "crates/fsd-browser" }
 fsd-lenses    = { path = "crates/fsd-lenses" }
 fsd-managers  = { path = "crates/fsd-managers" }
 fsd-theme = { path = "crates/fsd-theme" }
+fsd-ai    = { path = "crates/fsd-ai" }
+fsn-manager-ai = { path = "../FreeSynergy.Managers/ai" }
 
 # FreeSynergy.Libs — shared libraries
 fsn-types          = { path = "../FreeSynergy.Libs/fsn-types" }
