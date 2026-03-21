@@ -45,7 +45,7 @@ fsd-lenses    = { path = "crates/fsd-lenses" }
 fsd-managers  = { path = "crates/fsd-managers" }
 fsd-theme = { path = "crates/fsd-theme" }
 fsd-ai    = { path = "crates/fsd-ai" }
-fsn-manager-ai = { path = "../FreeSynergy.Managers/ai" }
+fsn-manager-ai = { path = "../fs-managers/ai" }
 
 # fs-libs — shared libraries monorepo
 fsn-types          = { path = "../fs-libs/fsn-types" }
@@ -61,9 +61,9 @@ fsn-plugin-sdk     = { path = "../fs-libs/fsn-plugin-sdk" }
 fsn-auth           = { path = "../fs-libs/fsn-auth" }
 fsn-core           = { path = "../fs-libs/fsn-core" }
 fsn-components     = { path = "../fs-libs/fsn-components" }
-fsn-manager-language   = { path = "../FreeSynergy.Managers/language" }
-fsn-manager-icons      = { path = "../FreeSynergy.Managers/icons" }
-fsn-manager-cursor     = { path = "../FreeSynergy.Managers/cursor" }
+fsn-manager-language   = { path = "../fs-managers/language" }
+fsn-manager-icons      = { path = "../fs-managers/icons" }
+fsn-manager-cursor     = { path = "../fs-managers/cursor" }
 fsn-render         = { path = "../fs-libs/fsn-render" }
 fsn-db             = { path = "../fs-libs/fsn-db" }
 

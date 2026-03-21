@@ -28,9 +28,9 @@ crates/
   fsd-app/        → Main launcher binary
 ```
 
-## Library Dependencies (FreeSynergy.Lib)
+## Library Dependencies (fs-libs)
 
-All shared libraries live in `../FreeSynergy.Libs/`. Never duplicate their logic here.
+All shared libraries live in `../fs-libs/`. Never duplicate their logic here.
 
 | Library         | Purpose |
 |---|---|
