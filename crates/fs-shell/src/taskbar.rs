@@ -75,7 +75,19 @@ pub fn default_apps() -> Vec<AppEntry> {
 
 /// Taskbar component — renders the bottom panel.
 #[component]
-pub fn Taskbar(apps: Vec<AppEntry>, on_launch: EventHandler<String>) -> Element {
+pub fn Taskbar(
+    apps: Vec<AppEntry>,
+    on_launch: EventHandler<String>,
+    /// Active language code, e.g. "en" or "de". When set, LangSwitcher is shown.
+    #[props(default)]
+    active_lang: Option<String>,
+    /// All subscribed language codes the user can switch to.
+    #[props(default)]
+    subscribed_langs: Vec<String>,
+    /// Called when the user selects a language from the LangSwitcher dropdown.
+    #[props(default)]
+    on_switch_lang: Option<EventHandler<String>>,
+) -> Element {
     rsx! {
         div {
             class: "fs-taskbar",
@@ -94,6 +106,14 @@ pub fn Taskbar(apps: Vec<AppEntry>, on_launch: EventHandler<String>) -> Element 
             }
             div { style: "flex: 1;" }
             SystemTray {}
+            if let (Some(lang), Some(handler)) = (active_lang, on_switch_lang) {
+                TaskbarSeparator {}
+                LangSwitcher {
+                    active_lang: lang,
+                    subscribed: subscribed_langs,
+                    on_switch: handler,
+                }
+            }
             Clock {}
         }
     }
@@ -209,6 +229,78 @@ pub fn TaskbarApps(apps: Vec<AppEntry>, on_launch: EventHandler<String>) -> Elem
                 on_click: {
                     let id = app.id.clone();
                     move |_| on_launch.call(id.clone())
+                }
+            }
+        }
+    }
+}
+
+/// Language quick-switcher badge in the system tray.
+///
+/// Shows the active language code (e.g. "EN") as a small badge.
+/// Clicking opens an upward dropdown listing all subscribed languages.
+/// Selecting a language calls `on_switch` and closes the dropdown.
+#[component]
+pub fn LangSwitcher(
+    active_lang: String,
+    subscribed: Vec<String>,
+    on_switch: EventHandler<String>,
+) -> Element {
+    let mut open = use_signal(|| false);
+
+    rsx! {
+        div {
+            style: "position: relative;",
+
+            button {
+                class: "fs-lang-switcher",
+                style: "background: none; border: 1px solid var(--fs-color-border-default, #334155); \
+                        border-radius: 4px; cursor: pointer; padding: 2px 7px; \
+                        color: var(--fs-color-text-inverse, #e2e8f0); font-size: 11px; font-weight: 700; \
+                        letter-spacing: 0.06em; text-transform: uppercase; line-height: 18px;",
+                title: "Switch language",
+                onclick: move |_| open.set(!open()),
+                "{active_lang.to_uppercase()}"
+            }
+
+            if open() {
+                div {
+                    style: "position: absolute; bottom: calc(100% + 6px); right: 0; \
+                            background: var(--fs-color-bg-sidebar, #1e293b); \
+                            border: 1px solid var(--fs-color-border-default, #334155); \
+                            border-radius: 6px; padding: 4px; min-width: 72px; z-index: 9999; \
+                            box-shadow: 0 -4px 16px rgba(0,0,0,0.4);",
+
+                    for lang in &subscribed {
+                        {
+                            let lang   = lang.clone();
+                            let active = lang == active_lang;
+                            rsx! {
+                                button {
+                                    key: "{lang}",
+                                    style: if active {
+                                        "display: block; width: 100%; text-align: left; \
+                                         background: var(--fs-color-primary, #06b6d4); \
+                                         border: none; border-radius: 4px; padding: 4px 10px; \
+                                         cursor: pointer; color: #fff; font-size: 12px; font-weight: 700;"
+                                    } else {
+                                        "display: block; width: 100%; text-align: left; \
+                                         background: none; border: none; border-radius: 4px; \
+                                         padding: 4px 10px; cursor: pointer; \
+                                         color: var(--fs-color-text-inverse, #e2e8f0); font-size: 12px;"
+                                    },
+                                    onclick: {
+                                        let lang = lang.clone();
+                                        move |_| {
+                                            on_switch.call(lang.clone());
+                                            open.set(false);
+                                        }
+                                    },
+                                    "{lang.to_uppercase()}"
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

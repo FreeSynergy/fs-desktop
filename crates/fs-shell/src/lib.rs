@@ -94,7 +94,7 @@ pub use context_menu::{ContextMenu, ContextMenuItem, ContextMenuState};
 pub use notification::{Notification, NotificationHistory, NotificationKind, NotificationManager, NotificationStack};
 pub use sidebar::{ShellSidebar, SidebarSection, SidebarNavItem};
 pub use split_view::{SplitState, SplitView};
-pub use taskbar::Taskbar;
+pub use taskbar::{Taskbar, LangSwitcher};
 pub use web_desktop::{WebDesktop, WebTaskbarState};
 pub use window::{
     FsWindow, OpenWindow, Window, WindowButton, WindowContent,
