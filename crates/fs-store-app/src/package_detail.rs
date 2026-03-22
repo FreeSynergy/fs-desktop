@@ -107,7 +107,7 @@ pub fn PackageDetail(
                 button {
                     style: "background: none; border: none; cursor: pointer; \
                             color: var(--fs-color-text-muted); font-size: 20px; padding: 0 4px;",
-                    title: fs_i18n::t("store.back_to_browser"),
+                    title: fs_i18n::t("store.back_to_browser").to_string(),
                     onclick: move |_| on_back.call(()),
                     "‹"
                 }

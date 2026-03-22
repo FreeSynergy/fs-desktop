@@ -255,7 +255,7 @@ pub fn ServiceRoles() -> Element {
                     style: "padding: 8px 24px; background: var(--fs-color-primary); color: white; border: none; border-radius: var(--fs-radius-md); cursor: pointer;",
                     onclick: move |_| {
                         match save_role_assignments(&config.read()) {
-                            Ok(()) => *save_msg.write() = Some(fs_i18n::t("notifications.saved")),
+                            Ok(()) => *save_msg.write() = Some(fs_i18n::t("notifications.saved").into()),
                             Err(e) => *save_msg.write() = Some(format!("Error: {e}")),
                         }
                     },

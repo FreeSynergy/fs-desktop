@@ -87,13 +87,13 @@ fn init_i18n() -> String {
     let _ = fs_i18n::init_with_builtins(&lang);
 
     // 2. App-specific strings — each crate owns its own TOML assets
-    fs_store::register_i18n();
+    fs_store_app::register_i18n();
     fs_settings::register_i18n();
     fs_builder::register_i18n();
     fs_browser::register_i18n();
     fs_lenses::register_i18n();
     fs_managers::register_i18n();
-    fs_container::register_i18n();
+    fs_container_app::register_i18n();
     fs_bots::register_i18n();
     fs_theme_app::register_i18n();
     // shell.* + profile.* — registered inline below
@@ -172,7 +172,7 @@ pub fn Desktop() -> Element {
     let sidebar_refresh: Signal<u32> = use_context_provider(|| Signal::new(0u32));
     let sidebar_sections = use_memo(move || {
         let _ = sidebar_refresh.read(); // subscribe to manual refreshes
-        let _ = fs_store::INSTALL_COUNTER.read(); // subscribe to store install/remove events
+        let _ = fs_store_app::INSTALL_COUNTER.read(); // subscribe to store install/remove events
         default_sidebar_sections()
     });
     let mut theme: Signal<String> = use_context_provider(|| Signal::new(crate::db::load_theme_from_db(&db)));

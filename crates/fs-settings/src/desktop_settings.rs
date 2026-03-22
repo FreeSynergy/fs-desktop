@@ -57,9 +57,9 @@ impl DisplayMode {
 
     pub fn description(&self) -> String {
         match self {
-            Self::Window => fs_i18n::t("settings.desktop.mode_window"),
-            Self::Web    => fs_i18n::t("settings.desktop.mode_web"),
-            Self::Tui    => fs_i18n::t("settings.desktop.mode_tui"),
+            Self::Window => fs_i18n::t("settings.desktop.mode_window").into(),
+            Self::Web    => fs_i18n::t("settings.desktop.mode_web").into(),
+            Self::Tui    => fs_i18n::t("settings.desktop.mode_tui").into(),
         }
     }
 

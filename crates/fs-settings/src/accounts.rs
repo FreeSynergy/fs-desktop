@@ -260,7 +260,7 @@ pub fn AccountSettings() -> Element {
                             button {
                                 style: "color: var(--fs-color-error); background: none; border: none; \
                                         cursor: pointer; font-size: 18px; flex-shrink: 0;",
-                                title: fs_i18n::t("settings.accounts.btn_disconnect"),
+                                title: fs_i18n::t("settings.accounts.btn_disconnect").to_string(),
                                 onclick: move |_| {
                                     providers.write().remove(idx);
                                     save();

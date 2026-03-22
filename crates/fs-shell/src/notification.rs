@@ -319,7 +319,7 @@ fn Toast(notification: Notification, on_dismiss: EventHandler<u64>) -> Element {
                         background: none; border: none; cursor: pointer; \
                         color: var(--fs-color-text-muted, #94a3b8); \
                         display: flex; align-items: center; padding: 2px 4px;",
-                title: fs_i18n::t("shell.notifications.dismiss"),
+                title: fs_i18n::t("shell.notifications.dismiss").to_string(),
                 onclick: move |_| on_dismiss.call(id),
                 span { dangerous_inner_html: ICON_CLOSE }
             }

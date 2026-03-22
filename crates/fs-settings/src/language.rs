@@ -538,18 +538,18 @@ pub fn LanguageSettings() -> Element {
                                     ContributorStatus::Authenticated { ref github_user } => (
                                         "✓",
                                         format!("GitHub: @{github_user}"),
-                                        fs_i18n::t("settings.language.contrib.ssh_ok"),
+                                        fs_i18n::t("settings.language.contrib.ssh_ok").into(),
                                         "#16a34a",
                                     ),
                                     ContributorStatus::NotAuthenticated => (
                                         "✕",
-                                        fs_i18n::t("settings.language.contrib.ssh_none"),
-                                        fs_i18n::t("settings.language.contrib.ssh_none_hint"),
+                                        fs_i18n::t("settings.language.contrib.ssh_none").into(),
+                                        fs_i18n::t("settings.language.contrib.ssh_none_hint").into(),
                                         "var(--fs-color-text-muted)",
                                     ),
                                     ContributorStatus::Unknown => (
                                         "…",
-                                        fs_i18n::t("settings.language.contrib.ssh_checking"),
+                                        fs_i18n::t("settings.language.contrib.ssh_checking").into(),
                                         String::new(),
                                         "var(--fs-color-text-muted)",
                                     ),

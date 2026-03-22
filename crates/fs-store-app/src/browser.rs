@@ -189,7 +189,7 @@ pub fn PackageBrowser(
             if *loading.read() {
                 LoadingOverlay {
                     size: SpinnerSize::Lg,
-                    message: Some(fs_i18n::t("store.loading_catalog")),
+                    message: Some(fs_i18n::t("store.loading_catalog").into()),
                 }
             } else if let Some(err) = error.read().as_deref() {
                 div {

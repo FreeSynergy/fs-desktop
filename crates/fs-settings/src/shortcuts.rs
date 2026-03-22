@@ -18,20 +18,20 @@ pub struct ActionDef {
 /// All desktop actions. The source of truth for shortcut defaults.
 pub fn register_actions() -> Vec<ActionDef> {
     vec![
-        ActionDef { id: "app.settings",      label: fs_i18n::t("settings.shortcuts.action_open_settings"), category: "App",    default_shortcut: Some("Ctrl+,") },
-        ActionDef { id: "app.launcher",       label: fs_i18n::t("settings.shortcuts.action_launcher"),      category: "App",    default_shortcut: Some("Ctrl+Space") },
-        ActionDef { id: "app.quit",           label: fs_i18n::t("settings.shortcuts.action_quit"),          category: "App",    default_shortcut: Some("Ctrl+Q") },
-        ActionDef { id: "view.fullscreen",    label: fs_i18n::t("settings.shortcuts.action_fullscreen"),    category: "View",   default_shortcut: Some("F11") },
-        ActionDef { id: "view.sidebar.show",  label: fs_i18n::t("settings.shortcuts.action_sidebar"),       category: "View",   default_shortcut: None },
-        ActionDef { id: "store.open",         label: fs_i18n::t("settings.shortcuts.action_store"),         category: "Tools",  default_shortcut: Some("Ctrl+S") },
-        ActionDef { id: "store.install",      label: fs_i18n::t("settings.shortcuts.action_install"),       category: "Tools",  default_shortcut: Some("Ctrl+I") },
-        ActionDef { id: "tasks.open",         label: fs_i18n::t("settings.shortcuts.action_tasks"),         category: "Tools",  default_shortcut: Some("Ctrl+T") },
-        ActionDef { id: "container-app.open", label: fs_i18n::t("settings.shortcuts.action_container"), category: "Tools",  default_shortcut: None },
-        ActionDef { id: "studio.open",        label: fs_i18n::t("settings.shortcuts.action_studio"),        category: "Tools",  default_shortcut: None },
-        ActionDef { id: "bots.open",          label: fs_i18n::t("settings.shortcuts.action_bots"),          category: "Tools",  default_shortcut: None },
-        ActionDef { id: "help.open",          label: fs_i18n::t("settings.shortcuts.action_help"),          category: "Help",   default_shortcut: Some("F1") },
-        ActionDef { id: "help.shortcuts",     label: fs_i18n::t("settings.shortcuts.action_shortcuts"),     category: "Help",   default_shortcut: None },
-        ActionDef { id: "window.close",       label: fs_i18n::t("settings.shortcuts.action_close"),         category: "Window", default_shortcut: Some("Escape") },
+        ActionDef { id: "app.settings",      label: fs_i18n::t("settings.shortcuts.action_open_settings").into(), category: "App",    default_shortcut: Some("Ctrl+,") },
+        ActionDef { id: "app.launcher",       label: fs_i18n::t("settings.shortcuts.action_launcher").into(),      category: "App",    default_shortcut: Some("Ctrl+Space") },
+        ActionDef { id: "app.quit",           label: fs_i18n::t("settings.shortcuts.action_quit").into(),          category: "App",    default_shortcut: Some("Ctrl+Q") },
+        ActionDef { id: "view.fullscreen",    label: fs_i18n::t("settings.shortcuts.action_fullscreen").into(),    category: "View",   default_shortcut: Some("F11") },
+        ActionDef { id: "view.sidebar.show",  label: fs_i18n::t("settings.shortcuts.action_sidebar").into(),       category: "View",   default_shortcut: None },
+        ActionDef { id: "store.open",         label: fs_i18n::t("settings.shortcuts.action_store").into(),         category: "Tools",  default_shortcut: Some("Ctrl+S") },
+        ActionDef { id: "store.install",      label: fs_i18n::t("settings.shortcuts.action_install").into(),       category: "Tools",  default_shortcut: Some("Ctrl+I") },
+        ActionDef { id: "tasks.open",         label: fs_i18n::t("settings.shortcuts.action_tasks").into(),         category: "Tools",  default_shortcut: Some("Ctrl+T") },
+        ActionDef { id: "container-app.open", label: fs_i18n::t("settings.shortcuts.action_container").into(),    category: "Tools",  default_shortcut: None },
+        ActionDef { id: "studio.open",        label: fs_i18n::t("settings.shortcuts.action_studio").into(),        category: "Tools",  default_shortcut: None },
+        ActionDef { id: "bots.open",          label: fs_i18n::t("settings.shortcuts.action_bots").into(),          category: "Tools",  default_shortcut: None },
+        ActionDef { id: "help.open",          label: fs_i18n::t("settings.shortcuts.action_help").into(),          category: "Help",   default_shortcut: Some("F1") },
+        ActionDef { id: "help.shortcuts",     label: fs_i18n::t("settings.shortcuts.action_shortcuts").into(),     category: "Help",   default_shortcut: None },
+        ActionDef { id: "window.close",       label: fs_i18n::t("settings.shortcuts.action_close").into(),         category: "Window", default_shortcut: Some("Escape") },
     ]
 }
 
@@ -163,7 +163,7 @@ pub fn ShortcutsSettings() -> Element {
             div { style: "margin-bottom: 20px;",
                 input {
                     r#type: "search",
-                    placeholder: fs_i18n::t("settings.shortcuts.search_placeholder"),
+                    placeholder: fs_i18n::t("settings.shortcuts.search_placeholder").to_string(),
                     style: "width: 100%; padding: 8px 12px; border: 1px solid var(--fs-border); \
                             border-radius: var(--fs-radius-md); font-size: 13px; \
                             background: var(--fs-bg-input); color: var(--fs-text-primary);",
@@ -230,7 +230,7 @@ pub fn ShortcutsSettings() -> Element {
                                                                 recording.set(Some(action_id.clone()));
                                                             }
                                                         },
-                                                        { if is_recording { fs_i18n::t("settings.shortcuts.press_keys") } else { current.clone() } }
+                                                        { if is_recording { fs_i18n::t("settings.shortcuts.press_keys").into() } else { current.clone() } }
                                                     }
                                                     // Reset button (only when customized)
                                                     if !is_default {

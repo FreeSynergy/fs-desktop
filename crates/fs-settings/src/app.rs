@@ -36,12 +36,12 @@ impl SettingsSection {
     /// Translated display label.
     pub fn label(&self) -> String {
         match self {
-            Self::Appearance   => fs_i18n::t("settings.section.appearance"),
-            Self::Language     => fs_i18n::t("settings.section.language"),
-            Self::ServiceRoles => fs_i18n::t("settings.section.roles"),
-            Self::Accounts     => fs_i18n::t("settings.section.accounts"),
-            Self::Desktop      => fs_i18n::t("settings.section.desktop"),
-            Self::Shortcuts    => fs_i18n::t("settings.section.shortcuts"),
+            Self::Appearance   => fs_i18n::t("settings.section.appearance").into(),
+            Self::Language     => fs_i18n::t("settings.section.language").into(),
+            Self::ServiceRoles => fs_i18n::t("settings.section.roles").into(),
+            Self::Accounts     => fs_i18n::t("settings.section.accounts").into(),
+            Self::Desktop      => fs_i18n::t("settings.section.desktop").into(),
+            Self::Shortcuts    => fs_i18n::t("settings.section.shortcuts").into(),
         }
     }
 

@@ -317,7 +317,7 @@ fn ServiceActions(
             if !is_running {
                 button {
                     style: "padding: 4px 8px; background: var(--fs-success); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;",
-                    title: fs_i18n::t("actions.start"),
+                    title: fs_i18n::t("actions.start").to_string(),
                     onclick: {
                         let n = name.clone();
                         move |_| on_action.call((n.clone(), ServiceAction::Start))
@@ -329,7 +329,7 @@ fn ServiceActions(
             if is_running {
                 button {
                     style: "padding: 4px 8px; background: var(--fs-error); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;",
-                    title: fs_i18n::t("actions.stop"),
+                    title: fs_i18n::t("actions.stop").to_string(),
                     onclick: {
                         let n = name.clone();
                         move |_| on_action.call((n.clone(), ServiceAction::Stop))
@@ -338,7 +338,7 @@ fn ServiceActions(
                 }
                 button {
                     style: "padding: 4px 8px; background: var(--fs-warning); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;",
-                    title: fs_i18n::t("actions.restart"),
+                    title: fs_i18n::t("actions.restart").to_string(),
                     onclick: {
                         let n = name.clone();
                         move |_| on_action.call((n.clone(), ServiceAction::Restart))
@@ -350,7 +350,7 @@ fn ServiceActions(
             // Select service for log view
             button {
                 style: "padding: 4px 8px; background: var(--fs-bg-surface); border: 1px solid var(--fs-border); border-radius: 4px; cursor: pointer; font-size: 12px; color: var(--fs-text-primary);",
-                title: fs_i18n::t("container.section.logs"),
+                title: fs_i18n::t("container.section.logs").to_string(),
                 onclick: {
                     let n = name.clone();
                     move |_| *selected.write() = Some(n.clone())

@@ -37,7 +37,7 @@ impl SidebarEntry for InstalledPackage {
     fn nav_item(&self) -> SidebarNavItem {
         let key   = format!("shell.nav.{}", self.id);
         let label = fs_i18n::t(&key);
-        let label = if label == key { self.name.clone() } else { label };
+        let label = if label == key { self.name.clone() } else { label.into() };
         SidebarNavItem {
             id:       self.id.clone(),
             label,
@@ -55,7 +55,7 @@ impl SidebarEntry for ManagerBundle {
     fn nav_item(&self) -> SidebarNavItem {
         SidebarNavItem {
             id:       "managers-folder".into(),
-            label:    fs_i18n::t("shell.nav.managers"),
+            label:    fs_i18n::t("shell.nav.managers").into(),
             icon:     ICON_MANAGERS.into(),
             children: self.0.iter().map(|m| m.nav_item()).collect(),
         }

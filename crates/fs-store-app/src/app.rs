@@ -237,7 +237,7 @@ pub fn StoreApp() -> Element {
                                         border-bottom: 1px solid var(--fs-color-border-default); flex-shrink: 0;",
                                 input {
                                     r#type:      "search",
-                                    placeholder: fs_i18n::t("store.search_placeholder"),
+                                    placeholder: fs_i18n::t("store.search_placeholder").to_string(),
                                     style: "width: 100%; padding: 7px 12px; \
                                             border: 1px solid var(--fs-color-border-default); \
                                             border-radius: var(--fs-radius-md); font-size: 14px; \

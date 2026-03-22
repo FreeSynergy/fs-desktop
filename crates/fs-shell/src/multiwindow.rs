@@ -51,7 +51,7 @@ impl MultiwindowHandle {
     pub fn open_store(&self) {
         spawn_window(
             DesktopConfig::new().with_title("FreeSynergy \u{2014} App Store").with_size(1000.0, 700.0),
-            fs_store::StoreApp,
+            fs_store_app::StoreApp,
         );
     }
 

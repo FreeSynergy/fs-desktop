@@ -63,14 +63,14 @@ pub fn LensesApp() -> Element {
                     input {
                         class: "fs-lenses__input",
                         r#type: "text",
-                        placeholder: fs_i18n::t("lenses.form.name"),
+                        placeholder: fs_i18n::t("lenses.form.name").to_string(),
                         value: "{form_name}",
                         oninput: move |e| form_name.set(e.value()),
                     }
                     input {
                         class: "fs-lenses__input",
                         r#type: "text",
-                        placeholder: fs_i18n::t("lenses.search_hint"),
+                        placeholder: fs_i18n::t("lenses.search_hint").to_string(),
                         value: "{form_query}",
                         oninput: move |e| form_query.set(e.value()),
                     }
@@ -226,7 +226,7 @@ fn LensListRow(
                 }
                 button {
                     class: "fs-lenses__icon-btn fs-lenses__icon-btn--danger",
-                    title: fs_i18n::t("lenses.delete_lens"),
+                    title: fs_i18n::t("lenses.delete_lens").to_string(),
                     onclick: move |e: MouseEvent| { e.stop_propagation(); on_delete.call(()); },
                     "✕"
                 }

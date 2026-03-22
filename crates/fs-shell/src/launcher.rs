@@ -150,7 +150,7 @@ pub fn AppLauncher(props: AppLauncherProps) -> Element {
                             outline: none; box-sizing: border-box; \
                             transition: border-color 150ms ease;",
                     r#type: "text",
-                    placeholder: fs_i18n::t("shell.launcher.search_placeholder"),
+                    placeholder: fs_i18n::t("shell.launcher.search_placeholder").to_string(),
                     value: props.query.clone(),
                     autofocus: true,
                     oninput: move |evt| {

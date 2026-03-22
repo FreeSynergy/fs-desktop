@@ -97,7 +97,7 @@ pub fn BrowserApp() -> Element {
                 // Nav buttons
                 button {
                     class: "fs-browser__nav-btn",
-                    title: fs_i18n::t("browser.go_back"),
+                    title: fs_i18n::t("browser.go_back").to_string(),
                     onclick: move |_| {
                         // Back navigation — in an iframe context use JS eval
                         // For now: no-op (history management per-tab not trivial in iframe)
@@ -106,13 +106,13 @@ pub fn BrowserApp() -> Element {
                 }
                 button {
                     class: "fs-browser__nav-btn",
-                    title: fs_i18n::t("browser.go_forward"),
+                    title: fs_i18n::t("browser.go_forward").to_string(),
                     onclick: move |_| {},
                     "›"
                 }
                 button {
                     class: "fs-browser__nav-btn",
-                    title: fs_i18n::t("browser.reload"),
+                    title: fs_i18n::t("browser.reload").to_string(),
                     onclick: move |_| {
                         let url = current_url_for_reload.clone();
                         navigate_to(&mut tabs, *active_tab.read(), &url, &mut history, &mut address_input);
@@ -124,7 +124,7 @@ pub fn BrowserApp() -> Element {
                 input {
                     class: "fs-browser__address",
                     r#type: "text",
-                    placeholder: fs_i18n::t("browser.url_placeholder"),
+                    placeholder: fs_i18n::t("browser.url_placeholder").to_string(),
                     value: "{address_input}",
                     oninput: move |e| address_input.set(e.value()),
                     onkeydown: move |e| {
@@ -138,7 +138,7 @@ pub fn BrowserApp() -> Element {
                 // Bookmark toggle
                 button {
                     class: "fs-browser__nav-btn",
-                    title: fs_i18n::t("browser.bookmarks.add"),
+                    title: fs_i18n::t("browser.bookmarks.add").to_string(),
                     onclick: move |_| {
                         let url = current_url.clone();
                         if !url.is_empty() {
@@ -154,7 +154,7 @@ pub fn BrowserApp() -> Element {
                 // Panel toggles
                 button {
                     class: if *panel.read() == BrowserPanel::Bookmarks { "fs-browser__nav-btn fs-browser__nav-btn--active" } else { "fs-browser__nav-btn" },
-                    title: fs_i18n::t("browser.bookmarks"),
+                    title: fs_i18n::t("browser.bookmarks").to_string(),
                     onclick: move |_| {
                         let p = if *panel.read() == BrowserPanel::Bookmarks { BrowserPanel::Browse } else { BrowserPanel::Bookmarks };
                         panel.set(p);
@@ -163,7 +163,7 @@ pub fn BrowserApp() -> Element {
                 }
                 button {
                     class: if *panel.read() == BrowserPanel::History { "fs-browser__nav-btn fs-browser__nav-btn--active" } else { "fs-browser__nav-btn" },
-                    title: fs_i18n::t("browser.history"),
+                    title: fs_i18n::t("browser.history").to_string(),
                     onclick: move |_| {
                         let p = if *panel.read() == BrowserPanel::History { BrowserPanel::Browse } else { BrowserPanel::History };
                         panel.set(p);
@@ -172,7 +172,7 @@ pub fn BrowserApp() -> Element {
                 }
                 button {
                     class: if *panel.read() == BrowserPanel::Downloads { "fs-browser__nav-btn fs-browser__nav-btn--active" } else { "fs-browser__nav-btn" },
-                    title: fs_i18n::t("browser.downloads"),
+                    title: fs_i18n::t("browser.downloads").to_string(),
                     onclick: move |_| {
                         let p = if *panel.read() == BrowserPanel::Downloads { BrowserPanel::Browse } else { BrowserPanel::Downloads };
                         panel.set(p);
@@ -203,7 +203,7 @@ pub fn BrowserApp() -> Element {
                         }
                         button {
                             class: "fs-browser__tab-close",
-                            title: fs_i18n::t("browser.close_tab"),
+                            title: fs_i18n::t("browser.close_tab").to_string(),
                             onclick: {
                                 let tab_id = tab.id;
                                 move |e: MouseEvent| {
@@ -219,7 +219,7 @@ pub fn BrowserApp() -> Element {
                 // New tab button
                 button {
                     class: "fs-browser__new-tab",
-                    title: fs_i18n::t("browser.new_tab"),
+                    title: fs_i18n::t("browser.new_tab").to_string(),
                     onclick: move |_| {
                         let id = *next_tab_id.read();
                         next_tab_id.set(id + 1);
@@ -350,7 +350,7 @@ fn BookmarksPanel(
                             let id = bm.id;
                             move |_| on_remove.call(id)
                         },
-                        title: fs_i18n::t("browser.bookmarks.remove"),
+                        title: fs_i18n::t("browser.bookmarks.remove").to_string(),
                         "✕"
                     }
                 }

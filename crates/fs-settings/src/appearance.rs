@@ -627,7 +627,7 @@ pub fn AppearanceSettings() -> Element {
                     onclick: move |_| {
                         let css = custom_css.read().clone();
                         if css.trim().is_empty() {
-                            editor_error.set(Some(fs_i18n::t("settings.appearance.editor_empty_error")));
+                            editor_error.set(Some(fs_i18n::t("settings.appearance.editor_empty_error").into()));
                             return;
                         }
                         let missing = validate_theme_vars(&css);
@@ -635,7 +635,7 @@ pub fn AppearanceSettings() -> Element {
                             editor_error.set(Some(fs_i18n::t_with(
                                 "settings.appearance.editor_missing_vars",
                                 &[("vars", &missing.join(", "))],
-                            )));
+                            ).into()));
                             return;
                         }
                         // Inject --fs- prefix and apply as live preview.

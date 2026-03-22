@@ -314,12 +314,12 @@ pub fn TranslationEditor(
                              border: 1px solid rgba(34,197,94,0.4);",
                         ),
                         ContributorStatus::NotAuthenticated => (
-                            fs_i18n::t("settings.language.editor.no_ssh"),
+                            fs_i18n::t("settings.language.editor.no_ssh").into(),
                             "background: rgba(156,163,175,0.15); color: var(--fs-color-text-muted); \
                              border: 1px solid var(--fs-color-border-default);",
                         ),
                         ContributorStatus::Unknown => (
-                            fs_i18n::t("settings.language.editor.checking_ssh"),
+                            fs_i18n::t("settings.language.editor.checking_ssh").into(),
                             "background: rgba(234,179,8,0.15); color: #ca8a04; \
                              border: 1px solid rgba(234,179,8,0.4);",
                         ),
@@ -370,7 +370,7 @@ pub fn TranslationEditor(
                             border-radius: var(--fs-radius-sm); \
                             color: var(--fs-color-text-primary);",
                     r#type: "text",
-                    placeholder: fs_i18n::t("settings.language.editor.search_placeholder"),
+                    placeholder: fs_i18n::t("settings.language.editor.search_placeholder").to_string(),
                     value: "{search_query}",
                     oninput: move |e| search_query.set(e.value()),
                 }
@@ -501,7 +501,7 @@ pub fn TranslationEditor(
                                                 let proposals = parse_llm_proposals(&response);
                                                 if proposals.is_empty() {
                                                     llm_error2.set(Some(
-                                                        fs_i18n::t("settings.language.editor.ai_no_proposals")
+                                                        fs_i18n::t("settings.language.editor.ai_no_proposals").into()
                                                     ));
                                                 } else {
                                                     llm_proposals2.set(proposals);
@@ -512,7 +512,7 @@ pub fn TranslationEditor(
                                                     fs_i18n::t_with(
                                                         "settings.language.editor.ai_error",
                                                         &[("msg", &e)],
-                                                    )
+                                                    ).into()
                                                 ));
                                             }
                                         }
