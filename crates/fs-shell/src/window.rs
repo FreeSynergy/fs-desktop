@@ -202,10 +202,17 @@ pub type WindowRenderFn = fn() -> Element;
 /// The Desktop stores `Vec<OpenWindow>` in its `WindowManager`.
 /// When running standalone, a single-window host does the same with one entry.
 /// Both share the same `WindowFrame` rendering path — from one mould.
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub struct OpenWindow {
     pub meta:   Window,
     pub render: WindowRenderFn,
+}
+
+impl PartialEq for OpenWindow {
+    fn eq(&self, other: &Self) -> bool {
+        self.meta == other.meta
+            && core::ptr::fn_addr_eq(self.render as fn() -> _, other.render as fn() -> _)
+    }
 }
 
 impl OpenWindow {

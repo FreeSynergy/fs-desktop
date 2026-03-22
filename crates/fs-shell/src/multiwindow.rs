@@ -9,8 +9,6 @@
 /// let handle = use_multiwindow();
 /// handle.open_settings();
 /// ```
-use dioxus::prelude::*;
-
 #[cfg(feature = "desktop")]
 use fs_components::{spawn_window, DesktopConfig};
 

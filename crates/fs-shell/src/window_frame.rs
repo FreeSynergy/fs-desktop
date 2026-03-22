@@ -1,17 +1,21 @@
-/// WindowFrame — FsObject implementation for windows.
-///
-/// Features (per spec technik/ui-objekte.md):
-/// - Drag at titlebar with fullscreen overlay (no event loss)
-/// - Resize from all 8 handles (5px tolerance via CSS handles)
-/// - Minimize → icon on desktop (handled in desktop.rs)
-/// - Close: if has_unsaved_changes → UnsavedChangesDialog
-/// - Window sidebar: icons only, expands to icon+label on hover
-/// - Scrollable content area (.fs-scrollable)
-/// - Double-click on titlebar → maximize / restore previous size+position
-/// - Right-side help panel: ? icon always visible, slides open on hover/click
+//! WindowFrame — FsObject implementation for windows.
+//!
+//! Features (per spec technik/ui-objekte.md):
+//! - Drag at titlebar with fullscreen overlay (no event loss)
+//! - Resize from all 8 handles (5px tolerance via CSS handles)
+//! - Minimize → icon on desktop (handled in desktop.rs)
+//! - Close: if has_unsaved_changes → UnsavedChangesDialog
+//! - Window sidebar: icons only, expands to icon+label on hover
+//! - Scrollable content area (.fs-scrollable)
+//! - Double-click on titlebar → maximize / restore previous size+position
+//! - Right-side help panel: ? icon always visible, slides open on hover/click
+// WindowRenderFn is a fn pointer; #[component] derives PartialEq on props structs
+// that include it — comparison is benign here since the same fn ptr is always passed.
+#![allow(unpredictable_function_pointer_comparisons)]
+
 use dioxus::prelude::*;
 
-use crate::window::{OpenWindow, Window, WindowButton, WindowId, WindowRenderFn, WindowSize};
+use crate::window::{OpenWindow, WindowButton, WindowId, WindowRenderFn, WindowSize};
 
 // ── CSS constants ─────────────────────────────────────────────────────────────
 
