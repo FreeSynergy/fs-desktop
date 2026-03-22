@@ -417,9 +417,10 @@ pub fn Desktop() -> Element {
                 }
             }
 
-            // ── Content area: sidebar (flow) + desktop area ────────────────
+            // ── Content area: sidebar (overlay) + desktop area ────────────
+            // position: relative so absolute sidebars (left + right) anchor here.
             div {
-                style: "flex: 1; display: flex; flex-direction: row; overflow: hidden;",
+                style: "flex: 1; display: flex; flex-direction: row; overflow: hidden; position: relative;",
 
                 // ── Shell sidebar (flow, always visible, hover-expand) ──────
                 ShellSidebar {
@@ -428,24 +429,9 @@ pub fn Desktop() -> Element {
                     on_select: on_sidebar_select,
                 }
 
-                // ── Desktop area: tab bar + (home layer + window area) ──────
+                // ── Desktop area (home layer + window area) ─────────────────
                 div {
                     style: "flex: 1; display: flex; flex-direction: column; overflow: hidden;",
-
-                    // Virtual desktop tab bar (top of desktop area)
-                    DesktopTabBar {
-                        count: desktop_count,
-                        active: *active_desktop.read(),
-                        on_switch: move |idx: usize| {
-                            let cur = *active_desktop.read();
-                            if idx != cur {
-                                slide_dir.set(if idx > cur { "left" } else { "right" });
-                                let next_key = *slide_anim_key.read() + 1;
-                                slide_anim_key.set(next_key);
-                                active_desktop.set(idx);
-                            }
-                        },
-                    }
 
                     {
                         const WIPE_CSS: &str = r#"
@@ -489,6 +475,21 @@ pub fn Desktop() -> Element {
                             ],
                         ));
                     },
+
+                    // Virtual desktop tab bar — peeking overlay, centered at top.
+                    DesktopTabBar {
+                        count: desktop_count,
+                        active: *active_desktop.read(),
+                        on_switch: move |idx: usize| {
+                            let cur = *active_desktop.read();
+                            if idx != cur {
+                                slide_dir.set(if idx > cur { "left" } else { "right" });
+                                let next_key = *slide_anim_key.read() + 1;
+                                slide_anim_key.set(next_key);
+                                active_desktop.set(idx);
+                            }
+                        },
+                    }
 
                     // ── Home layer — widgets sit on the desktop background ──
                     div {
@@ -1112,20 +1113,28 @@ fn DesktopTabBar(count: usize, active: usize, on_switch: EventHandler<usize>) ->
     let mut prev = use_signal(|| active);
 
     // CSS for the tab bar + slide animation.
+    // Bookmark-drawer from the top: peeking 10 px, reveals on hover.
     const TAB_BAR_CSS: &str = r#"
 .fs-desktop-tabs {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 8px;
+    position: absolute; top: 0; left: 50%; z-index: 150;
+    transform: translateX(-50%) translateY(calc(-100% + 10px));
+    transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1),
+                filter   200ms ease;
+    display: inline-flex; align-items: center;
+    gap: 4px; padding: 4px 8px;
     background: var(--fs-color-bg-sidebar, #0a0f1a);
-    border-bottom: 1px solid var(--fs-color-border-default, #1e293b);
-    flex-shrink: 0;
-    height: 32px;
+    border: 1px solid var(--fs-color-border-default, #1e293b);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    pointer-events: all;
+}
+.fs-desktop-tabs:hover {
+    transform: translateX(-50%) translateY(0);
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4));
 }
 .fs-desktop-tab {
     padding: 2px 16px;
-    border-radius: 6px 6px 0 0;
+    border-radius: 4px 4px 0 0;
     border: none;
     background: transparent;
     color: var(--fs-color-text-muted, #64748b);

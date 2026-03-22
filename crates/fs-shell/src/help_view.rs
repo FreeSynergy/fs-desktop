@@ -348,16 +348,28 @@ pub fn HelpSidebarPanel(
     let is_open       = *hovered.read() || is_resizing;
     let pw            = *panel_width.read();
     let aih           = *ai_height.read();
-    // At 44 px (collapsed) the body is hidden by overflow; full width when open.
-    let effective_w   = if is_open { pw + 44.0 } else { 44.0 };
 
     const PANEL_CSS: &str = r#"
+/* ── Bookmark-drawer: slides in/out from the right edge ── */
 .fs-help-sidebar {
-    flex-shrink: 0; display: flex; flex-direction: row;
-    overflow: hidden;
-    transition: width 300ms ease;
+    position: absolute; right: 0; top: 0; bottom: 0; z-index: 200;
+    display: flex; flex-direction: row; overflow: hidden;
+    transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1),
+                filter   300ms ease;
+    pointer-events: all;
 }
-/* ── Body (left part, hidden when collapsed) ── */
+.fs-help-sidebar:hover {
+    filter: drop-shadow(-4px 0 16px rgba(0, 0, 0, 0.45));
+}
+/* ── Tab strip (left, always visible at right edge when closed) ── */
+.fs-help-sidebar__tab-strip {
+    width: 44px; flex-shrink: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: var(--fs-bg-surface);
+    border-right: 1px solid var(--fs-border);
+    gap: 6px; cursor: default; user-select: none;
+}
+/* ── Body (right part, slides off-screen when closed) ── */
 .fs-help-sidebar__body {
     flex: 1; display: flex; flex-direction: row; min-width: 0; overflow: hidden;
 }
@@ -372,19 +384,6 @@ pub fn HelpSidebarPanel(
     background: var(--fs-bg-surface);
     border-left: 1px solid var(--fs-border);
     min-width: 0;
-}
-/* ── Collapsed tab strip (right, always visible) ── */
-.fs-help-sidebar__tab-strip {
-    width: 44px; flex-shrink: 0;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    background: var(--fs-bg-surface);
-    border-left: 1px solid var(--fs-border);
-    gap: 6px; cursor: default; user-select: none;
-}
-.fs-help-sidebar__tab-strip span {
-    writing-mode: vertical-rl; text-orientation: mixed;
-    font-size: 11px; color: var(--fs-text-secondary);
-    letter-spacing: 0.06em;
 }
 /* ── Header ── */
 .fs-help-sidebar__header {
@@ -484,7 +483,8 @@ pub fn HelpSidebarPanel(
 
         div {
             class: "fs-help-sidebar",
-            style: "width: {effective_w}px;",
+            style: "width: {44.0 + pw}px; \
+                    transform: translateX({if is_open { 0.0 } else { pw }}px);",
             onmouseenter: move |_| hovered.set(true),
             onmouseleave: move |_| {
                 if !*resizing_w.read() && !*resizing_ai.read() {
@@ -492,8 +492,15 @@ pub fn HelpSidebarPanel(
                 }
             },
 
-            // ── Body: left edge drag + inner content ───────────────────────
-            // Hidden by overflow:hidden when effective_w == 44 px.
+            // ── Tab strip (always visible, left edge — moves with sidebar) ──
+            div { class: "fs-help-sidebar__tab-strip",
+                span {
+                    style: "width: 20px; height: 20px; color: var(--fs-text-secondary);",
+                    dangerous_inner_html: ICON_HELP
+                }
+            }
+
+            // ── Body: drag handle + inner content ──────────────────────────
             div { class: "fs-help-sidebar__body",
 
                 // Left-edge drag handle — resize panel width
@@ -680,14 +687,6 @@ pub fn HelpSidebarPanel(
                 }
             }
 
-            // ── Tab strip (always visible, right edge) ─────────────────────
-            div { class: "fs-help-sidebar__tab-strip",
-                span {
-                    style: "width: 20px; height: 20px; color: var(--fs-text-secondary);",
-                    dangerous_inner_html: ICON_HELP
-                }
-                span { "Help" }
-            }
         }
     }
 }
