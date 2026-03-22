@@ -12,6 +12,14 @@
 #[cfg(feature = "desktop")]
 use fs_components::{spawn_window, DesktopConfig};
 
+/// Zero-arg wrapper so `SettingsApp` (which requires `SettingsAppProps`) can be passed
+/// to `spawn_window`, which expects `fn() -> Element`.
+#[cfg(feature = "desktop")]
+fn settings_standalone() -> dioxus::prelude::Element {
+    use dioxus::prelude::*;
+    rsx! { fs_settings::SettingsApp {} }
+}
+
 /// Handle returned by `use_multiwindow()`. Call methods to open app windows.
 #[derive(Clone)]
 pub struct MultiwindowHandle;
@@ -31,7 +39,7 @@ impl MultiwindowHandle {
     pub fn open_settings(&self) {
         spawn_window(
             DesktopConfig::new().with_title("FreeSynergy \u{2014} Settings").with_size(800.0, 640.0),
-            fs_settings::SettingsApp,
+            settings_standalone,
         );
     }
 

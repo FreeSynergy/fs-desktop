@@ -5,6 +5,7 @@
 use std::collections::BTreeMap;
 
 use dioxus::prelude::*;
+use fs_components::AppContext;
 use fs_container::{SystemctlManager, UnitActiveState};
 use fs_error::FsError;
 use fs_i18n;
@@ -93,8 +94,8 @@ pub async fn list_fs_units() -> Vec<String> {
 #[component]
 pub fn ServiceList(mut selected: Signal<Option<String>>) -> Element {
     // Request the shell to open the Store when the user clicks "Install Service".
-    // Uses try_use_context so standalone mode (no shell) doesn't panic.
-    let app_open_req = try_use_context::<Signal<Option<String>>>();
+    // Uses try_use_context so standalone mode (no AppContext) doesn't panic.
+    let app_ctx = try_use_context::<AppContext>();
     let mut services: Signal<Vec<ServiceEntry>> = use_signal(Vec::new);
     let mut error: Signal<Option<String>> = use_signal(|| None);
 
@@ -160,8 +161,8 @@ pub fn ServiceList(mut selected: Signal<Option<String>>) -> Element {
                     style: "background: var(--fs-primary); color: white; border: none; \
                             padding: 8px 16px; border-radius: var(--fs-radius-md); cursor: pointer;",
                     onclick: move |_| {
-                        if let Some(mut req) = app_open_req {
-                            *req.write() = Some("store".to_string());
+                        if let Some(mut ctx) = app_ctx {
+                            ctx.app_open_req.set(Some("store".to_string()));
                         }
                     },
                     {fs_i18n::t("container.services.install_btn")}

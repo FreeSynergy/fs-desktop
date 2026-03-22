@@ -1,6 +1,6 @@
 /// Container App Manager — manage running/stopped containers, browse store, build packages.
 use dioxus::prelude::*;
-use fs_components::{FsSidebar, FsSidebarItem, FS_SIDEBAR_CSS};
+use fs_components::{AppContext, FsSidebar, FsSidebarItem, FS_SIDEBAR_CSS};
 use fs_i18n;
 
 use crate::build_view::BuildView;
@@ -153,8 +153,8 @@ pub fn Container() -> Element {
                                                 padding: 10px 24px; font-size: 14px; font-weight: 600; \
                                                 cursor: pointer;",
                                         onclick: move |_| {
-                                            if let Some(mut req) = try_use_context::<Signal<Option<String>>>() {
-                                                *req.write() = Some("store".to_string());
+                                            if let Some(mut ctx) = try_use_context::<AppContext>() {
+                                                ctx.app_open_req.set(Some("store".to_string()));
                                             }
                                         },
                                         "Open Store"

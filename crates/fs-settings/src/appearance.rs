@@ -1,104 +1,76 @@
 /// Appearance settings — theme selector, wallpaper, theme editor, animation/chrome toggles.
 use dioxus::prelude::*;
+use fs_components::AppContext;
 use fs_i18n;
 
 /// Appearance settings component.
 ///
-/// Reads and writes the global `Signal<String>` theme context provided by `Desktop`.
-/// Falls back to a local signal when running standalone.
+/// Reads and writes the global `AppContext` provided by `Desktop`.
+/// Falls back to local signals when running standalone (no AppContext in tree).
 #[component]
 pub fn AppearanceSettings() -> Element {
     use fs_db_desktop::package_registry::{PackageKind, PackageRegistry};
     use fs_theme::{prefix_theme_css, validate_theme_vars};
-    let theme_ctx: Option<Signal<String>> = try_use_context();
-    let wallpaper_ctx: Option<Signal<String>> = try_use_context();
-    let mut local_theme = use_signal(|| "midnight-blue".to_string());
 
-    let mut wallpaper_url = use_signal(String::new);
+    // Single context lookup — replaces 7 individual try_use_context calls.
+    let ctx: Option<AppContext> = try_use_context();
 
-    // Theme editor state
-    let mut custom_css    = use_signal(String::new);
-    let mut editor_error  = use_signal(|| Option::<String>::None);
-    let mut editor_saved  = use_signal(|| false);
-
-    // Store-installed themes
-    let mut store_themes = use_signal(|| PackageRegistry::by_kind(PackageKind::Theme));
-    let mut theme_remove_confirm: Signal<Option<String>> = use_signal(|| None);
-
-    // Animation + Window-Chrome toggles (B5)
-    let anim_ctx: Option<Signal<bool>>    = try_use_context();
-    let chrome_ctx: Option<Signal<f64>>   = try_use_context();
-    let chrome_style_ctx: Option<Signal<String>>  = try_use_context();
-    let btn_style_ctx: Option<Signal<String>>     = try_use_context();
-    let sidebar_style_ctx: Option<Signal<String>> = try_use_context();
+    // Local fallback signals for standalone mode (no Desktop / no AppContext).
+    let mut local_theme         = use_signal(|| "midnight-blue".to_string());
     let mut local_anim          = use_signal(|| true);
     let mut local_opacity       = use_signal(|| 0.80f64);
     let mut local_chrome_style  = use_signal(|| "kde".to_string());
     let mut local_btn_style     = use_signal(|| "rounded".to_string());
     let mut local_sidebar_style = use_signal(|| "solid".to_string());
 
-    let current_theme = theme_ctx
-        .as_ref()
-        .map(|s| s.read().clone())
-        .unwrap_or_else(|| local_theme.read().clone());
+    let mut wallpaper_url = use_signal(String::new);
 
-    let anim_enabled = anim_ctx
-        .as_ref()
-        .map(|s| *s.read())
-        .unwrap_or_else(|| *local_anim.read());
+    // Theme editor state
+    let mut custom_css   = use_signal(String::new);
+    let mut editor_error = use_signal(|| Option::<String>::None);
+    let mut editor_saved = use_signal(|| false);
 
-    let chrome_opacity = chrome_ctx
-        .as_ref()
-        .map(|s| *s.read())
-        .unwrap_or_else(|| *local_opacity.read());
-    let opacity_pct = (chrome_opacity * 100.0) as u32;
-    let opacity_label = if anim_enabled { "On" } else { "Off" };
+    // Store-installed themes
+    let mut store_themes = use_signal(|| PackageRegistry::by_kind(PackageKind::Theme));
+    let mut theme_remove_confirm: Signal<Option<String>> = use_signal(|| None);
 
-    let chrome_style = chrome_style_ctx
-        .as_ref()
-        .map(|s| s.read().clone())
-        .unwrap_or_else(|| local_chrome_style.read().clone());
-    let btn_style = btn_style_ctx
-        .as_ref()
-        .map(|s| s.read().clone())
-        .unwrap_or_else(|| local_btn_style.read().clone());
-    let sidebar_style = sidebar_style_ctx
-        .as_ref()
-        .map(|s| s.read().clone())
-        .unwrap_or_else(|| local_sidebar_style.read().clone());
+    // Read current values — from AppContext if available, else from local signals.
+    let current_theme  = ctx.map(|c| c.theme.read().clone())
+                            .unwrap_or_else(|| local_theme.read().clone());
+    let anim_enabled   = ctx.map(|c| *c.anim_enabled.read())
+                            .unwrap_or_else(|| *local_anim.read());
+    let chrome_opacity = ctx.map(|c| *c.chrome_opacity.read())
+                            .unwrap_or_else(|| *local_opacity.read());
+    let chrome_style   = ctx.map(|c| c.chrome_style.read().clone())
+                            .unwrap_or_else(|| local_chrome_style.read().clone());
+    let btn_style      = ctx.map(|c| c.btn_style.read().clone())
+                            .unwrap_or_else(|| local_btn_style.read().clone());
+    let sidebar_style  = ctx.map(|c| c.sidebar_style.read().clone())
+                            .unwrap_or_else(|| local_sidebar_style.read().clone());
+    let opacity_pct    = (chrome_opacity * 100.0) as u32;
+    let opacity_label  = if anim_enabled { "On" } else { "Off" };
 
+    // Write helpers — route to AppContext if available, else to local signals.
     let set_theme = move |value: String| {
-        if let Some(mut ctx) = theme_ctx {
-            ctx.set(value);
-        } else {
-            local_theme.set(value);
-        }
+        if let Some(mut c) = ctx { c.theme.set(value); } else { local_theme.set(value); }
     };
-
     let mut set_anim = move |enabled: bool| {
-        if let Some(mut ctx) = anim_ctx {
-            ctx.set(enabled);
-        } else {
-            local_anim.set(enabled);
-        }
+        if let Some(mut c) = ctx { c.anim_enabled.set(enabled); } else { local_anim.set(enabled); }
     };
-
     let mut set_opacity = move |v: f64| {
-        if let Some(mut ctx) = chrome_ctx {
-            ctx.set(v);
-        } else {
-            local_opacity.set(v);
-        }
+        if let Some(mut c) = ctx { c.chrome_opacity.set(v); } else { local_opacity.set(v); }
     };
-
     let mut set_chrome_style = move |v: String| {
-        if let Some(mut ctx) = chrome_style_ctx { ctx.set(v); } else { local_chrome_style.set(v); }
+        if let Some(mut c) = ctx { c.chrome_style.set(v); } else { local_chrome_style.set(v); }
     };
     let mut set_btn_style = move |v: String| {
-        if let Some(mut ctx) = btn_style_ctx { ctx.set(v); } else { local_btn_style.set(v); }
+        if let Some(mut c) = ctx { c.btn_style.set(v); } else { local_btn_style.set(v); }
     };
     let mut set_sidebar_style = move |v: String| {
-        if let Some(mut ctx) = sidebar_style_ctx { ctx.set(v); } else { local_sidebar_style.set(v); }
+        if let Some(mut c) = ctx { c.sidebar_style.set(v); } else { local_sidebar_style.set(v); }
+    };
+    let set_wallpaper = move |css: String| {
+        if let Some(mut c) = ctx { c.wallpaper.set(css); }
     };
 
     // Built-in themes: (id, label, preview colors: bg, primary, text)
@@ -427,11 +399,8 @@ pub fn AppearanceSettings() -> Element {
                         style: "width: 40px; height: 32px; border: 1px solid var(--fs-border); \
                                 border-radius: 4px; cursor: pointer; padding: 2px;",
                         oninput: move |e| {
-                            let hex = e.value();
-                            let css = format!("background-color: {};", hex);
-                            if let Some(mut ctx) = wallpaper_ctx {
-                                ctx.set(css);
-                            }
+                            let css = format!("background-color: {};", e.value());
+                            set_wallpaper(css);
                         },
                     }
                 }
@@ -466,10 +435,7 @@ pub fn AppearanceSettings() -> Element {
                                                     background: linear-gradient(135deg, {c1}, {c2}); \
                                                     flex-shrink: 0;",
                                             onclick: move |_| {
-                                                let css = format!("background: {};", gradient_owned);
-                                                if let Some(mut ctx) = wallpaper_ctx {
-                                                    ctx.set(css);
-                                                }
+                                                set_wallpaper(format!("background: {};", gradient_owned));
                                             },
                                         }
                                     }
@@ -503,9 +469,7 @@ pub fn AppearanceSettings() -> Element {
                                     "background-image: url('{}'); background-size: cover; background-position: center;",
                                     url
                                 );
-                                if let Some(mut ctx) = wallpaper_ctx {
-                                    ctx.set(css);
-                                }
+                                set_wallpaper(css);
                             }
                         },
                         "Load"
@@ -530,9 +494,7 @@ pub fn AppearanceSettings() -> Element {
                                          background-size: cover; background-position: center;",
                                         path
                                     );
-                                    if let Some(mut ctx) = wallpaper_ctx {
-                                        ctx.set(css);
-                                    }
+                                    set_wallpaper(css);
                                 }
                             }
                         },
@@ -548,9 +510,7 @@ pub fn AppearanceSettings() -> Element {
                             border-radius: var(--fs-radius-md); cursor: pointer; \
                             color: var(--fs-text-muted);",
                     onclick: move |_| {
-                        if let Some(mut ctx) = wallpaper_ctx {
-                            ctx.set("background: linear-gradient(135deg, #0f172a, #1e293b);".to_string());
-                        }
+                        set_wallpaper("background: linear-gradient(135deg, #0f172a, #1e293b);".to_string());
                         wallpaper_url.set(String::new());
                     },
                     {fs_i18n::t("settings.appearance.btn_reset_wallpaper")}
@@ -640,8 +600,8 @@ pub fn AppearanceSettings() -> Element {
                         }
                         // Inject --fs- prefix and apply as live preview.
                         let prefixed = prefix_theme_css(&css, "fsn");
-                        if let Some(mut ctx) = theme_ctx {
-                            ctx.set(format!("__custom__{}", prefixed));
+                        if let Some(mut c) = ctx {
+                            c.theme.set(format!("__custom__{}", prefixed));
                         }
                         editor_saved.set(true);
                         editor_error.set(None);

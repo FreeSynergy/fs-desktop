@@ -18,6 +18,7 @@ pub fn register_i18n() {
 }
 
 pub use app::{SettingsApp, SettingsAppProps};
+#[allow(deprecated)]
 pub use language::{load_active_language, LangContext, LanguageSettings};
 pub use service_roles::{ServiceRoles, ServiceRole, KNOWN_ROLES};
 pub use desktop_settings::{DesktopConfig, DisplayMode, SidebarConfig, SidebarPosition, TaskbarPosition};

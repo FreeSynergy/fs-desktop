@@ -33,6 +33,9 @@ impl Manifest for MinPkg {
 }
 
 /// Newtype wrapper around `Signal<String>` used as a Dioxus context for the active language.
+///
+/// Deprecated: use `AppContext.locale` instead. Kept for backward compatibility.
+#[deprecated(note = "Use AppContext.locale from fs_components::AppContext instead")]
 #[derive(Clone, Copy)]
 pub struct LangContext(pub dioxus::prelude::Signal<String>);
 
@@ -277,10 +280,11 @@ pub fn LanguageSettings() -> Element {
                                                 // Persist to inventory, switch global i18n, trigger UI re-render.
                                                 let _ = LanguageManager::new().set_active(&code);
                                                 fs_i18n::set_active_lang(&code);
-                                                if let Some(LangContext(mut sig)) =
-                                                    dioxus::prelude::try_consume_context::<LangContext>()
+                                                // Update AppContext.locale to trigger a global re-render.
+                                                if let Some(mut ctx) =
+                                                    dioxus::prelude::try_consume_context::<fs_components::AppContext>()
                                                 {
-                                                    *sig.write() = code;
+                                                    ctx.locale.set(code);
                                                 }
                                                 saved_msg.set(Some(true));
                                             },

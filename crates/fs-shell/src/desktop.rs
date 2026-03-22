@@ -16,6 +16,8 @@ use fs_builder::BuilderApp;
 use fs_tasks::TasksApp;
 use fs_theme_app::ThemeManagerApp;
 
+use fs_components::AppContext;
+
 use crate::ai_view::AiApp;
 use crate::app_shell::{AppMode, AppShell, GLOBAL_CSS, LayoutA, LayoutC};
 use fs_components::FS_SIDEBAR_CSS;
@@ -139,25 +141,34 @@ pub fn Desktop() -> Element {
     });
     let db = db_ctx.0.clone();
 
-    // Initialize i18n once and expose the active language as a reactive context.
-    // fs-settings writes to this via LangContext when the user switches languages.
-    // Reading the signal here subscribes Desktop to re-render on language change,
-    // which causes all inline RSX (header, sidebar, taskbar, shell text) to update.
-    let lang_ctx = use_context_provider(|| {
-        fs_settings::LangContext(Signal::new(init_i18n()))
+    // Single AppContext — all cross-cutting desktop state in one place.
+    // Child components access locale, theme, wallpaper, and appearance settings
+    // via use_context::<AppContext>() instead of individual signals.
+    let app_ctx = use_context_provider(|| {
+        let saved_wallpaper = crate::db::load_wallpaper_css_from_db(&db);
+        AppContext {
+            locale:         Signal::new(init_i18n()),
+            theme:          Signal::new(crate::db::load_theme_from_db(&db)),
+            wallpaper:      Signal::new(if saved_wallpaper.is_empty() {
+                                Wallpaper::default().to_css_background()
+                            } else {
+                                saved_wallpaper
+                            }),
+            anim_enabled:   Signal::new(true),
+            chrome_opacity: Signal::new(0.80f64),
+            chrome_style:   Signal::new("kde".to_string()),
+            btn_style:      Signal::new("rounded".to_string()),
+            sidebar_style:  Signal::new("solid".to_string()),
+            app_open_req:   Signal::new(None),
+        }
     });
-    let _active_lang = lang_ctx.0.read().clone();
+    let _active_lang = app_ctx.locale.read().clone();
 
-    // Wallpaper CSS is provided as context so child apps (e.g. AppearanceSettings) can update it.
-    let wallpaper_bg: Signal<String> = use_context_provider(|| {
-        let saved = crate::db::load_wallpaper_css_from_db(&db);
-        Signal::new(if saved.is_empty() { Wallpaper::default().to_css_background() } else { saved })
-    });
     // Persist wallpaper whenever it changes.
     {
         let db = db.clone();
         use_effect(move || {
-            let css = wallpaper_bg.read().clone();
+            let css = app_ctx.wallpaper.read().clone();
             crate::db::save_wallpaper_css_to_db(db.clone(), css);
         });
     }
@@ -175,15 +186,14 @@ pub fn Desktop() -> Element {
         let _ = fs_store_app::INSTALL_COUNTER.read(); // subscribe to store install/remove events
         default_sidebar_sections()
     });
-    let mut theme: Signal<String> = use_context_provider(|| Signal::new(crate::db::load_theme_from_db(&db)));
-    // B5: Animation, chrome opacity, and component style contexts
-    let anim_enabled: Signal<bool>    = use_context_provider(|| Signal::new(true));
-    let chrome_opacity: Signal<f64>   = use_context_provider(|| Signal::new(0.80f64));
-    let chrome_style: Signal<String>  = use_context_provider(|| Signal::new("kde".to_string()));
-    let btn_style: Signal<String>     = use_context_provider(|| Signal::new("rounded".to_string()));
-    let sidebar_style: Signal<String> = use_context_provider(|| Signal::new("solid".to_string()));
-    // Any sub-app can request opening another app by setting this to Some(app_id).
-    let mut app_open_req: Signal<Option<String>> = use_context_provider(|| Signal::new(None));
+    // Convenience locals extracted from AppContext for use in this component's closures.
+    let mut theme          = app_ctx.theme;
+    let anim_enabled       = app_ctx.anim_enabled;
+    let chrome_opacity     = app_ctx.chrome_opacity;
+    let chrome_style       = app_ctx.chrome_style;
+    let btn_style          = app_ctx.btn_style;
+    let sidebar_style      = app_ctx.sidebar_style;
+    let mut app_open_req   = app_ctx.app_open_req;
 
     // Notification callbacks for AI health changes (used by HelpSidebarPanel).
     // Declared here so they can capture the `notifs` signal.
@@ -220,7 +230,7 @@ pub fn Desktop() -> Element {
     // Persistent icon positions: window_id → (pos_x, pos_y)
     let mut icon_positions: Signal<HashMap<u64, (f64, f64)>> = use_signal(HashMap::new);
 
-    let bg = wallpaper_bg.read().clone();
+    let bg = app_ctx.wallpaper.read().clone();
 
     // B5: Build dynamic CSS overrides for animation + chrome opacity.
     let anim_dur = if *anim_enabled.read() { "180ms" } else { "0ms" };
