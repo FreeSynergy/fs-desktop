@@ -1,15 +1,18 @@
-/// Managers stub — these managers have been split into separate programs.
+/// ManagersApp — launches the standardized Package Manager window.
+///
+/// In standalone mode: shows a placeholder.
+/// When embedded in the Desktop: ManagerView is called directly with real package data.
 use dioxus::prelude::*;
 
-/// Stub component shown when the old "Managers" app is opened.
-/// The actual functionality lives in Container Manager, Theme Manager, and Bot Manager.
+/// Root app component for the standalone Manager binary.
 #[component]
 pub fn ManagersApp() -> Element {
     rsx! {
         div {
-            style: "padding: 40px; text-align: center; color: var(--fs-color-text-muted, #64748b);",
-            p { "The managers have been split into separate programs." }
-            p { "Use Container Manager, Theme Manager, and Bot Manager from the sidebar." }
+            style: "height: 100vh; display: flex; align-items: center; justify-content: center; \
+                    background: var(--fs-bg-base, #0c1222); color: var(--fs-text-muted, #5a6e88); \
+                    font-family: system-ui, sans-serif; font-size: 14px;",
+            "Open a package from the Store or the Desktop to manage it here."
         }
     }
 }

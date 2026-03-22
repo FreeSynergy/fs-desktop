@@ -5,6 +5,8 @@
 /// - `WindowSize`     — initial size spec
 /// - `WindowButton`   — footer button kinds
 /// - `WindowSidebarItem` — sidebar navigation entry
+/// - `SidebarSlot`    — Left / Right / Hidden position for a panel
+/// - `WindowLayout`   — configurable bar positions (which bar goes where)
 /// - `Window`         — runtime state of one open window
 /// - `FsWindow`       — trait: anything that can describe itself as a window
 /// - `WindowRenderFn` — type-erased zero-arg Dioxus component for the content
@@ -14,6 +16,15 @@
 ///
 /// The Desktop implements WindowHost. Each app implements FsWindow.
 /// A standalone app wraps itself in a single-window host — same chrome, same path.
+///
+/// # Layout model
+///
+/// Every Window has a `layout: WindowLayout` that controls which side each
+/// panel lives on. If a panel slot has no assigned component it becomes
+/// invisible automatically — the chrome collapses around what is present.
+///
+/// The user can change the layout in Desktop settings (e.g. "help left or right?",
+/// "main sidebar left or right?"). The layout is stored per-user, not per-window.
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use dioxus::prelude::Element;
@@ -52,6 +63,98 @@ impl WindowSize {
             Self::Responsive { min_width, max_width } => ((min_width + max_width) / 2.0, 600.0),
             Self::Fullscreen                          => (0.0, 0.0),
         }
+    }
+}
+
+// ── SidebarSlot ───────────────────────────────────────────────────────────────
+
+/// Where a panel is placed inside a Window.
+///
+/// Used by [`WindowLayout`] to configure which side the main sidebar, the help
+/// panel, and other bars live on.  A panel whose slot is `Hidden` (or has no
+/// component assigned) is invisible — the chrome collapses automatically.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum SidebarSlot {
+    /// Panel appears on the left side of the content area.
+    #[default]
+    Left,
+    /// Panel appears on the right side of the content area.
+    Right,
+    /// Panel is not shown.
+    Hidden,
+}
+
+// ── WindowLayout ──────────────────────────────────────────────────────────────
+
+/// Configurable chrome layout for a Window.
+///
+/// Stored in user settings; applied globally to all windows.
+/// Each panel is optional — if it has no component it collapses to nothing.
+///
+/// # Defaults
+///
+/// - Main navigation sidebar: **Left**
+/// - Help panel: **Right**
+/// - Top tab bar: **visible**
+/// - Bottom bar: **hidden** (reserved for future use)
+#[derive(Clone, Debug, PartialEq)]
+pub struct WindowLayout {
+    /// Where the main navigation sidebar lives.
+    pub main_sidebar: SidebarSlot,
+
+    /// Where the context-sensitive help panel lives.
+    pub help_panel: SidebarSlot,
+
+    /// Whether the top category tab bar is shown.
+    pub show_tabbar: bool,
+
+    /// Whether a bottom bar slot is shown (future extension point).
+    pub show_bottom: bool,
+}
+
+impl Default for WindowLayout {
+    fn default() -> Self { Self::standard() }
+}
+
+impl WindowLayout {
+    /// Standard layout: main sidebar left, help panel right, tabbar visible.
+    pub fn standard() -> Self {
+        Self {
+            main_sidebar: SidebarSlot::Left,
+            help_panel:   SidebarSlot::Right,
+            show_tabbar:  true,
+            show_bottom:  false,
+        }
+    }
+
+    /// Mirrored layout: main sidebar right, help panel left.
+    pub fn mirrored() -> Self {
+        Self {
+            main_sidebar: SidebarSlot::Right,
+            help_panel:   SidebarSlot::Left,
+            show_tabbar:  true,
+            show_bottom:  false,
+        }
+    }
+
+    /// Minimal layout: both sidebars hidden, no tab bar.
+    pub fn minimal() -> Self {
+        Self {
+            main_sidebar: SidebarSlot::Hidden,
+            help_panel:   SidebarSlot::Hidden,
+            show_tabbar:  false,
+            show_bottom:  false,
+        }
+    }
+
+    /// Returns `true` when a left-side panel will be rendered.
+    pub fn has_left_panel(&self) -> bool {
+        self.main_sidebar == SidebarSlot::Left || self.help_panel == SidebarSlot::Left
+    }
+
+    /// Returns `true` when a right-side panel will be rendered.
+    pub fn has_right_panel(&self) -> bool {
+        self.main_sidebar == SidebarSlot::Right || self.help_panel == SidebarSlot::Right
     }
 }
 
@@ -103,6 +206,13 @@ pub trait FsWindow {
     fn scrollable(&self) -> bool                    { true }
     fn desktop_index(&self) -> usize                { 0 }
 
+    /// Override the default [`WindowLayout`] for this window type.
+    ///
+    /// The default is [`WindowLayout::standard()`] (main sidebar left, help panel right).
+    /// Override this for apps that want a different panel arrangement by default,
+    /// but note that the user's global layout preference takes precedence.
+    fn default_layout(&self) -> WindowLayout { WindowLayout::standard() }
+
     /// Build a `Window` (runtime state) from this description.
     fn into_window(self) -> Window where Self: Sized {
         Window {
@@ -115,11 +225,13 @@ pub trait FsWindow {
             help_topic:          self.help_topic().map(str::to_string),
             closable:            self.closable(),
             scrollable:          self.scrollable(),
+            layout:              self.default_layout(),
             z_index:             0,
             visible:             true,
             minimized:           false,
             maximized:           false,
             active_sidebar_id:   None,
+            active_tab:          None,
             has_unsaved_changes: false,
             desktop_index:       self.desktop_index(),
         }
@@ -132,6 +244,21 @@ pub trait FsWindow {
 ///
 /// Static properties (title, icon, sidebar, …) come from `FsWindow::into_window()`.
 /// Dynamic state (z-order, position, minimized, …) is mutated at runtime by `WindowHost`.
+///
+/// # Title bar structure (always)
+///
+/// ```text
+/// ┌─────────────────────────────────────────────────┐
+/// │ [icon]      Package Name (centered)    [─][□][×] │
+/// ├──────────┬──────────────────────────┬────────────┤
+/// │ main     │   [tab bar (optional)]   │  help      │
+/// │ sidebar  │   content area           │  panel     │
+/// │ (left or │                          │  (left or  │
+/// │  right)  │                          │   right)   │
+/// └──────────┴──────────────────────────┴────────────┘
+/// ```
+///
+/// Panels that have no component assigned become invisible automatically.
 #[derive(Clone, PartialEq)]
 pub struct Window {
     pub id:                  WindowId,
@@ -143,12 +270,16 @@ pub struct Window {
     pub help_topic:          Option<String>,
     pub closable:            bool,
     pub scrollable:          bool,
+    /// Configurable panel layout — which side each bar lives on.
+    pub layout:              WindowLayout,
     // ── runtime ──────────────────────────────────────────────────────────────
     pub z_index:             u32,
     pub visible:             bool,
     pub minimized:           bool,
     pub maximized:           bool,
     pub active_sidebar_id:   Option<String>,
+    /// Active tab in the top tab bar (if shown).
+    pub active_tab:          Option<String>,
     pub has_unsaved_changes: bool,
     /// Virtual desktop this window lives on (0-indexed).
     pub desktop_index:       usize,
@@ -167,22 +298,26 @@ impl Window {
             help_topic:          None,
             closable:            true,
             scrollable:          true,
+            layout:              WindowLayout::standard(),
             z_index:             0,
             visible:             true,
             minimized:           false,
             maximized:           false,
             active_sidebar_id:   None,
+            active_tab:          None,
             has_unsaved_changes: false,
             desktop_index:       0,
         }
     }
 
-    pub fn with_size(mut self, size: WindowSize) -> Self           { self.size = size; self }
-    pub fn with_buttons(mut self, b: Vec<WindowButton>) -> Self    { self.buttons = b; self }
-    pub fn with_help(mut self, t: impl Into<String>) -> Self       { self.help_topic = Some(t.into()); self }
-    pub fn with_icon(mut self, icon: impl Into<String>) -> Self    { self.icon = icon.into(); self }
+    pub fn with_size(mut self, size: WindowSize) -> Self              { self.size = size; self }
+    pub fn with_buttons(mut self, b: Vec<WindowButton>) -> Self       { self.buttons = b; self }
+    pub fn with_help(mut self, t: impl Into<String>) -> Self          { self.help_topic = Some(t.into()); self }
+    pub fn with_icon(mut self, icon: impl Into<String>) -> Self       { self.icon = icon.into(); self }
     pub fn with_sidebar(mut self, items: Vec<WindowSidebarItem>) -> Self { self.sidebar_items = items; self }
-    pub fn with_desktop(mut self, index: usize) -> Self            { self.desktop_index = index; self }
+    pub fn with_desktop(mut self, index: usize) -> Self               { self.desktop_index = index; self }
+    /// Override the default chrome layout for this window.
+    pub fn with_layout(mut self, layout: WindowLayout) -> Self        { self.layout = layout; self }
 }
 
 // ── OpenWindow ────────────────────────────────────────────────────────────────

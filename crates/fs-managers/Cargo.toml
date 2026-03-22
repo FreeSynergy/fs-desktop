@@ -21,6 +21,7 @@ web     = ["dioxus/web",     "fs-components/web"]
 [dependencies]
 fs-components          = { workspace = true }
 fs-i18n                = { workspace = true }
+fs-pkg                 = { workspace = true }
 fs-manager-language    = { workspace = true }
 fs-manager-icons       = { workspace = true }
 fs-manager-cursor      = { workspace = true }

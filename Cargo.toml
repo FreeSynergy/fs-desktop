@@ -68,6 +68,7 @@ fs-manager-theme      = { path = "../fs-managers/theme" }
 fs-manager-container  = { path = "../fs-managers/container" }
 fs-render         = { path = "../fs-libs/fs-render" }
 fs-db             = { path = "../fs-libs/fs-db" }
+fs-pkg            = { path = "../fs-libs/fs-pkg" }
 
 # Database (SeaORM)
 sea-orm = { version = "=2.0.0-rc.37", default-features = false, features = ["macros", "sqlx-sqlite", "runtime-tokio-rustls"] }
