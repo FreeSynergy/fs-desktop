@@ -122,7 +122,7 @@ pub fn AiManagerApp() -> Element {
                         for model in LlmModel::all_predefined() {
                             option {
                                 value: model.hf_id(),
-                                selected: *selected_model.read() == *model,
+                                selected: *selected_model.read() == model,
                                 "{model.display_name()}"
                             }
                         }

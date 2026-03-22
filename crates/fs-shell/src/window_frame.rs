@@ -274,6 +274,11 @@ pub fn WindowFrame(props: WindowFrameProps) -> Element {
     // ── Has sidebar? ──────────────────────────────────────────────────────────
     let has_sidebar = !win.sidebar_items.is_empty();
 
+    // Extract Copy values so closures don't need to move all of `props`
+    let maximized          = win.maximized;
+    let has_unsaved_changes = win.has_unsaved_changes;
+    let render             = win.render;
+
     rsx! {
         // ── Window frame ───────────────────────────────────────────────────────
         div {
@@ -305,7 +310,7 @@ pub fn WindowFrame(props: WindowFrameProps) -> Element {
                 onmousedown: move |evt: MouseEvent| {
                     evt.stop_propagation();
                     props.on_focus.call(id);
-                    if !props.window.maximized {
+                    if !maximized {
                         let data = evt.data();
                         let c = data.client_coordinates();
                         let (px2, py2) = *pos.read();
@@ -348,7 +353,7 @@ pub fn WindowFrame(props: WindowFrameProps) -> Element {
                 WindowControls {
                     closable: win.closable,
                     on_close: move |_| {
-                        if props.window.has_unsaved_changes {
+                        if has_unsaved_changes {
                             close_requested.set(true);
                         } else {
                             props.on_close.call(id);
@@ -384,7 +389,7 @@ pub fn WindowFrame(props: WindowFrameProps) -> Element {
                     class: if win.scrollable { "fs-window__content fs-scrollable" } else { "fs-window__content" },
                     style: "flex: 1; padding: 16px; min-width: 0; \
                             overflow-y: auto; overflow-x: hidden;",
-                    WindowContent { render: props.window.render }
+                    WindowContent { render }
                 }
 
                 // Right-side help panel

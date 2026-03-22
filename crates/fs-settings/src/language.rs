@@ -8,7 +8,7 @@ use dioxus::prelude::*;
 use fs_db_desktop::package_registry::{InstalledPackage, PackageKind, PackageRegistry};
 use fs_i18n;
 use fs_manager_language::{
-    DateFormat, LanguageManager, LocaleSettings, NumberFormat, TimeFormat,
+    DateFormat, FormatVariant, LanguageManager, LocaleSettings, NumberFormat, TimeFormat,
     git_contributor::{ContributorStatus, GitContributorCheck},
 };
 use fs_store::{LocaleEntry, Manifest, StoreClient};
