@@ -1,0 +1,33 @@
+[package]
+name        = "fs-settings"
+description = "FreeSynergy Desktop – Settings: appearance, language, service roles, accounts"
+version.workspace   = true
+edition.workspace   = true
+license.workspace   = true
+
+[lib]
+name = "fs_settings"
+path = "src/lib.rs"
+
+[[bin]]
+name = "fs-settings"
+path = "src/main.rs"
+
+[features]
+default  = ["desktop"]
+desktop  = ["dioxus/desktop", "fs-components/desktop"]
+web      = ["dioxus/web",     "fs-components/web"]
+
+[dependencies]
+fs-db-desktop = { workspace = true }
+fs-components       = { workspace = true }
+fs-store            = { workspace = true }
+fs-theme            = { workspace = true }
+fs-i18n             = { workspace = true }
+fs-manager-language = { workspace = true }
+dioxus               = { workspace = true }
+serde                = { workspace = true }
+serde_json           = { workspace = true }
+toml                 = { workspace = true }
+tracing              = { workspace = true }
+reqwest              = { workspace = true }

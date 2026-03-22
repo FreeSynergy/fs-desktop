@@ -1,21 +1,21 @@
 [workspace]
 members = [
-    "crates/fsd-db",
-    "crates/fsd-shell",
-    "crates/fsd-container",
-    "crates/fsd-store",
-    "crates/fsd-builder",
-    "crates/fsd-settings",
-    "crates/fsd-profile",
-    "crates/fsd-app",
-    "crates/fsd-showcase",
-    "crates/fsd-bots",
-    "crates/fsd-tasks",
-    "crates/fsd-browser",
-    "crates/fsd-lenses",
-    "crates/fsd-managers",
-    "crates/fsd-theme",
-    "crates/fsd-ai",
+    "crates/fs-db-desktop",
+    "crates/fs-shell",
+    "crates/fs-container-app",
+    "crates/fs-store-app",
+    "crates/fs-builder",
+    "crates/fs-settings",
+    "crates/fs-profile",
+    "crates/fs-app",
+    "crates/fs-showcase",
+    "crates/fs-bots",
+    "crates/fs-tasks",
+    "crates/fs-browser",
+    "crates/fs-lenses",
+    "crates/fs-managers",
+    "crates/fs-theme-app",
+    "crates/fs-ai",
 ]
 resolver = "2"
 
@@ -30,42 +30,42 @@ repository = "https://github.com/FreeSynergy/Desktop"
 [workspace.dependencies]
 
 # Internal Desktop crates
-fsd-db        = { path = "crates/fsd-db" }
-fsd-shell     = { path = "crates/fsd-shell", default-features = false }
-fsd-container = { path = "crates/fsd-container" }
-fsd-store     = { path = "crates/fsd-store" }
-fsd-builder   = { path = "crates/fsd-builder" }
-fsd-settings  = { path = "crates/fsd-settings" }
-fsd-profile   = { path = "crates/fsd-profile" }
-fsd-showcase  = { path = "crates/fsd-showcase" }
-fsd-bots      = { path = "crates/fsd-bots" }
-fsd-tasks     = { path = "crates/fsd-tasks" }
-fsd-browser   = { path = "crates/fsd-browser" }
-fsd-lenses    = { path = "crates/fsd-lenses" }
-fsd-managers  = { path = "crates/fsd-managers" }
-fsd-theme = { path = "crates/fsd-theme" }
-fsd-ai    = { path = "crates/fsd-ai" }
-fsn-manager-ai = { path = "../fs-managers/ai" }
+fs-db-desktop    = { path = "crates/fs-db-desktop" }
+fs-shell         = { path = "crates/fs-shell", default-features = false }
+fs-container-app = { path = "crates/fs-container-app" }
+fs-store-app     = { path = "crates/fs-store-app" }
+fs-builder       = { path = "crates/fs-builder" }
+fs-settings      = { path = "crates/fs-settings" }
+fs-profile       = { path = "crates/fs-profile" }
+fs-showcase      = { path = "crates/fs-showcase" }
+fs-bots          = { path = "crates/fs-bots" }
+fs-tasks         = { path = "crates/fs-tasks" }
+fs-browser       = { path = "crates/fs-browser" }
+fs-lenses        = { path = "crates/fs-lenses" }
+fs-managers      = { path = "crates/fs-managers" }
+fs-theme-app     = { path = "crates/fs-theme-app" }
+fs-ai            = { path = "crates/fs-ai" }
+fs-manager-ai    = { path = "../fs-managers/ai" }
 
 # fs-libs — shared libraries monorepo
-fsn-types          = { path = "../fs-libs/fsn-types" }
-fsn-error          = { path = "../fs-libs/fsn-error" }
-fsn-config         = { path = "../fs-libs/fsn-config" }
-fsn-i18n           = { path = "../fs-libs/fsn-i18n" }
-fsn-theme          = { path = "../fs-libs/fsn-theme" }
-fsn-help           = { path = "../fs-libs/fsn-help" }
-fsn-health         = { path = "../fs-libs/fsn-health" }
-fsn-store          = { path = "../fs-libs/fsn-store" }
-fsn-container      = { path = "../fs-libs/fsn-container" }
-fsn-plugin-sdk     = { path = "../fs-libs/fsn-plugin-sdk" }
-fsn-auth           = { path = "../fs-libs/fsn-auth" }
-fsn-core           = { path = "../fs-libs/fsn-core" }
-fsn-components     = { path = "../fs-libs/fsn-components" }
-fsn-manager-language   = { path = "../fs-managers/language" }
-fsn-manager-icons      = { path = "../fs-managers/icons" }
-fsn-manager-cursor     = { path = "../fs-managers/cursor" }
-fsn-render         = { path = "../fs-libs/fsn-render" }
-fsn-db             = { path = "../fs-libs/fsn-db" }
+fs-types          = { path = "../fs-libs/fs-types" }
+fs-error          = { path = "../fs-libs/fs-error" }
+fs-config         = { path = "../fs-libs/fs-config" }
+fs-i18n           = { path = "../fs-libs/fs-i18n" }
+fs-theme          = { path = "../fs-libs/fs-theme" }
+fs-help           = { path = "../fs-libs/fs-help" }
+fs-health         = { path = "../fs-libs/fs-health" }
+fs-store          = { path = "../fs-libs/fs-store" }
+fs-container      = { path = "../fs-libs/fs-container" }
+fs-plugin-sdk     = { path = "../fs-libs/fs-plugin-sdk" }
+fs-auth           = { path = "../fs-libs/fs-auth" }
+fs-core           = { path = "../fs-libs/fs-core" }
+fs-components     = { path = "../fs-libs/fs-components" }
+fs-manager-language = { path = "../fs-managers/language" }
+fs-manager-icons    = { path = "../fs-managers/icons" }
+fs-manager-cursor   = { path = "../fs-managers/cursor" }
+fs-render         = { path = "../fs-libs/fs-render" }
+fs-db             = { path = "../fs-libs/fs-db" }
 
 # Database (SeaORM)
 sea-orm = { version = "=2.0.0-rc.37", default-features = false, features = ["macros", "sqlx-sqlite", "runtime-tokio-rustls"] }

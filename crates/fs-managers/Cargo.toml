@@ -1,0 +1,27 @@
+[package]
+name        = "fs-managers"
+description = "FreeSynergy Desktop – Managers stub (split into separate programs)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "fs_managers"
+path = "src/lib.rs"
+
+[[bin]]
+name = "fs-managers"
+path = "src/main.rs"
+
+[features]
+default = ["desktop"]
+desktop = ["dioxus/desktop", "fs-components/desktop"]
+web     = ["dioxus/web",     "fs-components/web"]
+
+[dependencies]
+fs-components       = { workspace = true }
+fs-i18n             = { workspace = true }
+fs-manager-language = { workspace = true }
+fs-manager-icons    = { workspace = true }
+fs-manager-cursor   = { workspace = true }
+dioxus               = { workspace = true }

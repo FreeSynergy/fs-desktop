@@ -1,0 +1,30 @@
+[package]
+name        = "fs-profile"
+description = "FreeSynergy Desktop – Profile: user profile, avatar, SSH keys"
+version.workspace   = true
+edition.workspace   = true
+license.workspace   = true
+
+[lib]
+name = "fs_profile"
+path = "src/lib.rs"
+
+[[bin]]
+name = "fs-profile"
+path = "src/main.rs"
+
+[features]
+default  = ["desktop"]
+desktop  = ["dioxus/desktop"]
+web      = ["dioxus/web"]
+
+[dependencies]
+fs-auth   = { workspace = true }
+fs-config = { workspace = true }
+fs-error  = { workspace = true }
+fs-i18n   = { workspace = true }
+dioxus     = { workspace = true }
+serde      = { workspace = true }
+toml       = { workspace = true }
+anyhow     = { workspace = true }
+tracing    = { workspace = true }

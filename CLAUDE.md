@@ -5,7 +5,7 @@
 FreeSynergy.Desktop – a KDE-like desktop environment for the FreeSynergy ecosystem.
 Built with Dioxus (Desktop + Web + TUI from a single codebase).
 
-Each `fsd-*` crate can run as a standalone window or embedded in the desktop shell.
+Each `fs-*` crate can run as a standalone window or embedded in the desktop shell.
 
 ## Rules
 
@@ -19,13 +19,13 @@ Each `fsd-*` crate can run as a standalone window or embedded in the desktop she
 
 ```
 crates/
-  fsd-shell/      → Desktop shell: taskbar, window manager, wallpaper
-  fsd-container-app/ → Container/Service/Bot management (formerly "Conductor")
-  fsd-store/      → Package manager (discovery, install, updates)
-  fsd-studio/     → Plugin/Module/i18n creator (+AI optional)
-  fsd-settings/   → System settings (appearance, language, service roles)
-  fsd-profile/    → User profile
-  fsd-app/        → Main launcher binary
+  fs-shell/      → Desktop shell: taskbar, window manager, wallpaper
+  fs-container-app/ → Container/Service/Bot management (formerly "Conductor")
+  fs-store/      → Package manager (discovery, install, updates)
+  fs-studio/     → Plugin/Module/i18n creator (+AI optional)
+  fs-settings/   → System settings (appearance, language, service roles)
+  fs-profile/    → User profile
+  fs-app/        → Main launcher binary
 ```
 
 ## Library Dependencies (fs-libs)
@@ -34,35 +34,35 @@ All shared libraries live in `../fs-libs/`. Never duplicate their logic here.
 
 | Library         | Purpose |
 |---|---|
-| `fsn-types`     | Resource/Capability traits, Meta, TypeRegistry |
-| `fsn-error`     | FsnError, Repairable trait, ValidationIssue |
-| `fsn-config`    | TOML loader/saver with backup + auto-repair |
-| `fsn-i18n`      | Snippet-based i18n (t(), t_with()) |
-| `fsn-theme`     | Theme system (theme.toml → TUI palette + CSS) |
-| `fsn-help`      | Context-sensitive help topics |
-| `fsn-health`    | Generic health check framework |
-| `fsn-store`     | Universal store client |
-| `fsn-container` | Container abstraction (Podman via bollard) |
-| `fsn-plugin-sdk` | WASM plugin SDK |
-| `fsn-auth`      | OAuth2 + JWT + Permissions |
-| `fsn-core`      | FormAction, SelectionResult |
+| `fs-types`     | Resource/Capability traits, Meta, TypeRegistry |
+| `fs-error`     | FsError, Repairable trait, ValidationIssue |
+| `fs-config`    | TOML loader/saver with backup + auto-repair |
+| `fs-i18n`      | Snippet-based i18n (t(), t_with()) |
+| `fs-theme`     | Theme system (theme.toml → TUI palette + CSS) |
+| `fs-help`      | Context-sensitive help topics |
+| `fs-health`    | Generic health check framework |
+| `fs-store`     | Universal store client |
+| `fs-container` | Container abstraction (Podman via bollard) |
+| `fs-plugin-sdk` | WASM plugin SDK |
+| `fs-auth`      | OAuth2 + JWT + Permissions |
+| `fs-core`      | FormAction, SelectionResult |
 
 ## Architecture
 
 Desktop communicates with FreeSynergy.Node via:
-- Direct library calls to `fsn-container` (Lib) for container operations
+- Direct library calls to `fs-container` (Lib) for container operations
 - `fsn` CLI subprocess for Node-specific operations
-- Local SQLite database (shared, accessed via `fsn-db`)
+- Local SQLite database (shared, accessed via `fs-db`)
 
 Desktop does NOT import Node-internal crates directly.
 
 ## Window System
 
-All dialogs and views are `Window` objects. See `fsd-shell/src/window.rs`.
+All dialogs and views are `Window` objects. See `fs-shell/src/window.rs`.
 
 ## Layout System (E1 + E2)
 
-### Shell Layout (fsd-shell)
+### Shell Layout (fs-shell)
 CSS Grid desktop with four areas: `header | sidebar | main | taskbar`.
 
 ```
@@ -79,23 +79,23 @@ grid-template-columns: {sidebar_width} 1fr;
 ### App Layouts (app_shell.rs)
 - `AppShell` — root wrapper, injects transition CSS, 3 modes: `Window | Standalone | Tui`
 - `ScreenWrapper` — max-width + padding + scroll
-- `LayoutA` — full-width column (fsd-store, fsd-studio)
-- `LayoutB` — sidebar (master) + detail pane (fsd-container-app, fsd-settings)
-- `LayoutC` — centered card (fsd-profile, login)
+- `LayoutA` — full-width column (fs-store, fs-studio)
+- `LayoutB` — sidebar (master) + detail pane (fs-container-app, fs-settings)
+- `LayoutC` — centered card (fs-profile, login)
 
-Page transitions: `.fsd-page-enter` (slideInRight), `.fsd-page-fade` (fadeInUp). Respects `prefers-reduced-motion`.
+Page transitions: `.fs-page-enter` (slideInRight), `.fs-page-fade` (fadeInUp). Respects `prefers-reduced-motion`.
 
 ### SplitView (`split_view.rs`)
 Resizable horizontal split: `SplitState::Collapsed | Half | FullRight`. Drag handle + double-click to cycle.
 
 ## Service Roles
 
-Extended MIME-type system for functions (not files). See `fsd-settings/src/service_roles.rs`.
+Extended MIME-type system for functions (not files). See `fs-settings/src/service_roles.rs`.
 Example: `auth = "kanidm"`, `mail = "stalwart"`, `git = "forgejo"`.
 
 ## CSS Variables Prefix
 
-Always `--fsn-` (e.g., `--fsn-color-primary`, `--fsn-font-family`).
+Always `--fs-` (e.g., `--fs-color-primary`, `--fs-font-family`).
 
 ## Branding
 

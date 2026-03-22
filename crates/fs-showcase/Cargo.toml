@@ -1,0 +1,21 @@
+[package]
+name        = "fs-showcase"
+description = "FreeSynergy Desktop – component gallery (debug builds only)"
+version.workspace   = true
+edition.workspace   = true
+license.workspace   = true
+
+[[bin]]
+name = "fs-showcase"
+path = "src/main.rs"
+
+[features]
+default = ["desktop"]
+desktop = ["dioxus/desktop", "fs-shell/desktop", "fs-components/desktop"]
+
+[dependencies]
+fs-shell      = { workspace = true, default-features = false }
+fs-components = { workspace = true }
+dioxus         = { workspace = true }
+tracing        = { workspace = true }
+tracing-subscriber = { workspace = true }

@@ -1,0 +1,24 @@
+[package]
+name        = "fs-app"
+description = "FreeSynergy Desktop – main launcher (starts the desktop shell)"
+version.workspace   = true
+edition.workspace   = true
+license.workspace   = true
+
+[[bin]]
+name = "fsd"
+path = "src/main.rs"
+
+[features]
+default  = ["desktop"]
+desktop  = ["dioxus/desktop", "fs-shell/desktop"]
+web      = ["dioxus/web",     "fs-shell/web"]
+
+[dependencies]
+fs-shell     = { workspace = true, default-features = false }
+dioxus        = { workspace = true }
+tokio         = { workspace = true }
+anyhow        = { workspace = true }
+tracing       = { workspace = true }
+tracing-subscriber = { workspace = true }
+mimalloc           = { workspace = true }

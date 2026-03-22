@@ -1,0 +1,47 @@
+[package]
+name        = "fs-shell"
+description = "FreeSynergy Desktop – shell: taskbar, window manager, wallpaper"
+version.workspace   = true
+edition.workspace   = true
+license.workspace   = true
+
+[lib]
+name = "fs_shell"
+path = "src/lib.rs"
+
+[[bin]]
+name = "fs-shell"
+path = "src/main.rs"
+
+[features]
+default  = ["desktop"]
+desktop  = ["dioxus/desktop", "fs-components/desktop"]
+web      = ["dioxus/web",     "fs-components/web"]
+
+[dependencies]
+fs-ai            = { workspace = true }
+fs-db-desktop    = { workspace = true }
+fs-store-app     = { workspace = true }
+fs-builder       = { workspace = true }
+fs-container-app = { workspace = true }
+fs-settings      = { workspace = true }
+fs-profile       = { workspace = true }
+fs-tasks         = { workspace = true }
+fs-browser       = { workspace = true }
+fs-lenses        = { workspace = true }
+fs-managers      = { workspace = true }
+fs-bots          = { workspace = true }
+fs-theme-app     = { workspace = true }
+fs-theme         = { workspace = true }
+fs-components    = { workspace = true }
+fs-i18n          = { workspace = true }
+dioxus           = { workspace = true }
+serde            = { workspace = true }
+serde_json       = { workspace = true }
+chrono           = { workspace = true }
+tokio            = { workspace = true }
+tracing          = { workspace = true }
+reqwest          = { workspace = true }
+
+[dev-dependencies]
+insta = { version = "1", features = ["toml"] }

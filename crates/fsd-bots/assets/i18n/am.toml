@@ -1,9 +1,0 @@
-[bots]
-title = "ბოტის მანეჯერი"
-
-[bots.section]
-accounts   = "ანგარისები"
-bots       = "ბოტები"
-broadcast  = "ბროადკასტი"
-gatekeeper = "გეტკეიპერი"
-groups     = "გუნები"
