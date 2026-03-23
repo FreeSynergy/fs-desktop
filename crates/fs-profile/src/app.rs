@@ -7,6 +7,14 @@ use serde::{Deserialize, Serialize};
 
 // ── PersonalCapability ────────────────────────────────────────────────────────
 
+/// Static metadata for a capability variant.
+/// Bundles icon + kind label so they're defined once, not in parallel match blocks.
+pub struct CapabilityMeta {
+    pub icon: &'static str,
+    /// Short, untranslated kind name shown in UI badges.
+    pub kind: &'static str,
+}
+
 /// A personal resource this user has connected to the system.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -33,32 +41,28 @@ pub enum PersonalCapability {
 }
 
 impl PersonalCapability {
+    /// Static metadata (icon, kind label) — single source of truth per variant.
+    pub fn meta(&self) -> CapabilityMeta {
+        match self {
+            Self::MessengerAccount { .. } => CapabilityMeta { icon: "💬", kind: "Messenger"     },
+            Self::TaskManager { .. }      => CapabilityMeta { icon: "✅", kind: "Task Manager"  },
+            Self::Mailbox { .. }          => CapabilityMeta { icon: "📬", kind: "Mailbox"        },
+            Self::LlmAssistant { .. }     => CapabilityMeta { icon: "🤖", kind: "LLM Assistant" },
+        }
+    }
+
+    pub fn icon(&self) -> &'static str    { self.meta().icon }
+    pub fn kind_label(&self) -> &'static str { self.meta().kind }
+
+    /// Instance-specific display label (uses variant fields — cannot be in meta).
     pub fn label(&self) -> String {
         match self {
             Self::MessengerAccount { platform, username, .. } => {
                 format!("{} (@{})", capitalize(platform), username)
             }
-            Self::TaskManager { service_id } => format!("Task Manager ({})", service_id),
-            Self::Mailbox { address, .. } => format!("Mailbox ({})", address),
+            Self::TaskManager { service_id } => format!("{} ({})", self.kind_label(), service_id),
+            Self::Mailbox { address, .. }    => format!("{} ({})", self.kind_label(), address),
             Self::LlmAssistant { provider, model } => format!("LLM: {} / {}", provider, model),
-        }
-    }
-
-    pub fn icon(&self) -> &'static str {
-        match self {
-            Self::MessengerAccount { .. } => "💬",
-            Self::TaskManager { .. } => "✅",
-            Self::Mailbox { .. } => "📬",
-            Self::LlmAssistant { .. } => "🤖",
-        }
-    }
-
-    pub fn kind_label(&self) -> &'static str {
-        match self {
-            Self::MessengerAccount { .. } => "Messenger",
-            Self::TaskManager { .. } => "Task Manager",
-            Self::Mailbox { .. } => "Mailbox",
-            Self::LlmAssistant { .. } => "LLM Assistant",
         }
     }
 }

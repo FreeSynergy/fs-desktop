@@ -885,10 +885,6 @@ fn InstallPane(installed_ids: Vec<String>, on_installed: EventHandler<LangEntry>
     }
 }
 
-// ── Sidebar buttons ───────────────────────────────────────────────────────────
-
-#[component]
-// ── Shared sub-components ─────────────────────────────────────────────────────
 
 const SELECT_STYLE: &str =
     "padding: 5px 10px; font-size: 13px; \

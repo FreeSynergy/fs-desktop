@@ -12,6 +12,20 @@ use crate::desktop_settings::DesktopSettings;
 use crate::shortcuts::ShortcutsSettings;
 use crate::package_settings::{PackageSettingsEntry, PackageSettingsView};
 
+// ── Descriptor ────────────────────────────────────────────────────────────────
+
+/// Static metadata for a settings section.
+/// All per-variant constant data lives here — add a field once, not in every match.
+pub struct SectionMeta {
+    /// Stable identifier used for routing — never translated.
+    pub id:        &'static str,
+    pub icon:      &'static str,
+    /// i18n key passed to `fs_i18n::t`.
+    pub label_key: &'static str,
+}
+
+// ── SettingsSection ───────────────────────────────────────────────────────────
+
 #[derive(Clone, PartialEq, Debug)]
 pub enum SettingsSection {
     Appearance,
@@ -25,72 +39,52 @@ pub enum SettingsSection {
 }
 
 impl SettingsSection {
-    /// Stable identifier used for routing — never translated.
-    pub fn id(&self) -> &str {
+    /// All sections in display order (including `Packages`).
+    pub fn all() -> &'static [Self] {
+        const ALL: &[SettingsSection] = &[
+            SettingsSection::Appearance,
+            SettingsSection::Language,
+            SettingsSection::ServiceRoles,
+            SettingsSection::Accounts,
+            SettingsSection::Desktop,
+            SettingsSection::Browser,
+            SettingsSection::Shortcuts,
+            SettingsSection::Packages,
+        ];
+        ALL
+    }
+
+    /// Static metadata for this section (id, icon, i18n key).
+    /// Single source of truth — replaces parallel match blocks.
+    pub fn meta(&self) -> SectionMeta {
         match self {
-            Self::Appearance   => "appearance",
-            Self::Language     => "language",
-            Self::ServiceRoles => "service_roles",
-            Self::Accounts     => "accounts",
-            Self::Desktop      => "desktop",
-            Self::Browser      => "browser",
-            Self::Shortcuts    => "shortcuts",
-            Self::Packages     => "packages",
+            Self::Appearance   => SectionMeta { id: "appearance",    icon: "🎨", label_key: "settings.section.appearance" },
+            Self::Language     => SectionMeta { id: "language",      icon: "🌐", label_key: "settings.section.language"   },
+            Self::ServiceRoles => SectionMeta { id: "service_roles", icon: "🔗", label_key: "settings.section.roles"      },
+            Self::Accounts     => SectionMeta { id: "accounts",      icon: "👤", label_key: "settings.section.accounts"   },
+            Self::Desktop      => SectionMeta { id: "desktop",       icon: "🖥",  label_key: "settings.section.desktop"    },
+            Self::Browser      => SectionMeta { id: "browser",       icon: "🌍", label_key: "settings.section.browser"    },
+            Self::Shortcuts    => SectionMeta { id: "shortcuts",     icon: "⌨",  label_key: "settings.section.shortcuts"  },
+            Self::Packages     => SectionMeta { id: "packages",      icon: "📦", label_key: "settings.section.packages"   },
         }
     }
+
+    pub fn id(&self) -> &str      { self.meta().id }
+    pub fn icon(&self) -> &str    { self.meta().icon }
 
     /// Translated display label.
-    pub fn label(&self) -> String {
-        match self {
-            Self::Appearance   => fs_i18n::t("settings.section.appearance").into(),
-            Self::Language     => fs_i18n::t("settings.section.language").into(),
-            Self::ServiceRoles => fs_i18n::t("settings.section.roles").into(),
-            Self::Accounts     => fs_i18n::t("settings.section.accounts").into(),
-            Self::Desktop      => fs_i18n::t("settings.section.desktop").into(),
-            Self::Browser      => fs_i18n::t("settings.section.browser").into(),
-            Self::Shortcuts    => fs_i18n::t("settings.section.shortcuts").into(),
-            Self::Packages     => fs_i18n::t("settings.section.packages").into(),
-        }
+    pub fn label(&self) -> String { fs_i18n::t(self.meta().label_key).into() }
+
+    /// Sections shown without external package data (hides `Packages`).
+    pub fn standard() -> impl Iterator<Item = &'static Self> {
+        Self::all().iter().filter(|s| !matches!(s, Self::Packages))
     }
 
-    pub fn icon(&self) -> &str {
-        match self {
-            Self::Appearance   => "🎨",
-            Self::Language     => "🌐",
-            Self::ServiceRoles => "🔗",
-            Self::Accounts     => "👤",
-            Self::Desktop      => "🖥",
-            Self::Browser      => "🌍",
-            Self::Shortcuts    => "⌨",
-            Self::Packages     => "📦",
-        }
-    }
-
-    /// Look up a section by its stable ID string.
+    /// Look up a section by its stable ID — delegates to `all()`, no duplicate match.
     pub fn from_id(id: &str) -> Option<Self> {
-        match id {
-            "appearance"    => Some(Self::Appearance),
-            "language"      => Some(Self::Language),
-            "service_roles" => Some(Self::ServiceRoles),
-            "accounts"      => Some(Self::Accounts),
-            "desktop"       => Some(Self::Desktop),
-            "browser"       => Some(Self::Browser),
-            "shortcuts"     => Some(Self::Shortcuts),
-            "packages"      => Some(Self::Packages),
-            _               => None,
-        }
+        Self::all().iter().find(|s| s.id() == id).cloned()
     }
 }
-
-const STANDARD_SECTIONS: &[SettingsSection] = &[
-    SettingsSection::Appearance,
-    SettingsSection::Language,
-    SettingsSection::ServiceRoles,
-    SettingsSection::Accounts,
-    SettingsSection::Desktop,
-    SettingsSection::Browser,
-    SettingsSection::Shortcuts,
-];
 
 /// Props for the root Settings component.
 ///
@@ -117,7 +111,7 @@ pub fn SettingsApp(props: SettingsAppProps) -> Element {
     let has_packages = !props.packages.is_empty();
     let mut active = use_signal(|| SettingsSection::Appearance);
 
-    let mut sidebar_items: Vec<SidebarItem> = STANDARD_SECTIONS.iter()
+    let mut sidebar_items: Vec<SidebarItem> = SettingsSection::standard()
         .map(|s| SidebarItem::new(s.id(), s.icon(), s.label()))
         .collect();
 

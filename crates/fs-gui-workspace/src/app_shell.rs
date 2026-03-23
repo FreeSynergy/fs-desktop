@@ -13,6 +13,16 @@ pub enum AppMode {
     Tui,
 }
 
+impl AppMode {
+    /// CSS `height` + `width` values for the root shell div.
+    pub fn css_dimensions(&self) -> &'static str {
+        match self {
+            Self::Window | Self::Tui => "height: 100%; width: 100%;",
+            Self::Standalone         => "height: 100vh; width: 100vw;",
+        }
+    }
+}
+
 /// Global CSS: Midnight Blue theme variables + page-transition animations.
 /// Injected at the root and within every AppShell so variables are always available.
 pub const GLOBAL_CSS: &str = r#"
@@ -275,16 +285,12 @@ button:disabled,
 /// Root app wrapper. Injects global CSS and applies mode-specific root styles.
 #[component]
 pub fn AppShell(mode: AppMode, children: Element) -> Element {
-    let height = match mode {
-        AppMode::Window     => "height: 100%; width: 100%;",
-        AppMode::Standalone => "height: 100vh; width: 100vw;",
-        AppMode::Tui        => "height: 100%; width: 100%;",
-    };
+    let dimensions = mode.css_dimensions();
     rsx! {
         style { "{GLOBAL_CSS}" }
         div {
             class: "fs-app-shell",
-            style: "display: flex; flex-direction: column; {height} overflow: hidden;",
+            style: "display: flex; flex-direction: column; {dimensions} overflow: hidden;",
             {children}
         }
     }
