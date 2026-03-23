@@ -14,5 +14,5 @@ dioxus         = { workspace = true }
 serde          = { workspace = true }
 toml           = { workspace = true }
 chrono         = { workspace = true }
-fs-components = { workspace = true }
+fs-components = { workspace = true, features = ["dioxus"] }
 fs-i18n       = { workspace = true }

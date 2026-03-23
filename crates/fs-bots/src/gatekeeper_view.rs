@@ -1,5 +1,6 @@
 use dioxus::prelude::*;
 use chrono::Utc;
+use crate::components::EmptyState;
 use crate::model::{ApprovalAction, MessagingBot, PendingApproval};
 
 #[component]
@@ -16,13 +17,7 @@ pub fn GatekeeperView(bot: MessagingBot, on_update: EventHandler<MessagingBot>) 
                 }
 
                 if approvals.is_empty() {
-                    div {
-                        style: "background: var(--fs-color-bg-overlay); \
-                                border-radius: var(--fs-radius-md); \
-                                padding: 20px; text-align: center; \
-                                color: var(--fs-color-text-muted); font-size: 13px;",
-                        "No pending verifications"
-                    }
+                    EmptyState { message: "No pending verifications".to_string() }
                 }
 
                 div { style: "display: flex; flex-direction: column; gap: 6px;",
@@ -42,13 +37,13 @@ pub fn GatekeeperView(bot: MessagingBot, on_update: EventHandler<MessagingBot>) 
 
 #[component]
 fn ApprovalRow(
-    approval: PendingApproval,
-    bot: MessagingBot,
+    approval:  PendingApproval,
+    bot:       MessagingBot,
     on_update: EventHandler<MessagingBot>,
 ) -> Element {
-    let secs = (Utc::now() - approval.waiting_since).num_seconds();
+    let secs    = (Utc::now() - approval.waiting_since).num_seconds();
     let waiting = if secs < 60 { format!("{secs}s") } else { format!("{}m", secs / 60) };
-    let approval_id = approval.id.clone();
+    let id      = approval.id.clone();
 
     rsx! {
         div {
@@ -66,7 +61,7 @@ fn ApprovalRow(
             button {
                 onclick: {
                     let mut b = bot.clone();
-                    let id = approval_id.clone();
+                    let id    = id.clone();
                     move |_| {
                         b.resolve_approval(&id, ApprovalAction::Allow);
                         on_update.call(b.clone());
@@ -80,7 +75,6 @@ fn ApprovalRow(
             button {
                 onclick: {
                     let mut b = bot.clone();
-                    let id = approval_id.clone();
                     move |_| {
                         b.resolve_approval(&id, ApprovalAction::Deny);
                         on_update.call(b.clone());

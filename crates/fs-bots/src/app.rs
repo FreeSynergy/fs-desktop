@@ -4,8 +4,7 @@ use fs_components::{Sidebar, SidebarItem, FS_SIDEBAR_CSS};
 use fs_i18n;
 
 use crate::accounts_view::AccountsView;
-use crate::broadcast_view::BroadcastView;
-use crate::gatekeeper_view::GatekeeperView;
+use crate::context::BotManagerContext;
 use crate::groups_view::GroupsView;
 use crate::model::{BotKind, MessagingBot, MessagingBotsConfig};
 
@@ -59,24 +58,20 @@ impl BotSection {
 /// Root component of the Bot Manager.
 #[component]
 pub fn BotManagerApp() -> Element {
+    let bots         = use_signal(MessagingBotsConfig::load);
+    let selected_idx = use_signal(|| Some(0usize));
+    let ctx          = BotManagerContext { bots, selected_idx };
+    provide_context(ctx.clone());
+
     let mut active = use_signal(|| BotSection::Accounts);
-    let mut bots   = use_signal(MessagingBotsConfig::load);
-    let mut selected_idx: Signal<Option<usize>> = use_signal(|| Some(0));
 
     let sidebar_items: Vec<SidebarItem> = ALL_SECTIONS.iter()
         .map(|s| SidebarItem::new(s.id(), s.icon(), s.label()))
         .collect();
 
-    // Find first broadcast/gatekeeper bot for the dedicated views
-    let broadcast_bot   = bots.read().iter().find(|b| b.kind == BotKind::Broadcast).cloned();
-    let gatekeeper_bot  = bots.read().iter().find(|b| b.kind == BotKind::Gatekeeper).cloned();
-    let broadcast_idx   = bots.read().iter().position(|b| b.kind == BotKind::Broadcast);
-    let gatekeeper_idx  = bots.read().iter().position(|b| b.kind == BotKind::Gatekeeper);
-
-    let bot_list = bots.read().clone();
-    let sel_idx  = *selected_idx.read();
-    let selected = sel_idx.and_then(|i| bot_list.get(i).cloned());
-
+    let bot_list      = ctx.bots.read().clone();
+    let sel_idx       = *ctx.selected_idx.read();
+    let selected      = sel_idx.and_then(|i| bot_list.get(i).cloned());
     let active_bot_id = sel_idx
         .and_then(|i| bot_list.get(i))
         .map(|b| b.id.clone())
@@ -86,13 +81,19 @@ pub fn BotManagerApp() -> Element {
         .map(|b| SidebarItem::new(b.id.clone(), b.kind.icon().to_string(), b.name.clone()))
         .collect();
 
+    let broadcast_bot  = ctx.bot_by_kind(&BotKind::Broadcast);
+    let gatekeeper_bot = ctx.bot_by_kind(&BotKind::Gatekeeper);
+
+    // Signal copies for closures (Signal<T>: Copy — shares the same reactive storage)
+    let bots_sig         = ctx.bots;
+    let mut sel_idx_sig  = ctx.selected_idx;
+
     rsx! {
         style { "{FS_SIDEBAR_CSS}" }
         div {
             style: "display: flex; flex-direction: column; height: 100%; width: 100%; overflow: hidden; \
                     background: var(--fs-color-bg-base);",
 
-            // App title bar
             div {
                 style: "padding: 10px 16px; border-bottom: 1px solid var(--fs-border); \
                         flex-shrink: 0; background: var(--fs-bg-surface);",
@@ -102,7 +103,6 @@ pub fn BotManagerApp() -> Element {
                 }
             }
 
-            // Sidebar + Content row
             div {
                 style: "display: flex; flex: 1; overflow: hidden;",
 
@@ -126,19 +126,16 @@ pub fn BotManagerApp() -> Element {
 
                         BotSection::Bots => rsx! {
                             div { style: "display: flex; height: 100%; overflow: hidden;",
-                                // Bot list sidebar
                                 div {
                                     style: "width: 220px; border-right: 1px solid var(--fs-border); overflow-y: auto;",
                                     Sidebar {
                                         items: bots_sidebar_items,
                                         active_id: active_bot_id,
                                         on_select: move |id: String| {
-                                            let idx = bots.read().iter().position(|b| b.id == id);
-                                            selected_idx.set(idx);
+                                            sel_idx_sig.set(bots_sig.read().iter().position(|b| b.id == id));
                                         },
                                     }
                                 }
-                                // Bot detail
                                 div { style: "flex: 1; overflow: auto; padding: 0 20px;",
                                     match selected {
                                         None => rsx! {
@@ -152,11 +149,9 @@ pub fn BotManagerApp() -> Element {
                                         Some(bot) => rsx! {
                                             BotDetail {
                                                 bot,
-                                                on_update: move |updated: MessagingBot| {
-                                                    if let Some(i) = sel_idx {
-                                                        bots.write()[i] = updated;
-                                                        let _ = MessagingBotsConfig::save(&*bots.read());
-                                                    }
+                                                on_update: {
+                                                    let ctx = ctx.clone();
+                                                    move |updated| ctx.update_selected(updated)
                                                 }
                                             }
                                         },
@@ -167,14 +162,12 @@ pub fn BotManagerApp() -> Element {
 
                         BotSection::Broadcast => rsx! {
                             match broadcast_bot {
-                                Some(bot) => rsx! {
-                                    BroadcastView {
+                                Some((idx, bot)) => rsx! {
+                                    crate::broadcast_view::BroadcastView {
                                         bot,
-                                        on_update: move |updated: MessagingBot| {
-                                            if let Some(i) = broadcast_idx {
-                                                bots.write()[i] = updated;
-                                                let _ = MessagingBotsConfig::save(&*bots.read());
-                                            }
+                                        on_update: {
+                                            let ctx = ctx.clone();
+                                            move |updated| ctx.update_bot(idx, updated)
                                         }
                                     }
                                 },
@@ -189,14 +182,12 @@ pub fn BotManagerApp() -> Element {
 
                         BotSection::Gatekeeper => rsx! {
                             match gatekeeper_bot {
-                                Some(bot) => rsx! {
-                                    GatekeeperView {
+                                Some((idx, bot)) => rsx! {
+                                    crate::gatekeeper_view::GatekeeperView {
                                         bot,
-                                        on_update: move |updated: MessagingBot| {
-                                            if let Some(i) = gatekeeper_idx {
-                                                bots.write()[i] = updated;
-                                                let _ = MessagingBotsConfig::save(&*bots.read());
-                                            }
+                                        on_update: {
+                                            let ctx = ctx.clone();
+                                            move |updated| ctx.update_bot(idx, updated)
                                         }
                                     }
                                 },
@@ -221,11 +212,13 @@ pub fn BotManagerApp() -> Element {
 
 // ── BotDetail ─────────────────────────────────────────────────────────────────
 
+/// Detail pane for a single bot — delegates rendering to `bot.kind.view()`.
+/// No match block needed; adding a new bot type only requires a new `BotView` impl.
 #[component]
 fn BotDetail(bot: MessagingBot, on_update: EventHandler<MessagingBot>) -> Element {
     let status_color = if bot.enabled { "#22c55e" } else { "#64748b" };
     let status_label = if bot.enabled { "● Running" } else { "○ Stopped" };
-    let kind = bot.kind.clone();
+    let view = bot.kind.view();
 
     rsx! {
         div { style: "display: flex; flex-direction: column; gap: 20px;",
@@ -240,22 +233,7 @@ fn BotDetail(bot: MessagingBot, on_update: EventHandler<MessagingBot>) -> Elemen
                 }
             }
 
-            match kind {
-                BotKind::Broadcast => rsx! {
-                    BroadcastView { bot, on_update }
-                },
-                BotKind::Gatekeeper => rsx! {
-                    GatekeeperView { bot, on_update }
-                },
-                _ => rsx! {
-                    div {
-                        style: "background: var(--fs-color-bg-overlay); \
-                                border-radius: var(--fs-radius-md); \
-                                padding: 20px; color: var(--fs-color-text-muted); font-size: 13px;",
-                        "This bot type does not have a usage interface yet."
-                    }
-                },
-            }
+            { view.render(bot, on_update) }
         }
     }
 }

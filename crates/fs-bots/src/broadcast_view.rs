@@ -1,11 +1,51 @@
 use dioxus::prelude::*;
+use crate::components::{ListRow, ListRowContent};
 use crate::model::{BroadcastRecord, ChannelTarget, MessagingBot};
+
+// ── ListRowContent impls ───────────────────────────────────────────────────────
+
+impl ListRowContent for ChannelTarget {
+    fn row_icon(&self) -> Element {
+        let check = if self.enabled { "☑" } else { "☐" };
+        rsx! { span { style: "color: var(--fs-color-primary);", "{check}" } }
+    }
+    fn row_body(&self) -> Element {
+        rsx! {
+            span { style: "color: var(--fs-color-text-muted); font-size: 11px;", "{self.platform}:" }
+            span { style: "color: var(--fs-color-text-primary);", "{self.name}" }
+        }
+    }
+    fn row_trailing(&self) -> Element { rsx! { } }
+}
+
+impl ListRowContent for BroadcastRecord {
+    fn row_icon(&self) -> Element {
+        rsx! { span { "📤" } }
+    }
+    fn row_body(&self) -> Element {
+        let preview  = self.preview(50);
+        let time_ago = self.time_ago();
+        rsx! {
+            span {
+                style: "flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; \
+                        color: var(--fs-color-text-primary);",
+                "\"{preview}\""
+            }
+            span { "— {time_ago}" }
+        }
+    }
+    fn row_trailing(&self) -> Element {
+        rsx! { span { "— {self.target_count} targets" } }
+    }
+}
+
+// ── BroadcastView ─────────────────────────────────────────────────────────────
 
 #[component]
 pub fn BroadcastView(bot: MessagingBot, on_update: EventHandler<MessagingBot>) -> Element {
     let mut message = use_signal(String::new);
-    let targets = bot.targets.clone();
-    let recent = bot.recent_broadcasts.clone();
+    let targets      = bot.targets.clone();
+    let recent       = bot.recent_broadcasts.clone();
     let enabled_count = targets.iter().filter(|t| t.enabled).count();
 
     rsx! {
@@ -38,9 +78,9 @@ pub fn BroadcastView(bot: MessagingBot, on_update: EventHandler<MessagingBot>) -
                             text-transform: uppercase; letter-spacing: 0.06em;",
                     "Send to"
                 }
-                div { style: "display: flex; flex-direction: column; gap: 4px;",
+                div { style: "display: flex; flex-direction: column;",
                     for t in &targets {
-                        TargetRow { target: t.clone() }
+                        ListRow { key: "{t.platform}:{t.id}", item: t.clone() }
                     }
                 }
             }
@@ -69,49 +109,13 @@ pub fn BroadcastView(bot: MessagingBot, on_update: EventHandler<MessagingBot>) -
                                 letter-spacing: 0.06em; color: var(--fs-color-text-muted); margin-bottom: 8px;",
                         "Recent Broadcasts"
                     }
-                    div { style: "display: flex; flex-direction: column; gap: 4px;",
+                    div { style: "display: flex; flex-direction: column;",
                         for record in &recent {
-                            BroadcastRecordRow { record: record.clone() }
+                            ListRow { key: "{record.sent_at}", item: record.clone() }
                         }
                     }
                 }
             }
-        }
-    }
-}
-
-#[component]
-fn TargetRow(target: ChannelTarget) -> Element {
-    let check = if target.enabled { "☑" } else { "☐" };
-    rsx! {
-        div {
-            style: "display: flex; align-items: center; gap: 8px; font-size: 13px; \
-                    color: var(--fs-color-text-primary); padding: 4px 0;",
-            span { style: "color: var(--fs-color-primary);", "{check}" }
-            span { style: "color: var(--fs-color-text-muted); font-size: 11px;", "{target.platform}:" }
-            span { "{target.name}" }
-        }
-    }
-}
-
-#[component]
-fn BroadcastRecordRow(record: BroadcastRecord) -> Element {
-    let preview  = record.preview(50);
-    let time_ago = record.time_ago();
-
-    rsx! {
-        div {
-            style: "display: flex; align-items: center; gap: 10px; font-size: 12px; \
-                    color: var(--fs-color-text-muted); padding: 5px 0; \
-                    border-bottom: 1px solid var(--fs-color-border-default);",
-            span { "📤" }
-            span {
-                style: "flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; \
-                        color: var(--fs-color-text-primary);",
-                "\"{preview}\""
-            }
-            span { "— {time_ago}" }
-            span { "— {record.target_count} targets" }
         }
     }
 }

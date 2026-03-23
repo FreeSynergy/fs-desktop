@@ -1,55 +1,10 @@
 /// Groups view — manage room collections and filter/bulk-act on rooms.
 use dioxus::prelude::*;
-use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 
-// ── Data model (UI-side, no async DB dep in Desktop crate) ──────────────────
+use crate::context::GroupsContext;
+use crate::model::{CachedRoom, GroupsConfig};
 
-/// A messenger room cached locally (mirrors bot-runtime `known_rooms`).
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct CachedRoom {
-    pub platform:     String,
-    pub room_id:      String,
-    pub room_name:    String,
-    pub member_count: Option<u32>,
-}
-
-/// A manual collection of rooms.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct RoomCollection {
-    pub id:          u32,
-    pub name:        String,
-    pub description: String,
-    /// (platform, room_id) pairs.
-    pub members:     Vec<(String, String)>,
-}
-
-/// Serialization root for groups.toml.
-#[derive(Default, Serialize, Deserialize)]
-struct GroupsConfig {
-    #[serde(default)]
-    collections: Vec<RoomCollection>,
-    #[serde(default)]
-    cached_rooms: Vec<CachedRoom>,
-}
-
-impl GroupsConfig {
-    fn path() -> PathBuf {
-        let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
-        PathBuf::from(home).join(".config").join("fsn").join("groups.toml")
-    }
-
-    fn load() -> Self {
-        let content = std::fs::read_to_string(Self::path()).unwrap_or_default();
-        toml::from_str(&content).unwrap_or_default()
-    }
-
-    fn save(&self) {
-        let path = Self::path();
-        if let Some(p) = path.parent() { let _ = std::fs::create_dir_all(p); }
-        if let Ok(s) = toml::to_string_pretty(self) { let _ = std::fs::write(path, s); }
-    }
-}
+// ── Demo data ──────────────────────────────────────────────────────────────────
 
 fn demo_rooms() -> Vec<CachedRoom> {
     vec![
@@ -61,17 +16,22 @@ fn demo_rooms() -> Vec<CachedRoom> {
     ]
 }
 
-// ── Filter state ──────────────────────────────────────────────────────────────
+// ── RoomPredicate + RoomFilter ────────────────────────────────────────────────
+
+/// Predicate trait for filtering rooms — enables testable, composable filter logic.
+trait RoomPredicate {
+    fn matches(&self, room: &CachedRoom) -> bool;
+}
 
 #[derive(Clone, Default)]
 struct RoomFilter {
-    platform:     String, // "" = all
-    name:         String,
-    min_members:  String,
-    max_members:  String,
+    platform:    String,
+    name:        String,
+    min_members: String,
+    max_members: String,
 }
 
-impl RoomFilter {
+impl RoomPredicate for RoomFilter {
     fn matches(&self, room: &CachedRoom) -> bool {
         if !self.platform.is_empty() && room.platform != self.platform { return false; }
         if !self.name.is_empty() && !room.room_name.to_lowercase().contains(&self.name.to_lowercase()) { return false; }
@@ -85,40 +45,38 @@ impl RoomFilter {
     }
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
+// ── GroupsView ─────────────────────────────────────────────────────────────────
 
 /// Groups & Collections view inside BotManager.
 #[component]
 pub fn GroupsView() -> Element {
-    let cfg = GroupsConfig::load();
-    let initial_rooms = if cfg.cached_rooms.is_empty() { demo_rooms() } else { cfg.cached_rooms.clone() };
+    let cfg           = GroupsConfig::load();
+    let initial_rooms = if cfg.cached_rooms.is_empty() { demo_rooms() } else { cfg.cached_rooms };
 
-    let mut collections: Signal<Vec<RoomCollection>> = use_signal(|| cfg.collections.clone());
-    let rooms: Signal<Vec<CachedRoom>>               = use_signal(|| initial_rooms);
-    let mut filter  = use_signal(RoomFilter::default);
+    let collections    = use_signal(|| cfg.collections);
+    let rooms          = use_signal(|| initial_rooms);
+    let sel_collection = use_signal(|| None::<u32>);
+    let ctx            = GroupsContext { collections, rooms, sel_collection };
+    provide_context(ctx.clone());
+
+    let mut filter         = use_signal(RoomFilter::default);
+    let mut new_col_name   = use_signal(String::new);
+    let mut new_col_desc   = use_signal(String::new);
+    let mut show_new_col   = use_signal(|| false);
     let mut selected_rooms: Signal<Vec<(String, String)>> = use_signal(Vec::new);
 
-    // New collection form
-    let mut new_col_name = use_signal(String::new);
-    let mut new_col_desc = use_signal(String::new);
-    let mut show_new_col = use_signal(|| false);
-
-    // Selected collection for member view
-    let mut sel_collection: Signal<Option<u32>> = use_signal(|| None);
-
-    let filtered_rooms: Vec<CachedRoom> = rooms.read().iter()
+    let filtered_rooms: Vec<CachedRoom> = ctx.rooms.read().iter()
         .filter(|r| filter.read().matches(r))
         .cloned()
         .collect();
 
-    // Unique platforms for filter dropdown
-    let mut platforms: Vec<String> = rooms.read().iter().map(|r| r.platform.clone()).collect();
+    let mut platforms: Vec<String> = ctx.rooms.read().iter().map(|r| r.platform.clone()).collect();
     platforms.sort(); platforms.dedup();
 
     rsx! {
         div { style: "display: flex; gap: 20px; height: 100%; overflow: hidden;",
 
-            // ── Left: Collections ────────────────────────────────────────────
+            // ── Left: Collections ─────────────────────────────────────────────
             div {
                 style: "width: 240px; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; \
                         border-right: 1px solid var(--fs-border); padding-right: 16px; overflow-y: auto;",
@@ -159,25 +117,17 @@ pub fn GroupsView() -> Element {
                         button {
                             style: "background: var(--fs-color-primary); color: #fff; border: none; \
                                     border-radius: var(--fs-radius-sm); padding: 5px 10px; font-size: 12px; cursor: pointer;",
-                            onclick: move |_| {
-                                let name = new_col_name.read().trim().to_string();
-                                if name.is_empty() { return; }
-                                let next_id = collections.read().iter().map(|c| c.id).max().unwrap_or(0) + 1;
-                                let col = RoomCollection {
-                                    id: next_id,
-                                    name,
-                                    description: new_col_desc.read().trim().to_string(),
-                                    members: vec![],
-                                };
-                                collections.write().push(col);
-                                let cfg = GroupsConfig {
-                                    collections: collections.read().clone(),
-                                    cached_rooms: rooms.read().clone(),
-                                };
-                                cfg.save();
-                                new_col_name.set(String::new());
-                                new_col_desc.set(String::new());
-                                show_new_col.set(false);
+                            onclick: {
+                                let ctx = ctx.clone();
+                                move |_| {
+                                    ctx.add_collection(
+                                        new_col_name.read().clone(),
+                                        new_col_desc.read().clone(),
+                                    );
+                                    new_col_name.set(String::new());
+                                    new_col_desc.set(String::new());
+                                    show_new_col.set(false);
+                                }
                             },
                             "Create"
                         }
@@ -186,7 +136,8 @@ pub fn GroupsView() -> Element {
 
                 // All Rooms entry
                 {
-                    let active = sel_collection.read().is_none();
+                    let active      = ctx.sel_collection.read().is_none();
+                    let mut sel_col = ctx.sel_collection; // Signal: Copy
                     rsx! {
                         div {
                             style: if active {
@@ -196,17 +147,18 @@ pub fn GroupsView() -> Element {
                                 "padding: 7px 10px; border-radius: var(--fs-radius-md); cursor: pointer; \
                                  color: var(--fs-color-text-primary); font-size: 13px;"
                             },
-                            onclick: move |_| sel_collection.set(None),
-                            "🏠 All Rooms ({rooms.read().len()})"
+                            onclick: move |_| sel_col.set(None),
+                            "🏠 All Rooms ({ctx.rooms.read().len()})"
                         }
                     }
                 }
 
-                for col in collections.read().clone().iter() {
+                for col in ctx.collections.read().clone().iter() {
                     {
-                        let col = col.clone();
-                        let active = *sel_collection.read() == Some(col.id);
+                        let col    = col.clone();
+                        let active = *ctx.sel_collection.read() == Some(col.id);
                         let col_id = col.id;
+                        let mut sel_col = ctx.sel_collection; // Signal: Copy
                         rsx! {
                             div {
                                 key: "{col.id}",
@@ -217,7 +169,7 @@ pub fn GroupsView() -> Element {
                                     "padding: 7px 10px; border-radius: var(--fs-radius-md); cursor: pointer; \
                                      color: var(--fs-color-text-primary); font-size: 13px;"
                                 },
-                                onclick: move |_| sel_collection.set(Some(col_id)),
+                                onclick: move |_| sel_col.set(Some(col_id)),
                                 "📁 {col.name} ({col.members.len()})"
                             }
                         }
@@ -225,7 +177,7 @@ pub fn GroupsView() -> Element {
                 }
             }
 
-            // ── Right: Room list + filter ─────────────────────────────────────
+            // ── Right: Room list + filter ──────────────────────────────────────
             div { style: "flex: 1; display: flex; flex-direction: column; gap: 12px; overflow: hidden;",
 
                 // Filter bar
@@ -263,7 +215,7 @@ pub fn GroupsView() -> Element {
                     }
                 }
 
-                // Bulk action bar (shown when rooms are selected)
+                // Bulk action bar
                 if !selected_rooms.read().is_empty() {
                     div {
                         style: "display: flex; align-items: center; gap: 10px; padding: 8px 12px; \
@@ -271,41 +223,32 @@ pub fn GroupsView() -> Element {
                         span { style: "color: var(--fs-color-text-muted);",
                             "{selected_rooms.read().len()} selected"
                         }
-                        if let Some(col_id) = *sel_collection.read() {
+                        if let Some(col_id) = *ctx.sel_collection.read() {
                             button {
                                 style: "background: #ef4444; color: #fff; border: none; border-radius: var(--fs-radius-sm); \
                                         padding: 4px 12px; font-size: 12px; cursor: pointer;",
-                                onclick: move |_| {
-                                    let sel = selected_rooms.read().clone();
-                                    collections.write().iter_mut().find(|c| c.id == col_id)
-                                        .map(|c| c.members.retain(|m| !sel.contains(m)));
-                                    let cfg = GroupsConfig { collections: collections.read().clone(), cached_rooms: rooms.read().clone() };
-                                    cfg.save();
-                                    selected_rooms.set(vec![]);
+                                onclick: {
+                                    let ctx = ctx.clone();
+                                    move |_| {
+                                        ctx.remove_rooms_from_collection(col_id, selected_rooms.read().clone());
+                                        selected_rooms.set(vec![]);
+                                    }
                                 },
                                 "Remove from collection"
                             }
                         }
-                        for col in collections.read().clone().iter() {
+                        for col in ctx.collections.read().clone().iter() {
                             {
-                                let col = col.clone();
+                                let col    = col.clone();
                                 let col_id = col.id;
+                                let ctx2 = ctx.clone();
                                 rsx! {
                                     button {
                                         key: "{col.id}",
                                         style: "background: var(--fs-color-primary); color: #fff; border: none; \
                                                 border-radius: var(--fs-radius-sm); padding: 4px 12px; font-size: 12px; cursor: pointer;",
                                         onclick: move |_| {
-                                            let sel = selected_rooms.read().clone();
-                                            if let Some(c) = collections.write().iter_mut().find(|c| c.id == col_id) {
-                                                for room_ref in &sel {
-                                                    if !c.members.contains(room_ref) {
-                                                        c.members.push(room_ref.clone());
-                                                    }
-                                                }
-                                            }
-                                            let cfg = GroupsConfig { collections: collections.read().clone(), cached_rooms: rooms.read().clone() };
-                                            cfg.save();
+                                            ctx2.add_rooms_to_collection(col_id, selected_rooms.read().clone());
                                             selected_rooms.set(vec![]);
                                         },
                                         "Add to: {col.name}"
@@ -324,17 +267,15 @@ pub fn GroupsView() -> Element {
 
                 // Room list
                 div { style: "flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;",
-
-                    // Determine which rooms to show
                     {
-                        let display_rooms: Vec<CachedRoom> = match *sel_collection.read() {
+                        let display_rooms: Vec<CachedRoom> = match *ctx.sel_collection.read() {
                             None => filtered_rooms.clone(),
                             Some(col_id) => {
-                                let col_members: Vec<(String, String)> = collections.read().iter()
+                                let col_members: Vec<(String, String)> = ctx.collections.read().iter()
                                     .find(|c| c.id == col_id)
                                     .map(|c| c.members.clone())
                                     .unwrap_or_default();
-                                rooms.read().iter()
+                                ctx.rooms.read().iter()
                                     .filter(|r| col_members.contains(&(r.platform.clone(), r.room_id.clone())))
                                     .filter(|r| filter.read().matches(r))
                                     .cloned()
@@ -345,9 +286,8 @@ pub fn GroupsView() -> Element {
                         rsx! {
                             for room in display_rooms {
                                 {
-                                    let key = (room.platform.clone(), room.room_id.clone());
+                                    let key     = (room.platform.clone(), room.room_id.clone());
                                     let checked = selected_rooms.read().contains(&key);
-                                    let key2 = key.clone();
                                     rsx! {
                                         div {
                                             key: "{room.platform}:{room.room_id}",
@@ -357,9 +297,9 @@ pub fn GroupsView() -> Element {
                                                     cursor: pointer;",
                                             onclick: move |_| {
                                                 if checked {
-                                                    selected_rooms.write().retain(|k| k != &key2);
+                                                    selected_rooms.write().retain(|k| k != &key);
                                                 } else {
-                                                    selected_rooms.write().push(key2.clone());
+                                                    selected_rooms.write().push(key.clone());
                                                 }
                                             },
                                             span {

@@ -2,6 +2,28 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+// ── TomlConfig ─────────────────────────────────────────────────────────────────
+
+/// Shared persistence behaviour for TOML-backed config files.
+/// Implementors only provide `config_path()`; `load_config()` and `save()` are free.
+pub trait TomlConfig: Default + Serialize + for<'de> Deserialize<'de> + Sized {
+    fn config_path() -> PathBuf;
+
+    fn load_config() -> Self {
+        let content = std::fs::read_to_string(Self::config_path()).unwrap_or_default();
+        toml::from_str(&content).unwrap_or_default()
+    }
+
+    fn save(&self) -> Result<(), String> {
+        let path = Self::config_path();
+        if let Some(p) = path.parent() {
+            std::fs::create_dir_all(p).map_err(|e| e.to_string())?;
+        }
+        let content = toml::to_string_pretty(self).map_err(|e| e.to_string())?;
+        std::fs::write(&path, content).map_err(|e| e.to_string())
+    }
+}
+
 // ── BotKind ───────────────────────────────────────────────────────────────────
 
 /// All display properties for a `BotKind` variant — single source of truth.
@@ -176,27 +198,16 @@ pub struct ControlBotConfig {
     pub accounts: Vec<ControlBotAccount>,
 }
 
-impl ControlBotConfig {
-    fn path() -> PathBuf {
+impl TomlConfig for ControlBotConfig {
+    fn config_path() -> PathBuf {
         let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
         PathBuf::from(home).join(".config").join("fsn").join("control_bot.toml")
     }
+}
 
+impl ControlBotConfig {
     pub fn load() -> Vec<ControlBotAccount> {
-        let path = Self::path();
-        let content = std::fs::read_to_string(&path).unwrap_or_default();
-        let cfg: Self = toml::from_str(&content).unwrap_or_default();
-        cfg.accounts
-    }
-
-    pub fn save(accounts: &[ControlBotAccount]) -> Result<(), String> {
-        let path = Self::path();
-        if let Some(p) = path.parent() {
-            std::fs::create_dir_all(p).map_err(|e| e.to_string())?;
-        }
-        let cfg = Self { accounts: accounts.to_vec() };
-        let content = toml::to_string_pretty(&cfg).map_err(|e| e.to_string())?;
-        std::fs::write(&path, content).map_err(|e| e.to_string())
+        Self::load_config().accounts
     }
 }
 
@@ -284,52 +295,87 @@ impl MessagingBot {
     }
 
     pub fn demo_bots() -> Vec<Self> {
-        vec![
-            Self {
-                id: "broadcast".into(),
-                name: "Broadcast Bot".into(),
-                kind: BotKind::Broadcast,
-                enabled: true,
-                targets: vec![
-                    ChannelTarget { platform: "Telegram".into(), name: "FreeSynergy Community".into(), id: "-100123".into(), enabled: true },
-                    ChannelTarget { platform: "Matrix".into(),   name: "#general:example.com".into(),  id: "!abc:example.com".into(), enabled: true },
-                ],
-                recent_broadcasts: vec![
-                    BroadcastRecord {
-                        message: "New update available…".into(),
-                        sent_at: Utc::now() - chrono::Duration::hours(2),
-                        target_count: 4,
-                    },
-                ],
-                pending_approvals: vec![],
+        let mut broadcast = MessagingBotBuilder::new("broadcast", "Broadcast Bot", BotKind::Broadcast)
+            .enabled()
+            .target("Telegram", "FreeSynergy Community", "-100123")
+            .target("Matrix",   "#general:example.com",  "!abc:example.com")
+            .build();
+        broadcast.recent_broadcasts = vec![
+            BroadcastRecord {
+                message:      "New update available…".into(),
+                sent_at:      Utc::now() - chrono::Duration::hours(2),
+                target_count: 4,
             },
-            Self {
-                id: "gatekeeper".into(),
-                name: "Gatekeeper Bot".into(),
-                kind: BotKind::Gatekeeper,
-                enabled: true,
-                targets: vec![
-                    ChannelTarget { platform: "Telegram".into(), name: "FreeSynergy Community".into(), id: "-100123".into(), enabled: true },
-                ],
-                recent_broadcasts: vec![],
-                pending_approvals: vec![
-                    PendingApproval {
-                        id: "1".into(),
-                        username: "@alice_t".into(),
-                        platform: "Telegram".into(),
-                        waiting_since: Utc::now() - chrono::Duration::minutes(2),
-                    },
-                    PendingApproval {
-                        id: "2".into(),
-                        username: "@bob_99".into(),
-                        platform: "Telegram".into(),
-                        waiting_since: Utc::now() - chrono::Duration::minutes(4),
-                    },
-                ],
+        ];
+
+        let mut gatekeeper = MessagingBotBuilder::new("gatekeeper", "Gatekeeper Bot", BotKind::Gatekeeper)
+            .enabled()
+            .target("Telegram", "FreeSynergy Community", "-100123")
+            .build();
+        gatekeeper.pending_approvals = vec![
+            PendingApproval {
+                id: "1".into(), username: "@alice_t".into(),
+                platform: "Telegram".into(),
+                waiting_since: Utc::now() - chrono::Duration::minutes(2),
             },
-        ]
+            PendingApproval {
+                id: "2".into(), username: "@bob_99".into(),
+                platform: "Telegram".into(),
+                waiting_since: Utc::now() - chrono::Duration::minutes(4),
+            },
+        ];
+
+        vec![broadcast, gatekeeper]
     }
 }
+
+// ── MessagingBotBuilder ───────────────────────────────────────────────────────
+
+/// Builder for `MessagingBot` — fluent API for construction and test fixtures.
+pub struct MessagingBotBuilder {
+    id:      String,
+    name:    String,
+    kind:    BotKind,
+    enabled: bool,
+    targets: Vec<ChannelTarget>,
+}
+
+impl MessagingBotBuilder {
+    pub fn new(id: impl Into<String>, name: impl Into<String>, kind: BotKind) -> Self {
+        Self { id: id.into(), name: name.into(), kind, enabled: false, targets: vec![] }
+    }
+
+    pub fn enabled(mut self) -> Self { self.enabled = true; self }
+
+    pub fn target(
+        mut self,
+        platform: impl Into<String>,
+        name:     impl Into<String>,
+        id:       impl Into<String>,
+    ) -> Self {
+        self.targets.push(ChannelTarget {
+            platform: platform.into(),
+            name:     name.into(),
+            id:       id.into(),
+            enabled:  true,
+        });
+        self
+    }
+
+    pub fn build(self) -> MessagingBot {
+        MessagingBot {
+            id:                self.id,
+            name:              self.name,
+            kind:              self.kind,
+            enabled:           self.enabled,
+            targets:           self.targets,
+            recent_broadcasts: vec![],
+            pending_approvals: vec![],
+        }
+    }
+}
+
+// ── MessagingBotsConfig ───────────────────────────────────────────────────────
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct MessagingBotsConfig {
@@ -337,26 +383,57 @@ pub struct MessagingBotsConfig {
     pub bots: Vec<MessagingBot>,
 }
 
-impl MessagingBotsConfig {
-    fn path() -> PathBuf {
+impl TomlConfig for MessagingBotsConfig {
+    fn config_path() -> PathBuf {
         let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
         PathBuf::from(home).join(".config").join("fsn").join("messaging_bots.toml")
     }
+}
 
+impl MessagingBotsConfig {
     pub fn load() -> Vec<MessagingBot> {
-        let path = Self::path();
-        let content = std::fs::read_to_string(&path).unwrap_or_default();
-        let cfg: Self = toml::from_str(&content).unwrap_or_default();
+        let cfg = Self::load_config();
         if cfg.bots.is_empty() { MessagingBot::demo_bots() } else { cfg.bots }
     }
+}
 
-    pub fn save(bots: &[MessagingBot]) -> Result<(), String> {
-        let path = Self::path();
-        if let Some(p) = path.parent() {
-            std::fs::create_dir_all(p).map_err(|e| e.to_string())?;
-        }
-        let cfg = Self { bots: bots.to_vec() };
-        let content = toml::to_string_pretty(&cfg).map_err(|e| e.to_string())?;
-        std::fs::write(&path, content).map_err(|e| e.to_string())
+// ── Groups ────────────────────────────────────────────────────────────────────
+
+/// A messenger room cached locally (mirrors bot-runtime `known_rooms`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CachedRoom {
+    pub platform:     String,
+    pub room_id:      String,
+    pub room_name:    String,
+    pub member_count: Option<u32>,
+}
+
+/// A manual collection of rooms.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct RoomCollection {
+    pub id:          u32,
+    pub name:        String,
+    pub description: String,
+    /// (platform, room_id) pairs.
+    pub members:     Vec<(String, String)>,
+}
+
+/// Serialization root for groups.toml.
+#[derive(Default, Serialize, Deserialize)]
+pub struct GroupsConfig {
+    #[serde(default)]
+    pub collections:  Vec<RoomCollection>,
+    #[serde(default)]
+    pub cached_rooms: Vec<CachedRoom>,
+}
+
+impl TomlConfig for GroupsConfig {
+    fn config_path() -> PathBuf {
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
+        PathBuf::from(home).join(".config").join("fsn").join("groups.toml")
     }
+}
+
+impl GroupsConfig {
+    pub fn load() -> Self { Self::load_config() }
 }

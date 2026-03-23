@@ -1,18 +1,17 @@
 /// Accounts view — manage Control Bot messenger account connections.
 use dioxus::prelude::*;
 
-use crate::model::{ControlBotAccount, ControlBotConfig, Platform};
+use crate::components::{EmptyState, StatusDot};
+use crate::model::{ControlBotAccount, ControlBotConfig, Platform, TomlConfig};
 
 #[component]
 pub fn AccountsView() -> Element {
     let mut accounts: Signal<Vec<ControlBotAccount>> = use_signal(ControlBotConfig::load);
-    let mut show_form  = use_signal(|| false);
+    let mut show_form     = use_signal(|| false);
     let mut form_platform = use_signal(|| Platform::Telegram);
     let mut form_label    = use_signal(String::new);
-    // credential field values indexed by position
     let mut form_creds: Signal<Vec<String>> = use_signal(Vec::new);
 
-    // Reset credential fields when platform changes
     let platform_fields = form_platform.read().credential_fields();
 
     rsx! {
@@ -41,14 +40,7 @@ pub fn AccountsView() -> Element {
             // Account list
             div { style: "display: flex; flex-direction: column; gap: 8px;",
                 if accounts.read().is_empty() {
-                    div {
-                        style: "padding: 24px; text-align: center; \
-                                color: var(--fs-color-text-muted); font-size: 13px; \
-                                background: var(--fs-color-bg-surface, #1e293b); \
-                                border-radius: var(--fs-radius-md, 8px); \
-                                border: 1px solid var(--fs-color-border-default, #334155);",
-                        "No accounts configured yet."
-                    }
+                    EmptyState { message: "No accounts configured yet.".to_string() }
                 } else {
                     for (idx, account) in accounts.read().clone().iter().enumerate() {
                         AccountRow {
@@ -56,7 +48,7 @@ pub fn AccountsView() -> Element {
                             account: account.clone(),
                             on_remove: move |_| {
                                 accounts.write().remove(idx);
-                                let _ = ControlBotConfig::save(&*accounts.read());
+                                let _ = ControlBotConfig { accounts: accounts.read().clone() }.save();
                             },
                         }
                     }
@@ -164,9 +156,7 @@ pub fn AccountsView() -> Element {
                                     },
                                     oninput: move |e| {
                                         let mut creds = form_creds.write();
-                                        while creds.len() <= field_idx {
-                                            creds.push(String::new());
-                                        }
+                                        while creds.len() <= field_idx { creds.push(String::new()); }
                                         creds[field_idx] = e.value();
                                     },
                                 }
@@ -194,7 +184,7 @@ pub fn AccountsView() -> Element {
                                     let count = accounts.read().len();
                                     if let Some(account) = ControlBotAccount::create(platform, label, credentials, count) {
                                         accounts.write().push(account);
-                                        let _ = ControlBotConfig::save(&*accounts.read());
+                                        let _ = ControlBotConfig { accounts: accounts.read().clone() }.save();
                                         show_form.set(false);
                                     }
                                 },
@@ -219,9 +209,6 @@ pub fn AccountsView() -> Element {
 
 #[component]
 fn AccountRow(account: ControlBotAccount, on_remove: EventHandler<()>) -> Element {
-    let dot_color = if account.connected { "#22c55e" } else { "#ef4444" };
-    let status    = if account.connected { "Connected" } else { "Disconnected" };
-
     rsx! {
         div {
             style: "display: flex; align-items: center; gap: 12px; \
@@ -229,10 +216,8 @@ fn AccountRow(account: ControlBotAccount, on_remove: EventHandler<()>) -> Elemen
                     background: var(--fs-color-bg-surface, #1e293b); \
                     border: 1px solid var(--fs-color-border-default, #334155);",
 
-            // Platform icon
             span { style: "font-size: 20px; flex-shrink: 0;", "{account.platform.icon()}" }
 
-            // Label + platform
             div { style: "flex: 1;",
                 div {
                     style: "font-size: 13px; font-weight: 600; color: var(--fs-color-text-primary);",
@@ -244,15 +229,8 @@ fn AccountRow(account: ControlBotAccount, on_remove: EventHandler<()>) -> Elemen
                 }
             }
 
-            // Status dot
-            div { style: "display: flex; align-items: center; gap: 6px; flex-shrink: 0;",
-                div {
-                    style: "width: 8px; height: 8px; border-radius: 50%; background: {dot_color};",
-                }
-                span { style: "font-size: 12px; color: {dot_color};", "{status}" }
-            }
+            StatusDot { connected: account.connected }
 
-            // Edit button (placeholder)
             button {
                 style: "padding: 4px 12px; background: transparent; \
                         border: 1px solid var(--fs-color-border-default, #334155); \
@@ -261,7 +239,6 @@ fn AccountRow(account: ControlBotAccount, on_remove: EventHandler<()>) -> Elemen
                 "Edit"
             }
 
-            // Remove button
             button {
                 style: "padding: 4px 8px; background: transparent; \
                         border: 1px solid rgba(239,68,68,0.4); \

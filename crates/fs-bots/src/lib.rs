@@ -1,5 +1,10 @@
 pub mod app;
+pub mod bot_strategy;
+pub mod components;
+pub mod context;
 pub mod model;
+pub mod view_trait;
+
 pub mod accounts_view;
 pub mod broadcast_view;
 pub mod gatekeeper_view;
