@@ -17,20 +17,20 @@ fn main() {
 
     tracing::info!("Starting FreeSynergy.Desktop");
 
-    fs_shell::init_i18n();
+    fs_gui_workspace::init_i18n();
 
     #[cfg(feature = "desktop")]
-    fs_shell::launch_desktop(
-        fs_shell::DesktopConfig::new()
+    fs_gui_workspace::launch_desktop(
+        fs_gui_workspace::DesktopConfig::new()
             .with_title("FreeSynergy.Desktop")
             .with_size(1280.0, 800.0)
             .with_min_size(900.0, 600.0)
             .without_decorations()
             .with_background(12, 18, 34, 255)
             .with_all_navigation(),
-        fs_shell::Desktop,
+        fs_gui_workspace::Desktop,
     );
 
     #[cfg(feature = "web")]
-    dioxus::launch(fs_shell::WebDesktop);
+    dioxus::launch(fs_gui_workspace::WebDesktop);
 }

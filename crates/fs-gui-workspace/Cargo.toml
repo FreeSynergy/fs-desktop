@@ -1,16 +1,16 @@
 [package]
-name        = "fs-shell"
-description = "FreeSynergy Desktop – shell: taskbar, window manager, wallpaper"
+name        = "fs-gui-workspace"
+description = "FreeSynergy Desktop – GUI workspace: taskbar, window manager, sidebar, layouts"
 version.workspace   = true
 edition.workspace   = true
 license.workspace   = true
 
 [lib]
-name = "fs_shell"
+name = "fs_gui_workspace"
 path = "src/lib.rs"
 
 [[bin]]
-name = "fs-shell"
+name = "fs-gui-workspace"
 path = "src/main.rs"
 
 [features]

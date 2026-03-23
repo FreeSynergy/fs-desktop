@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "crates/fs-db-desktop",
-    "crates/fs-shell",
+    "crates/fs-gui-workspace",
     "crates/fs-settings",
     "crates/fs-profile",
     "crates/fs-app",
@@ -21,7 +21,7 @@ repository = "https://github.com/FreeSynergy/fs-desktop"
 
 # Internal Desktop crates
 fs-db-desktop = { path = "crates/fs-db-desktop" }
-fs-shell      = { path = "crates/fs-shell", default-features = false }
+fs-gui-workspace = { path = "crates/fs-gui-workspace", default-features = false }
 fs-settings   = { path = "crates/fs-settings" }
 fs-profile    = { path = "crates/fs-profile" }
 fs-showcase   = { path = "crates/fs-showcase" }

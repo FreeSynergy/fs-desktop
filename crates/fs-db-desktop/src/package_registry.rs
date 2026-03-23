@@ -2,7 +2,7 @@
 //!
 //! Shared persistence layer for languages, themes, widgets and other packages
 //! installed from the FreeSynergy Store. Uses plain JSON so every program
-//! (fs-store, fs-settings, fs-shell) can read/write it without migrations.
+//! (fs-store, fs-settings, fs-gui-workspace) can read/write it without migrations.
 
 use serde::{Deserialize, Serialize};
 use std::fmt;

@@ -32,7 +32,7 @@ const I18N_SNIPPETS: &[(&str, &str)] = &[
 struct ShellI18nPlugin;
 
 impl fs_i18n::SnippetPlugin for ShellI18nPlugin {
-    fn name(&self) -> &str { "fs-shell" }
+    fn name(&self) -> &str { "fs-gui-workspace" }
     fn snippets(&self) -> &[(&str, &str)] { I18N_SNIPPETS }
 }
 

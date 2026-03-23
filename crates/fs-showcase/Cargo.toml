@@ -11,11 +11,11 @@ path = "src/main.rs"
 
 [features]
 default = ["desktop"]
-desktop = ["dioxus/desktop", "fs-shell/desktop", "fs-components/desktop"]
+desktop = ["dioxus/desktop", "fs-gui-workspace/desktop", "fs-components/desktop"]
 
 [dependencies]
-fs-shell      = { workspace = true, default-features = false }
-fs-components = { workspace = true }
-dioxus         = { workspace = true }
-tracing        = { workspace = true }
+fs-gui-workspace   = { workspace = true, default-features = false }
+fs-components      = { workspace = true }
+dioxus             = { workspace = true }
+tracing            = { workspace = true }
 tracing-subscriber = { workspace = true }

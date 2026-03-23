@@ -262,12 +262,12 @@ button:disabled,
 /* rounded is the default, no override needed */
 
 /* ── Component styles: Sidebar ────────────────────────────────── */
-[data-sidebar-style="glass"] .fs-shell-sidebar {
+[data-sidebar-style="glass"] .fs-workspace-sidebar {
     background: var(--fs-glass-bg) !important;
     backdrop-filter: blur(var(--fs-glass-blur, 16px));
     -webkit-backdrop-filter: blur(var(--fs-glass-blur, 16px));
 }
-[data-sidebar-style="transparent"] .fs-shell-sidebar {
+[data-sidebar-style="transparent"] .fs-workspace-sidebar {
     background: transparent !important;
 }
 "#;

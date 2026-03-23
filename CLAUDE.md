@@ -19,7 +19,7 @@ Each `fs-*` crate can run as a standalone window or embedded in the desktop shel
 
 ```
 crates/
-  fs-shell/      → Desktop shell: taskbar, window manager, wallpaper
+  fs-gui-workspace/      → Desktop shell: taskbar, window manager, wallpaper
   fs-container-app/ → Container/Service/Bot management (formerly "Conductor")
   fs-store/      → Package manager (discovery, install, updates)
   fs-studio/     → Plugin/Module/i18n creator (+AI optional)
@@ -58,11 +58,11 @@ Desktop does NOT import Node-internal crates directly.
 
 ## Window System
 
-All dialogs and views are `Window` objects. See `fs-shell/src/window.rs`.
+All dialogs and views are `Window` objects. See `fs-gui-workspace/src/window.rs`.
 
 ## Layout System (E1 + E2)
 
-### Shell Layout (fs-shell)
+### Shell Layout (fs-gui-workspace)
 CSS Grid desktop with four areas: `header | sidebar | main | taskbar`.
 
 ```
