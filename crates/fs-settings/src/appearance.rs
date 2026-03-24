@@ -487,15 +487,13 @@ pub fn AppearanceSettings() -> Element {
                         accept: "image/*",
                         style: "display: none;",
                         onchange: move |e| {
-                            if let Some(engine) = e.files() {
-                                if let Some(path) = engine.files().into_iter().next() {
-                                    let css = format!(
-                                        "background-image: url('file://{}'); \
-                                         background-size: cover; background-position: center;",
-                                        path
-                                    );
-                                    set_wallpaper(css);
-                                }
+                            if let Some(file) = e.files().into_iter().next() {
+                                let css = format!(
+                                    "background-image: url('file://{}'); \
+                                     background-size: cover; background-position: center;",
+                                    file.path().display()
+                                );
+                                set_wallpaper(css);
                             }
                         },
                     }

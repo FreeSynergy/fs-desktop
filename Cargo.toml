@@ -42,7 +42,7 @@ fs-managers      = { path = "../fs-apps/crates/fs-managers" }
 fs-types          = { path = "../fs-libs/fs-types" }
 fs-error          = { path = "../fs-libs/fs-error" }
 fs-config         = { path = "../fs-libs/fs-config" }
-fs-i18n           = { path = "../fs-libs/fs-i18n" }
+fs-i18n           = { path = "../fs-libs/fs-i18n", features = ["dioxus"] }
 fs-theme          = { path = "../fs-libs/fs-theme" }
 fs-help           = { path = "../fs-libs/fs-help" }
 fs-health         = { path = "../fs-libs/fs-health" }
@@ -68,12 +68,12 @@ fs-manager-ai        = { path = "../fs-managers/ai" }
 sea-orm = { version = "=2.0.0-rc.37", default-features = false, features = ["macros", "sqlx-sqlite", "runtime-tokio-rustls"] }
 
 # UI — Dioxus (Desktop + Web + TUI via single codebase)
-dioxus = { version = "0.6", default-features = false, features = ["macro", "html", "signals", "hooks", "launch", "mounted", "document"] }
+dioxus = { version = "0.7.3", default-features = false, features = ["macro", "html", "signals", "hooks", "launch", "mounted", "document"] }
 
 # Serialization
 serde      = { version = "1",   features = ["derive"] }
 serde_json = { version = "1" }
-serde_yaml = { version = "0.9" }
+serde_yml  = { version = "0.0.12" }
 toml       = { version = "1", features = ["preserve_order"] }
 
 # Async
