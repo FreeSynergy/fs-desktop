@@ -21,6 +21,7 @@ web      = ["dioxus/web",     "fs-components/web"]
 [dependencies]
 fs-ai            = { workspace = true }
 fs-db-desktop    = { workspace = true }
+fs-session       = { workspace = true }
 fs-store-app     = { workspace = true }
 fs-builder       = { workspace = true }
 fs-container-app = { workspace = true }

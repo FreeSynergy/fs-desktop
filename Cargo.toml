@@ -28,7 +28,7 @@ fs-showcase   = { path = "crates/fs-showcase" }
 
 # fs-apps — standalone apps (embedded in shell)
 fs-store-app     = { path = "../fs-apps/crates/fs-store-app" }
-fs-browser       = { path = "../fs-apps/crates/fs-browser" }
+fs-browser       = { path = "../fs-browser" }
 fs-lenses        = { path = "../fs-apps/crates/fs-lenses" }
 fs-theme-app     = { path = "../fs-apps/crates/fs-theme-app" }
 fs-builder       = { path = "../fs-apps/crates/fs-builder" }
@@ -45,6 +45,7 @@ fs-core    = { path = "../fs-libs/fs-core" }
 fs-health  = { path = "../fs-libs/fs-health" }
 
 # Standalone library repos (migrated from fs-libs in Phase D)
+fs-session    = { path = "../fs-session" }
 fs-config     = { path = "../fs-config" }
 fs-i18n       = { path = "../fs-i18n", features = ["dioxus"] }
 fs-theme      = { path = "../fs-theme" }

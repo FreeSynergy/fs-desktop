@@ -35,6 +35,25 @@ pub enum PackageKind {
 }
 
 impl PackageKind {
+    /// Convert a Store catalog `type` string to a `PackageKind`.
+    pub fn from_type_str(t: &str) -> Self {
+        match t {
+            "app" => Self::App,
+            "container" => Self::Container,
+            "binary" => Self::Binary,
+            "manager" => Self::Manager,
+            "language" => Self::Language,
+            "theme" => Self::Theme,
+            "widget" => Self::Widget,
+            "bot" => Self::BotCommand,
+            "messenger-adapter" => Self::MessengerAdapter,
+            "bridge" => Self::Bridge,
+            "task" => Self::Task,
+            "bundle" => Self::Bundle,
+            _ => Self::App,
+        }
+    }
+
     /// All selectable kinds in order.
     pub const ALL: &'static [PackageKind] = &[
         PackageKind::App,

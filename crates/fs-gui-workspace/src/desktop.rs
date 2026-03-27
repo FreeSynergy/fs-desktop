@@ -1,6 +1,6 @@
+/// Desktop — root layout: header + sidebar + content area.
 use dioxus::prelude::*;
 use fs_i18n;
-/// Desktop — root layout: header + sidebar + content area.
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -37,6 +37,56 @@ use crate::window_frame::{MinimizedWindowIcon, WindowFrame, FSNOBJ_CSS};
 use fs_components::Sidebar;
 use fs_components::FS_SIDEBAR_CSS;
 use fs_db_desktop::package_registry::PackageRegistry;
+use fs_session::SessionStore;
+
+// ── SessionTracker ────────────────────────────────────────────────────────────
+
+/// Thin wrapper around `SessionStore` + session id.
+/// All methods are fire-and-forget: they spawn a background task and return
+/// immediately so they can be called from synchronous Dioxus event handlers.
+#[derive(Clone)]
+struct SessionTracker {
+    store: Arc<SessionStore>,
+    session_id: Arc<String>,
+}
+
+impl SessionTracker {
+    fn program_opened(&self, app_id: &str) {
+        let store = Arc::clone(&self.store);
+        let sid = Arc::clone(&self.session_id);
+        let aid = app_id.to_owned();
+        spawn(async move {
+            let _ = store.open_program(&sid, &aid).await;
+        });
+    }
+
+    fn program_minimized(&self, app_id: &str) {
+        let store = Arc::clone(&self.store);
+        let sid = Arc::clone(&self.session_id);
+        let aid = app_id.to_owned();
+        spawn(async move {
+            let _ = store.minimize_program(&sid, &aid).await;
+        });
+    }
+
+    fn program_restored(&self, app_id: &str) {
+        let store = Arc::clone(&self.store);
+        let sid = Arc::clone(&self.session_id);
+        let aid = app_id.to_owned();
+        spawn(async move {
+            let _ = store.restore_program(&sid, &aid).await;
+        });
+    }
+
+    fn program_closed(&self, app_id: &str) {
+        let store = Arc::clone(&self.store);
+        let sid = Arc::clone(&self.session_id);
+        let aid = app_id.to_owned();
+        spawn(async move {
+            let _ = store.close_program(&sid, &aid).await;
+        });
+    }
+}
 
 /// Eight invisible fixed-position resize handles around the OS window border.
 /// Only compiled in desktop mode (requires tao window API).
@@ -97,6 +147,22 @@ pub fn Desktop() -> Element {
         crate::db::DbContext(Arc::new(db))
     });
     let db = db_ctx.0.clone();
+
+    // Session tracker: created once at startup, then used fire-and-forget by all
+    // open/minimize/restore/close callbacks. None until the async init completes.
+    let mut session_tracker: Signal<Option<SessionTracker>> = use_signal(|| None);
+    use_effect(move || {
+        spawn(async move {
+            if let Ok(store) = SessionStore::open(":memory:").await {
+                if let Ok(session) = store.create("user-42", "Alice").await {
+                    *session_tracker.write() = Some(SessionTracker {
+                        store: Arc::new(store),
+                        session_id: Arc::new(session.id().to_owned()),
+                    });
+                }
+            }
+        });
+    });
 
     // Single AppContext — all cross-cutting desktop state in one place.
     // Child components access locale, theme, wallpaper, and appearance settings
@@ -179,6 +245,9 @@ pub fn Desktop() -> Element {
         let req = app_open_req.read().clone();
         if let Some(app_id) = req {
             open_app(&mut wm, &mut apps, &app_id, *active_desktop.read());
+            if let Some(tracker) = session_tracker.read().clone() {
+                tracker.program_opened(&app_id);
+            }
             *app_open_req.write() = None;
         }
     });
@@ -219,7 +288,12 @@ pub fn Desktop() -> Element {
             crate::db::save_theme_to_db(db_menu.clone(), "midnight-blue".to_string());
         }
         "launcher" => launcher.write().toggle(),
-        "open-tasks" => open_app(&mut wm, &mut apps, "tasks", *active_desktop.read()),
+        "open-tasks" => {
+            open_app(&mut wm, &mut apps, "tasks", *active_desktop.read());
+            if let Some(tracker) = session_tracker.read().clone() {
+                tracker.program_opened("tasks");
+            }
+        }
         _ => {}
     };
 
@@ -227,12 +301,18 @@ pub fn Desktop() -> Element {
     let on_sidebar_select = move |app_id: String| {
         open_app(&mut wm, &mut apps, &app_id, *active_desktop.read());
         launcher.write().close();
+        if let Some(tracker) = session_tracker.read().clone() {
+            tracker.program_opened(&app_id);
+        }
     };
 
     // ── Launcher callbacks ──────────────────────────────────────────────────
     let on_launcher_launch = move |app_id: String| {
         open_app(&mut wm, &mut apps, &app_id, *active_desktop.read());
         launcher.write().close();
+        if let Some(tracker) = session_tracker.read().clone() {
+            tracker.program_opened(&app_id);
+        }
     };
     let on_launcher_query = move |q: String| {
         launcher.write().query = q;
@@ -243,16 +323,50 @@ pub fn Desktop() -> Element {
 
     // ── Window manager callbacks ────────────────────────────────────────────
     let on_close_window = move |id: WindowId| {
+        let app_id = apps
+            .read()
+            .iter()
+            .find(|a| a.windows.contains(&id))
+            .map(|a| a.id.clone());
         wm.write().close(id);
         for app in apps.write().iter_mut() {
             app.windows.retain(|&wid| wid != id);
         }
+        if let (Some(tracker), Some(aid)) = (session_tracker.read().clone(), app_id) {
+            tracker.program_closed(&aid);
+        }
     };
     let on_focus_window = move |id: WindowId| {
+        let was_minimized = wm
+            .read()
+            .windows()
+            .iter()
+            .find(|w| w.id == id)
+            .map(|w| w.minimized)
+            .unwrap_or(false);
+        let app_id = if was_minimized {
+            apps.read()
+                .iter()
+                .find(|a| a.windows.contains(&id))
+                .map(|a| a.id.clone())
+        } else {
+            None
+        };
         wm.write().focus(id);
+        if let (Some(tracker), Some(aid)) = (session_tracker.read().clone(), app_id) {
+            tracker.program_restored(&aid);
+        }
     };
     let on_minimize_window = move |id: WindowId| {
+        let app_id = apps
+            .read()
+            .iter()
+            .find(|a| a.windows.contains(&id))
+            .map(|a| a.id.clone());
         wm.write().minimize(id);
+        if let (Some(tracker), Some(aid)) = (session_tracker.read().clone(), app_id) {
+            tracker.program_minimized(&aid);
+        }
     };
     let on_maximize_window = move |id: WindowId| {
         wm.write().maximize(id);
@@ -593,7 +707,12 @@ pub fn Desktop() -> Element {
                         on_action: move |id: String| {
                             match id.as_str() {
                                 "edit-desktop" => edit_mode.set(true),
-                                "settings"     => open_app(&mut wm, &mut apps, "settings", *active_desktop.read()),
+                                "settings" => {
+                                    open_app(&mut wm, &mut apps, "settings", *active_desktop.read());
+                                    if let Some(tracker) = session_tracker.read().clone() {
+                                        tracker.program_opened("settings");
+                                    }
+                                }
                                 _ => {}
                             }
                             ctx_menu.set(ContextMenuState::default());
