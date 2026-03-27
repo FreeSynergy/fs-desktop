@@ -196,7 +196,7 @@ pub fn SettingsApp(props: SettingsAppProps) -> Element {
                         if has_packages {
                             PackageSettingsView {
                                 packages: props.packages.clone(),
-                                on_save: props.on_package_save.clone()
+                                on_save: props.on_package_save
                                     .unwrap_or_else(|| EventHandler::new(|_| {})),
                             }
                         }

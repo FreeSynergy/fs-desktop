@@ -97,6 +97,11 @@ fn field_to_view(f: &ConfigField) -> SettingsFieldView {
         ConfigFieldKind::Port => (SettingsKindTag::Port, vec![]),
         ConfigFieldKind::Path => (SettingsKindTag::Path, vec![]),
         ConfigFieldKind::Textarea => (SettingsKindTag::Textarea, vec![]),
+        // Typed-value kinds — rendered as text inputs until dedicated UI controls exist.
+        ConfigFieldKind::Url | ConfigFieldKind::LanguageCode | ConfigFieldKind::SemVer => {
+            (SettingsKindTag::Text, vec![])
+        }
+        ConfigFieldKind::Tag { .. } => (SettingsKindTag::Text, vec![]),
     };
 
     let current_value = match &f.value {
@@ -252,7 +257,7 @@ pub fn PackageSettingsView(props: PackageSettingsViewProps) -> Element {
                 if let Some(pkg) = selected {
                     PackageSettingsPanel {
                         pkg: pkg.clone(),
-                        on_save: props.on_save.clone(),
+                        on_save: props.on_save,
                     }
                 } else {
                     div {
@@ -367,7 +372,7 @@ fn PackageSettingsPanel(props: PackageSettingsPanelProps) -> Element {
                         key: "{field.key}",
                         field: field.clone(),
                         pkg_id: pkg.id.clone(),
-                        on_save: props.on_save.clone(),
+                        on_save: props.on_save,
                     }
                 }
             }

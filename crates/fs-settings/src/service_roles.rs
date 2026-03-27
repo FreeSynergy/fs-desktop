@@ -250,7 +250,7 @@ fn walkdir_toml(dir: &std::path::Path) -> Vec<PathBuf> {
         let path = e.path();
         if path.is_dir() {
             result.extend(walkdir_toml(&path));
-        } else if path.extension().map_or(false, |ext| ext == "toml") {
+        } else if path.extension().is_some_and(|ext| ext == "toml") {
             result.push(path);
         }
     }

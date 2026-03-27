@@ -240,7 +240,7 @@ pub fn TranslationEditor(
     let contrib =
         use_signal(|| GitContributorCheck::cached().unwrap_or(ContributorStatus::Unknown));
     {
-        let mut contrib = contrib.clone();
+        let mut contrib = contrib;
         use_future(move || async move {
             if *contrib.read() == ContributorStatus::Unknown {
                 let result = GitContributorCheck::check_and_cache();
@@ -488,14 +488,13 @@ pub fn TranslationEditor(
                             ),
                             disabled: *llm_busy.read(),
                             onclick: {
-                                let entries        = entries.clone();
                                 let lang_name2     = lang_name.clone();
                                 let lang_code2     = lang_code.clone();
-                                let llm_request    = llm_request.clone();
+                                let llm_request    = llm_request;
                                 let llm_service    = llm_service_name.clone();
-                                let mut llm_busy   = llm_busy.clone();
-                                let mut llm_proposals = llm_proposals.clone();
-                                let mut llm_error  = llm_error.clone();
+                                let mut llm_busy   = llm_busy;
+                                let mut llm_proposals = llm_proposals;
+                                let mut llm_error  = llm_error;
                                 move |_| {
                                     let prompt = build_llm_prompt(
                                         &lang_name2,
@@ -507,9 +506,9 @@ pub fn TranslationEditor(
                                     llm_busy.set(true);
                                     llm_proposals.set(Vec::new());
                                     llm_error.set(None);
-                                    let mut llm_busy2    = llm_busy.clone();
-                                    let mut llm_proposals2 = llm_proposals.clone();
-                                    let mut llm_error2   = llm_error.clone();
+                                    let mut llm_busy2    = llm_busy;
+                                    let mut llm_proposals2 = llm_proposals;
+                                    let mut llm_error2   = llm_error;
                                     spawn(async move {
                                         match call_llm_service(&service, prompt).await {
                                             Ok(response) => {
@@ -565,8 +564,8 @@ pub fn TranslationEditor(
                                             border: none; border-radius: var(--fs-radius-sm); \
                                             cursor: pointer;",
                                     onclick: {
-                                        let mut entries       = entries.clone();
-                                        let mut llm_proposals = llm_proposals.clone();
+                                        let mut entries       = entries;
+                                        let mut llm_proposals = llm_proposals;
                                         move |_| {
                                             let proposals = llm_proposals.read().clone();
                                             for (key, value) in &proposals {
@@ -633,8 +632,8 @@ pub fn TranslationEditor(
                                                         onclick: {
                                                             let key2   = key.clone();
                                                             let value2 = value.clone();
-                                                            let mut entries       = entries.clone();
-                                                            let mut llm_proposals = llm_proposals.clone();
+                                                            let mut entries       = entries;
+                                                            let mut llm_proposals = llm_proposals;
                                                             move |_| {
                                                                 let idx = { entries.read().iter().position(|e| e.key == key2) };
                                                                 if let Some(i) = idx {
@@ -680,7 +679,7 @@ pub fn TranslationEditor(
                         key: "{idx}",
                         entry: entry.clone(),
                         on_change: {
-                            let mut entries = entries.clone();
+                            let mut entries = entries;
                             move |new_val: String| {
                                 entries.write()[idx].target_val = new_val;
                                 entries.write()[idx].edited     = true;
@@ -702,7 +701,6 @@ pub fn TranslationEditor(
                             border-radius: var(--fs-radius-md); font-size: 13px; \
                             cursor: pointer; color: var(--fs-color-text-primary);",
                     onclick: {
-                        let entries   = entries.clone();
                         let lang_code = lang_code.clone();
                         move |_| {
                             let toml_str = entries_to_toml(&entries.read());
@@ -730,13 +728,11 @@ pub fn TranslationEditor(
                                 border-radius: var(--fs-radius-md); font-size: 13px; \
                                 cursor: pointer;",
                         onclick: {
-                            let entries   = entries.clone();
                             let lang_code = lang_code.clone();
-                            let push_msg  = push_msg.clone();
                             move |_| {
                                 let toml_str  = entries_to_toml(&entries.read());
                                 let lang_code = lang_code.clone();
-                                let mut push_msg = push_msg.clone();
+                                let mut push_msg = push_msg;
                                 spawn(async move {
                                     let repo_path = std::env::var("FS_NODE_REPO_PATH")
                                         .unwrap_or_else(|_| {
@@ -763,7 +759,7 @@ pub fn TranslationEditor(
                             font-size: 12px; color: var(--fs-color-text-muted); \
                             cursor: pointer; text-decoration: underline;",
                     onclick: {
-                        let mut contrib = contrib.clone();
+                        let mut contrib = contrib;
                         move |_| {
                             GitContributorCheck::clear_cache();
                             contrib.set(ContributorStatus::Unknown);

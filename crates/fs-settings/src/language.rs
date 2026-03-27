@@ -12,34 +12,29 @@ use fs_manager_language::{
     DateFormat, FormatVariant, HasFlag, Language, LanguageManager, LocaleSettings, NumberFormat,
     TimeFormat,
 };
-use fs_store::{LocaleEntry, Manifest, StoreClient};
+use fs_store::StoreReader;
 use serde::Deserialize;
 
 use crate::translation_editor::TranslationEditor;
 
 // ── Store catalog helper ─────────────────────────────────────────────────────
 
-#[derive(Deserialize)]
-struct MinPkg {
-    id: String,
-    name: String,
-    version: String,
-    category: String,
+/// A single locale entry from the Store's locale catalog.
+#[derive(Debug, Clone, Deserialize)]
+pub struct LocaleEntry {
+    pub code: String,
+    pub name: String,
+    pub version: String,
+    pub completeness: u8,
+    pub direction: String,
+    pub path: Option<String>,
 }
 
-impl Manifest for MinPkg {
-    fn id(&self) -> &str {
-        &self.id
-    }
-    fn name(&self) -> &str {
-        &self.name
-    }
-    fn version(&self) -> &str {
-        &self.version
-    }
-    fn category(&self) -> &str {
-        &self.category
-    }
+/// TOML structure of the locale catalog file in the Store.
+#[derive(Deserialize)]
+struct LocaleCatalog {
+    #[serde(default)]
+    locales: Vec<LocaleEntry>,
 }
 
 // ── Public types ─────────────────────────────────────────────────────────────
@@ -167,7 +162,7 @@ async fn install_language_pack(locale: LocaleInfo) -> Result<(), String> {
         .unwrap_or_else(|| format!("Node/i18n/{}", locale.code));
     let url = format!("{base}/ui.toml");
 
-    let file_path = match StoreClient::node_store().fetch_raw(&url).await {
+    let file_path = match StoreReader::official().fetch_raw(&url).await {
         Ok(content) => {
             let dest = fs_dir.join("i18n").join(&locale.code).join("ui.toml");
             if let Some(p) = dest.parent() {
@@ -266,8 +261,8 @@ pub fn LanguageSettings() -> Element {
                 },
                 // Right-click removes a non-builtin language.
                 on_context_menu: {
-                    let mut installed  = installed.clone();
-                    let mut panel_sig  = panel.clone();
+                    let mut installed  = installed;
+                    let mut panel_sig  = panel;
                     move |id: String| {
                         let is_builtin = BUILTIN_LANGUAGES.iter().any(|(c, _)| *c == id.as_str());
                         if !is_builtin {
@@ -297,7 +292,7 @@ pub fn LanguageSettings() -> Element {
                                 LanguageDetailPane {
                                     entry: e,
                                     on_edit: {
-                                        let mut el = editor_lang.clone();
+                                        let mut el = editor_lang;
                                         move |pair| el.set(Some(pair))
                                     },
                                 }
@@ -312,7 +307,7 @@ pub fn LanguageSettings() -> Element {
                     InstallPane {
                         installed_ids: installed.read().iter().map(|e| e.code.clone()).collect(),
                         on_installed: {
-                            let mut installed = installed.clone();
+                            let mut installed = installed;
                             move |entry: LangEntry| installed.write().push(entry)
                         },
                     }
@@ -391,7 +386,7 @@ fn DefaultPane(installed: Vec<LangEntry>) -> Element {
                                             color: white; border: none; \
                                             border-radius: var(--fs-radius-md); cursor: pointer;",
                                     onclick: {
-                                        let mut inv = inv.clone();
+                                        let mut inv = inv;
                                         move |_| {
                                             let code = selected.read().clone();
                                             // Load user-installed pack from disk before switching.
@@ -456,7 +451,7 @@ fn DefaultPane(installed: Vec<LangEntry>) -> Element {
                                     value: inv.read().fallback_language.clone()
                                         .unwrap_or_else(|| effective.fallback_language.clone()),
                                     onchange: {
-                                        let mut inv = inv.clone();
+                                        let mut inv = inv;
                                         move |e: Event<FormData>| {
                                             inv.write().fallback_language = Some(e.value());
                                             let _ = inv.read().save_inventory();
@@ -493,7 +488,7 @@ fn DefaultPane(installed: Vec<LangEntry>) -> Element {
                                                         if is_active { "white" } else { "var(--fs-color-text-primary)" },
                                                     ),
                                                     onclick: {
-                                                        let mut inv = inv.clone();
+                                                        let mut inv = inv;
                                                         let f2 = f.clone();
                                                         move |_| {
                                                             inv.write().date_format = Some(f2.clone());
@@ -537,7 +532,7 @@ fn DefaultPane(installed: Vec<LangEntry>) -> Element {
                                                         if is_active { "white" } else { "var(--fs-color-text-primary)" },
                                                     ),
                                                     onclick: {
-                                                        let mut inv = inv.clone();
+                                                        let mut inv = inv;
                                                         let f2 = f.clone();
                                                         move |_| {
                                                             inv.write().time_format = Some(f2.clone());
@@ -578,7 +573,7 @@ fn DefaultPane(installed: Vec<LangEntry>) -> Element {
                                                         if is_active { "white" } else { "var(--fs-color-text-primary)" },
                                                     ),
                                                     onclick: {
-                                                        let mut inv = inv.clone();
+                                                        let mut inv = inv;
                                                         let f2 = f.clone();
                                                         move |_| {
                                                             inv.write().number_format = Some(f2.clone());
@@ -607,7 +602,7 @@ fn DefaultPane(installed: Vec<LangEntry>) -> Element {
                                         checked: inv.read().auto_update_packs
                                             .unwrap_or(effective.auto_update_packs),
                                         onchange: {
-                                            let mut inv = inv.clone();
+                                            let mut inv = inv;
                                             move |e: Event<FormData>| {
                                                 inv.write().auto_update_packs = Some(e.value() == "true");
                                                 let _ = inv.read().save_inventory();
@@ -768,7 +763,7 @@ fn LangEditPane(entry: LangEntry, on_edit: EventHandler<(String, String)>) -> El
     let contrib =
         use_signal(|| GitContributorCheck::cached().unwrap_or(ContributorStatus::Unknown));
     {
-        let mut contrib = contrib.clone();
+        let mut contrib = contrib;
         use_future(move || async move {
             if *contrib.read() == ContributorStatus::Unknown {
                 contrib.set(GitContributorCheck::check_and_cache());
@@ -840,7 +835,7 @@ fn LangEditPane(entry: LangEntry, on_edit: EventHandler<(String, String)>) -> El
                                     border-radius: var(--fs-radius-sm); cursor: pointer; \
                                     color: var(--fs-color-text-muted); white-space: nowrap;",
                             onclick: {
-                                let mut contrib = contrib.clone();
+                                let mut contrib = contrib;
                                 move |_| {
                                     GitContributorCheck::clear_cache();
                                     contrib.set(ContributorStatus::Unknown);
@@ -1024,12 +1019,11 @@ fn AvailableLanguages(
     let busy: Signal<Option<String>> = use_signal(|| None);
 
     {
-        let all_locales = all_locales.clone();
         use_future(move || {
-            let mut all_locales = all_locales.clone();
+            let mut all_locales = all_locales;
             async move {
-                match StoreClient::node_store()
-                    .fetch_catalog::<MinPkg>("Node", false)
+                match StoreReader::official()
+                    .fetch_toml::<LocaleCatalog>("Node/locale-catalog.toml")
                     .await
                 {
                     Ok(catalog) => {
@@ -1090,14 +1084,14 @@ fn AvailableLanguages(
                             locale:     locale.clone(),
                             installing: busy.read().as_deref() == Some(locale.code.as_str()),
                             on_install: {
-                                let mut busy = busy.clone();
+                                let mut busy = busy;
                                 move |l: LocaleInfo| {
                                     let id   = l.code.clone();
                                     let name = l.name.clone();
                                     busy.set(Some(id.clone()));
-                                    let mut busy = busy.clone();
+                                    let mut busy = busy;
                                     let entry = LangEntry { code: id.clone(), name, builtin: false };
-                                    let cb    = on_installed.clone();
+                                    let cb    = on_installed;
                                     spawn(async move {
                                         match install_language_pack(l).await {
                                             Ok(()) => cb.call(entry),

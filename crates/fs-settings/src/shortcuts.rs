@@ -276,7 +276,7 @@ pub fn ShortcutsSettings() -> Element {
                                         let current = resolve_shortcut(action, &cfg)
                                             .map(|s| s.to_string())
                                             .unwrap_or_else(|| "—".to_string());
-                                        let is_default = cfg.custom.get(action.id).is_none();
+                                        let is_default = !cfg.custom.contains_key(action.id);
                                         let is_recording = recording_id.as_deref() == Some(action.id);
                                         let action_id = action.id.to_string();
                                         let action_id2 = action.id.to_string();
@@ -337,7 +337,7 @@ pub fn ShortcutsSettings() -> Element {
                 }
             }
 
-            if *recording.read() != None {
+            if (*recording.read()).is_some() {
                 div {
                     style: "position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); \
                             background: var(--fs-bg-elevated); border: 1px solid var(--fs-primary); \

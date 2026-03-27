@@ -130,7 +130,7 @@ pub fn AppearanceSettings() -> Element {
                             "2px solid transparent".to_string()
                         };
                         let id_owned = id.to_string();
-                        let mut set_theme = set_theme.clone();
+                        let mut set_theme = set_theme;
                         rsx! {
                             button {
                                 key: "{id}",
@@ -222,7 +222,7 @@ pub fn AppearanceSettings() -> Element {
                             let pkg_name = pkg.name.clone();
                             // Store themes ship a theme.css — read it on apply.
                             let css_path = pkg.file_path.clone();
-                            let mut set_theme = set_theme.clone();
+                            let mut set_theme = set_theme;
                             rsx! {
                                 div {
                                     key: "{pkg_id}",
