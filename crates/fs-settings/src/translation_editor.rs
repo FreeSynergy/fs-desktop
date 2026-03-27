@@ -7,6 +7,8 @@
 ///   - "Export .toml" for everyone
 ///   - "Commit & Push" for authenticated GitHub contributors
 ///   - "AI Translate" when an LLM role is configured in Service Roles
+use std::fmt::Write as _;
+
 use dioxus::prelude::*;
 use fs_i18n;
 use fs_manager_language::git_contributor::{ContributorStatus, GitContributorCheck};
@@ -41,11 +43,11 @@ fn flatten_toml(toml_str: &str) -> Vec<(String, String)> {
         return Vec::new();
     };
     let mut out = Vec::new();
-    flatten_table(&table, String::new(), &mut out);
+    flatten_table(&table, "", &mut out);
     out
 }
 
-fn flatten_table(table: &toml::Table, prefix: String, out: &mut Vec<(String, String)>) {
+fn flatten_table(table: &toml::Table, prefix: &str, out: &mut Vec<(String, String)>) {
     for (k, v) in table {
         let full_key = if prefix.is_empty() {
             k.clone()
@@ -54,7 +56,7 @@ fn flatten_table(table: &toml::Table, prefix: String, out: &mut Vec<(String, Str
         };
         match v {
             toml::Value::String(s) => out.push((full_key, s.clone())),
-            toml::Value::Table(t) => flatten_table(t, full_key, out),
+            toml::Value::Table(t) => flatten_table(t, &full_key, out),
             other => out.push((full_key, other.to_string())),
         }
     }
@@ -121,23 +123,19 @@ fn build_llm_prompt(
 
     let mut prompt = format!(
         "You are a professional software translator for the FreeSynergy open-source project.\n\
-         Translate the following UI text strings into {} ({} locale).\n\
+         Translate the following UI text strings into {lang_name} ({lang_code} locale).\n\
          Return ONLY a flat TOML block — one line per key, format: \"key.name\" = \"translation\"\n\
          No explanations, no code fences, no comments.\n\n\
-         Strings to translate:\n",
-        lang_name, lang_code
+         Strings to translate:\n"
     );
 
     for e in &missing {
         let escaped = e.en_value.replace('"', r#"\""#);
-        prompt.push_str(&format!("\"{}\" = \"{}\"\n", e.key, escaped));
+        let _ = writeln!(prompt, "\"{}\" = \"{}\"", e.key, escaped);
     }
 
     if !user_request.trim().is_empty() {
-        prompt.push_str(&format!(
-            "\nAdditional instruction: {}",
-            user_request.trim()
-        ));
+        let _ = write!(prompt, "\nAdditional instruction: {}", user_request.trim());
     }
 
     prompt
@@ -184,43 +182,40 @@ async fn call_llm_service(service_name: &str, prompt: String) -> Result<String, 
         .build()
         .map_err(|e| e.to_string())?;
 
-    match service_name {
-        "ollama" => {
-            let resp = client
-                .post("http://localhost:11434/api/generate")
-                .json(&serde_json::json!({
-                    "model": "llama3.2",
-                    "prompt": prompt,
-                    "stream": false
-                }))
-                .send()
-                .await
-                .map_err(|e| e.to_string())?;
+    if service_name == "ollama" {
+        let resp = client
+            .post("http://localhost:11434/api/generate")
+            .json(&serde_json::json!({
+                "model": "llama3.2",
+                "prompt": prompt,
+                "stream": false
+            }))
+            .send()
+            .await
+            .map_err(|e| e.to_string())?;
 
-            let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
-            json["response"]
-                .as_str()
-                .map(|s| s.to_string())
-                .ok_or_else(|| "Unexpected Ollama response format".to_string())
-        }
-        _ => {
-            // Generic OpenAI-compatible API (llama.cpp server, LM Studio, etc.)
-            let resp = client
-                .post("http://localhost:8080/v1/chat/completions")
-                .json(&serde_json::json!({
-                    "messages": [{ "role": "user", "content": prompt }],
-                    "stream": false
-                }))
-                .send()
-                .await
-                .map_err(|e| e.to_string())?;
+        let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+        json["response"]
+            .as_str()
+            .map(std::string::ToString::to_string)
+            .ok_or_else(|| "Unexpected Ollama response format".to_string())
+    } else {
+        // Generic OpenAI-compatible API (llama.cpp server, LM Studio, etc.)
+        let resp = client
+            .post("http://localhost:8080/v1/chat/completions")
+            .json(&serde_json::json!({
+                "messages": [{ "role": "user", "content": prompt }],
+                "stream": false
+            }))
+            .send()
+            .await
+            .map_err(|e| e.to_string())?;
 
-            let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
-            json["choices"][0]["message"]["content"]
-                .as_str()
-                .map(|s| s.to_string())
-                .ok_or_else(|| "Unexpected API response format".to_string())
-        }
+        let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+        json["choices"][0]["message"]["content"]
+            .as_str()
+            .map(std::string::ToString::to_string)
+            .ok_or_else(|| "Unexpected API response format".to_string())
     }
 }
 
@@ -251,7 +246,7 @@ pub fn TranslationEditor(
 
     // LLM: check if an "llm" service role is configured
     let role_cfg = load_role_assignments();
-    let llm_service = role_cfg.get("llm").map(|s| s.to_string());
+    let llm_service = role_cfg.get("llm").map(std::string::ToString::to_string);
     let llm_available = llm_service.is_some();
     let llm_service_name = llm_service.unwrap_or_default();
 
@@ -571,7 +566,7 @@ pub fn TranslationEditor(
                                             for (key, value) in &proposals {
                                                 let idx = { entries.read().iter().position(|e| &e.key == key) };
                                                 if let Some(i) = idx {
-                                                    entries.write()[i].target_val = value.clone();
+                                                    entries.write()[i].target_val.clone_from(value);
                                                     entries.write()[i].edited     = true;
                                                 }
                                             }
@@ -637,7 +632,7 @@ pub fn TranslationEditor(
                                                             move |_| {
                                                                 let idx = { entries.read().iter().position(|e| e.key == key2) };
                                                                 if let Some(i) = idx {
-                                                                    entries.write()[i].target_val = value2.clone();
+                                                                    entries.write()[i].target_val.clone_from(&value2);
                                                                     entries.write()[i].edited     = true;
                                                                 }
                                                                 llm_proposals.write().retain(|(k, _)| k != &key2);

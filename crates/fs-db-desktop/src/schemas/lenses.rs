@@ -1,7 +1,7 @@
 //! `fs-lenses.db` — Lens storage schema (saved lenses + cached items).
 
 /// SQL to create all Lenses tables. Run at Lenses startup.
-pub const SCHEMA: &str = r#"
+pub const SCHEMA: &str = r"
 -- Saved lenses (each lens is a named search query).
 CREATE TABLE IF NOT EXISTS lenses (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -22,4 +22,4 @@ CREATE TABLE IF NOT EXISTS lens_items (
     fetched_at TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_lens_items_lens ON lens_items (lens_id);
-"#;
+";

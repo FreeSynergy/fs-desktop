@@ -39,6 +39,7 @@ pub enum PersonalCapability {
 
 impl PersonalCapability {
     /// Static metadata (icon, kind label) — single source of truth per variant.
+    #[must_use]
     pub fn meta(&self) -> CapabilityMeta {
         match self {
             Self::MessengerAccount { .. } => CapabilityMeta {
@@ -60,14 +61,17 @@ impl PersonalCapability {
         }
     }
 
+    #[must_use]
     pub fn icon(&self) -> &'static str {
         self.meta().icon
     }
+    #[must_use]
     pub fn kind_label(&self) -> &'static str {
         self.meta().kind
     }
 
     /// Instance-specific display label (uses variant fields — cannot be in meta).
+    #[must_use]
     pub fn label(&self) -> String {
         match self {
             Self::MessengerAccount {
@@ -77,7 +81,7 @@ impl PersonalCapability {
             }
             Self::TaskManager { service_id } => format!("{} ({})", self.kind_label(), service_id),
             Self::Mailbox { address, .. } => format!("{} ({})", self.kind_label(), address),
-            Self::LlmAssistant { provider, model } => format!("LLM: {} / {}", provider, model),
+            Self::LlmAssistant { provider, model } => format!("LLM: {provider} / {model}"),
         }
     }
 }
@@ -169,6 +173,7 @@ impl UserProfile {
     }
 
     /// Load profile from `~/.config/fsn/profile.toml`. Returns default if absent.
+    #[must_use]
     pub fn load() -> Self {
         let path = Self::path();
         let content = std::fs::read_to_string(&path).unwrap_or_default();
@@ -176,6 +181,9 @@ impl UserProfile {
     }
 
     /// Save profile to `~/.config/fsn/profile.toml`.
+    ///
+    /// # Errors
+    /// Returns an error string if the directory cannot be created or the file cannot be written.
     pub fn save(&self) -> Result<(), String> {
         let path = Self::path();
         if let Some(parent) = path.parent() {
@@ -447,7 +455,9 @@ pub fn ProfileApp() -> Element {
                                 let subject  = link_subject.read().trim().to_string();
                                 if !provider.is_empty() && !username.is_empty() {
                                     profile.write().linked_accounts.push(LinkedAccount {
-                                        provider, username, subject,
+                                        provider,
+                                        subject,
+                                        username,
                                     });
                                     *show_link.write() = false;
                                 }
@@ -845,19 +855,21 @@ fn chrono_now() -> String {
     // Uses file-system mtime as a proxy — good enough for "added_at" display.
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| {
-            let secs = d.as_secs();
-            // Very simple ISO-8601: 1970-01-01T00:00:00Z arithmetic
-            let s = secs % 60;
-            let m = (secs / 60) % 60;
-            let h = (secs / 3600) % 24;
-            let days = secs / 86400;
-            // Approximate year (ignoring leap seconds / exact months — for display only)
-            let year = 1970 + days / 365;
-            let day_of_year = days % 365;
-            let month = day_of_year / 30 + 1;
-            let day = day_of_year % 30 + 1;
-            format!("{year:04}-{month:02}-{day:02}T{h:02}:{m:02}:{s:02}Z")
-        })
-        .unwrap_or_else(|_| "unknown".into())
+        .map_or_else(
+            |_| "unknown".into(),
+            |d| {
+                let secs = d.as_secs();
+                // Very simple ISO-8601: 1970-01-01T00:00:00Z arithmetic
+                let s = secs % 60;
+                let m = (secs / 60) % 60;
+                let h = (secs / 3600) % 24;
+                let days = secs / 86400;
+                // Approximate year (ignoring leap seconds / exact months — for display only)
+                let year = 1970 + days / 365;
+                let day_of_year = days % 365;
+                let month = day_of_year / 30 + 1;
+                let day = day_of_year % 30 + 1;
+                format!("{year:04}-{month:02}-{day:02}T{h:02}:{m:02}:{s:02}Z")
+            },
+        )
 }

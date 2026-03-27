@@ -1,3 +1,4 @@
+#![deny(clippy::all, clippy::pedantic, warnings)]
 fn main() {
     // Initialize i18n before Dioxus starts — guarantees all translation keys
     // are resolved before any component renders for the first time.

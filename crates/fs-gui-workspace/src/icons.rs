@@ -1,8 +1,8 @@
-/// FreeSynergy shell icon constants.
-///
-/// All icons are part of the "FreeSynergy" icon set stored in FreeSynergy.Icons/FreeSynergy/.
-/// They follow the Feather/Lucide style: 24×24 viewBox, stroke-based, rounded line-caps.
-/// Used via `dangerous_inner_html` in Dioxus components.
+//! `FreeSynergy` shell icon constants.
+//!
+//! All icons are part of the `FreeSynergy` icon set stored in FreeSynergy.Icons/FreeSynergy/.
+//! They follow the Feather/Lucide style: 24×24 viewBox, stroke-based, rounded line-caps.
+//! Used via `dangerous_inner_html` in Dioxus components.
 
 // ── Navigation / UI ──────────────────────────────────────────────────────────
 

@@ -99,6 +99,7 @@ struct PartialSettings {
 }
 
 /// Load service role assignments from `~/.config/fsn/settings.toml`.
+#[must_use]
 pub fn load_role_assignments() -> ServiceRoleConfig {
     let path = crate::config_path("settings.toml");
     let content = std::fs::read_to_string(&path).unwrap_or_default();
@@ -112,6 +113,10 @@ pub fn load_role_assignments() -> ServiceRoleConfig {
 ///
 /// Only updates the `[service_roles]` section; all other keys are preserved
 /// by a round-trip through a generic TOML value.
+///
+/// # Errors
+///
+/// Returns an error if the config directory cannot be created or the file cannot be written.
 pub fn save_role_assignments(config: &ServiceRoleConfig) -> Result<(), String> {
     let path = crate::config_path("settings.toml");
     if let Some(parent) = path.parent() {
@@ -121,7 +126,7 @@ pub fn save_role_assignments(config: &ServiceRoleConfig) -> Result<(), String> {
     // Load existing TOML to preserve all other settings.
     let existing = std::fs::read_to_string(&path).unwrap_or_default();
     let mut doc: toml::Value =
-        toml::from_str(&existing).unwrap_or(toml::Value::Table(Default::default()));
+        toml::from_str(&existing).unwrap_or(toml::Value::Table(toml::map::Map::default()));
 
     if let toml::Value::Table(ref mut root) = doc {
         let mut role_table = toml::value::Table::new();
@@ -170,12 +175,14 @@ impl ServiceRoleRegistry {
     ///   1. `FS_PLUGINS_DIR` env var
     ///   2. First enabled store `local_path` in settings
     ///   3. `~/.local/share/fsn/modules`
+    #[must_use]
     pub fn build() -> Self {
         let dir = modules_dir();
         Self::build_from_dir(&dir)
     }
 
     /// Build the registry by walking `modules_dir` recursively.
+    #[must_use]
     pub fn build_from_dir(modules_dir: &std::path::Path) -> Self {
         let mut providers: HashMap<String, Vec<String>> = HashMap::new();
 
@@ -203,10 +210,7 @@ impl ServiceRoleRegistry {
 
     /// All module names that claim to provide `role_id`.
     pub fn providers_for(&self, role_id: &str) -> &[String] {
-        self.providers
-            .get(role_id)
-            .map(Vec::as_slice)
-            .unwrap_or(&[])
+        self.providers.get(role_id).map_or(&[], Vec::as_slice)
     }
 }
 
@@ -222,7 +226,7 @@ fn modules_dir() -> PathBuf {
             for store in stores {
                 let enabled = store
                     .get("enabled")
-                    .and_then(|e| e.as_bool())
+                    .and_then(toml::Value::as_bool)
                     .unwrap_or(true);
                 if enabled {
                     if let Some(local) = store.get("local_path").and_then(|p| p.as_str()) {

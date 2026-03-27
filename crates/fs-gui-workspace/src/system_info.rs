@@ -1,4 +1,4 @@
-/// SystemContext — OOP source of truth for the running environment.
+/// `SystemContext` — OOP source of truth for the running environment.
 ///
 /// Knows what platform, architecture, and operating mode the current instance
 /// is running in. Initialized once (via `SystemInfo::detect()`) and exposed
@@ -20,6 +20,7 @@ pub enum Platform {
 }
 
 impl Platform {
+    #[must_use]
     pub fn detect() -> Self {
         #[cfg(target_os = "linux")]
         {
@@ -39,6 +40,7 @@ impl Platform {
         }
     }
 
+    #[must_use]
     pub fn label(&self) -> &'static str {
         match self {
             Self::Linux => "Linux",
@@ -49,6 +51,7 @@ impl Platform {
     }
 
     /// True if the platform supports server packages (Container Apps, etc.).
+    #[must_use]
     pub fn supports_server_packages(&self) -> bool {
         matches!(self, Self::Linux)
     }
@@ -65,6 +68,7 @@ pub enum Architecture {
 }
 
 impl Architecture {
+    #[must_use]
     pub fn detect() -> Self {
         #[cfg(target_arch = "x86_64")]
         {
@@ -80,6 +84,7 @@ impl Architecture {
         }
     }
 
+    #[must_use]
     pub fn label(&self) -> &'static str {
         match self {
             Self::X86_64 => "x86-64",
@@ -115,7 +120,7 @@ pub enum RunMode {
 /// reads from this struct instead of running OS detection themselves.
 ///
 /// # Typical usage
-/// ```rust
+/// ```rust,ignore
 /// let sys = SYSTEM_INFO.read();
 /// if sys.can_install_server_packages() {
 ///     // show container-app install button
@@ -133,6 +138,7 @@ pub struct SystemInfo {
 
 impl SystemInfo {
     /// Detect the current system at startup.
+    #[must_use]
     pub fn detect() -> Self {
         Self {
             platform: Platform::detect(),
@@ -157,6 +163,7 @@ impl SystemInfo {
     }
 
     /// True if a local Node is running (server + desktop mode).
+    #[must_use]
     pub fn has_node(&self) -> bool {
         matches!(self.mode, RunMode::Node)
     }
@@ -164,11 +171,13 @@ impl SystemInfo {
     /// True if this instance can install and run server packages.
     ///
     /// Requires: Linux platform + Node running.
+    #[must_use]
     pub fn can_install_server_packages(&self) -> bool {
         self.platform.supports_server_packages() && self.has_node()
     }
 
     /// Short human-readable description of the current mode.
+    #[must_use]
     pub fn mode_label(&self) -> &'static str {
         match self.mode {
             RunMode::Node => "Node + Desktop",

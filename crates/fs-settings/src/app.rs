@@ -40,6 +40,7 @@ pub enum SettingsSection {
 
 impl SettingsSection {
     /// All sections in display order (including `Packages`).
+    #[must_use]
     pub fn all() -> &'static [Self] {
         const ALL: &[SettingsSection] = &[
             SettingsSection::Appearance,
@@ -56,6 +57,7 @@ impl SettingsSection {
 
     /// Static metadata for this section (id, icon, i18n key).
     /// Single source of truth — replaces parallel match blocks.
+    #[must_use]
     pub fn meta(&self) -> SectionMeta {
         match self {
             Self::Appearance => SectionMeta {
@@ -101,14 +103,17 @@ impl SettingsSection {
         }
     }
 
+    #[must_use]
     pub fn id(&self) -> &str {
         self.meta().id
     }
+    #[must_use]
     pub fn icon(&self) -> &str {
         self.meta().icon
     }
 
     /// Translated display label.
+    #[must_use]
     pub fn label(&self) -> String {
         fs_i18n::t(self.meta().label_key).into()
     }
@@ -119,6 +124,7 @@ impl SettingsSection {
     }
 
     /// Look up a section by its stable ID — delegates to `all()`, no duplicate match.
+    #[must_use]
     pub fn from_id(id: &str) -> Option<Self> {
         Self::all().iter().find(|s| s.id() == id).cloned()
     }
@@ -213,6 +219,11 @@ pub fn SettingsApp(props: SettingsAppProps) -> Element {
 ///
 /// Extend settings without touching `SettingsApp` — implement this trait.
 pub trait SettingsPanel {
+    /// Render the panel for this section.
+    ///
+    /// # Errors
+    ///
+    /// Returns `None` if the element cannot be rendered.
     fn render_panel(&self) -> Element;
 }
 

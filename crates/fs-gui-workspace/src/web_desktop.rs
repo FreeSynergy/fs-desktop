@@ -1,11 +1,11 @@
-/// WebDesktop — mobile-first shell layout for the web target.
+/// `WebDesktop` — mobile-first shell layout for the web target.
 ///
 /// Layout:
-///   - TopBar (always visible):  [≡ Menu]  FreeSynergy  [Bell]  [User Admin]
+///   - `TopBar` (always visible):  [≡ Menu]  `FreeSynergy`  [Bell]  [User Admin]
 ///   - Content area: embedded app, fills remaining space, scrollable
 ///   - Taskbar (bottom): Fixed by default, slides up on tap/click, auto-hide optional
 ///
-/// Taskbar states: Fixed → SlideUp → Hidden (cycles on tap of drag handle).
+/// Taskbar states: Fixed → `SlideUp` → Hidden (cycles on tap of drag handle).
 use dioxus::prelude::*;
 
 use crate::icons::ICON_BELL;
@@ -27,7 +27,8 @@ pub enum WebTaskbarState {
 }
 
 impl WebTaskbarState {
-    /// Cycle: Fixed → SlideUp → Hidden → Fixed.
+    /// Cycle: Fixed → `SlideUp` → Hidden → Fixed.
+    #[must_use]
     pub fn cycle(self) -> Self {
         match self {
             Self::Fixed => Self::SlideUp,
@@ -36,6 +37,7 @@ impl WebTaskbarState {
         }
     }
 
+    #[must_use]
     pub fn label(self) -> &'static str {
         match self {
             Self::Fixed => "Fixed",
@@ -98,7 +100,7 @@ pub fn WebDesktop(props: WebDesktopProps) -> Element {
             WebTopBar {
                 user_name: props.user_name.clone(),
                 notification_count: props.notification_count,
-                on_menu: props.on_menu.clone(),
+                on_menu: props.on_menu,
             }
 
             // ── Content area ───────────────────────────────────────────────
@@ -134,7 +136,7 @@ pub fn WebDesktop(props: WebDesktopProps) -> Element {
                 // Taskbar body
                 WebTaskbarBody {
                     apps: props.apps.clone(),
-                    on_launch: props.on_launch.clone(),
+                    on_launch: props.on_launch,
                 }
             }
         }
@@ -152,8 +154,7 @@ fn WebTopBar(
     let initial: String = user_name
         .chars()
         .next()
-        .map(|c| c.to_uppercase().to_string())
-        .unwrap_or_else(|| "?".into());
+        .map_or_else(|| "?".into(), |c| c.to_uppercase().to_string());
 
     rsx! {
         header {
@@ -249,7 +250,7 @@ fn WebTaskbarBody(apps: Vec<AppEntry>, on_launch: Option<EventHandler<String>>) 
                             color: var(--fs-text-primary);",
                     onclick: {
                         let id = app.id.clone();
-                        let handler = on_launch.clone();
+                        let handler = on_launch;
                         move |_| {
                             if let Some(h) = &handler { h.call(id.clone()); }
                         }

@@ -83,7 +83,6 @@ impl PackageSettingsEntry {
 
 fn field_to_view(f: &ConfigField) -> SettingsFieldView {
     let (kind_tag, options) = match &f.kind {
-        ConfigFieldKind::Text => (SettingsKindTag::Text, vec![]),
         ConfigFieldKind::Password => (SettingsKindTag::Password, vec![]),
         ConfigFieldKind::Number { .. } => (SettingsKindTag::Number, vec![]),
         ConfigFieldKind::Bool => (SettingsKindTag::Bool, vec![]),
@@ -101,7 +100,7 @@ fn field_to_view(f: &ConfigField) -> SettingsFieldView {
         ConfigFieldKind::Url | ConfigFieldKind::LanguageCode | ConfigFieldKind::SemVer => {
             (SettingsKindTag::Text, vec![])
         }
-        ConfigFieldKind::Tag { .. } => (SettingsKindTag::Text, vec![]),
+        ConfigFieldKind::Tag { .. } | ConfigFieldKind::Text => (SettingsKindTag::Text, vec![]),
     };
 
     let current_value = match &f.value {

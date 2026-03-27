@@ -20,6 +20,7 @@ pub enum TaskbarPosition {
 }
 
 impl TaskbarPosition {
+    #[must_use]
     pub fn label(&self) -> &str {
         match self {
             Self::Bottom => "Bottom",
@@ -47,6 +48,7 @@ pub enum DisplayMode {
 }
 
 impl DisplayMode {
+    #[must_use]
     pub fn label(&self) -> &str {
         match self {
             Self::Window => "Window",
@@ -55,6 +57,7 @@ impl DisplayMode {
         }
     }
 
+    #[must_use]
     pub fn description(&self) -> String {
         match self {
             Self::Window => fs_i18n::t("settings.desktop.mode_window").into(),
@@ -63,6 +66,7 @@ impl DisplayMode {
         }
     }
 
+    #[must_use]
     pub fn icon(&self) -> &str {
         match self {
             Self::Window => "🖥",
@@ -85,6 +89,7 @@ pub enum SidebarPosition {
 }
 
 impl SidebarPosition {
+    #[must_use]
     pub fn label(&self) -> &str {
         match self {
             Self::Left => "Left",
@@ -140,6 +145,7 @@ pub struct DesktopConfig {
 }
 
 impl DesktopConfig {
+    #[must_use]
     pub fn load() -> Self {
         let path = desktop_toml_path();
         std::fs::read_to_string(&path)

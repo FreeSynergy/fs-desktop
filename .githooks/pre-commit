@@ -53,6 +53,17 @@ done
 # Deduplicate
 mapfile -t PKGS < <(printf '%s\n' "${PKGS[@]}" | sort -u)
 
+# Filter to workspace members only (exclude vendored/path-dep packages)
+WORKSPACE_MEMBERS=$(cargo metadata --no-deps --format-version 1 2>/dev/null \
+  | python3 -c "import sys,json; d=json.load(sys.stdin); print('\n'.join(p['name'] for p in d['packages']))" 2>/dev/null || true)
+FILTERED_PKGS=()
+for p in "${PKGS[@]}"; do
+  if echo "$WORKSPACE_MEMBERS" | grep -qx "$p"; then
+    FILTERED_PKGS+=("$p")
+  fi
+done
+PKGS=("${FILTERED_PKGS[@]}")
+
 if [ ${#PKGS[@]} -eq 0 ]; then
   echo "  Could not map staged files to packages — skipping."
   echo -e "${GREEN}[FS] All checks passed.${NC}"

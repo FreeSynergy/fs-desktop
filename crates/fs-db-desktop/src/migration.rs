@@ -29,12 +29,20 @@ pub struct DesktopMigrator;
 pub struct SharedMigrator;
 
 impl DesktopMigrator {
+    /// Run all pending desktop migrations.
+    ///
+    /// # Errors
+    /// Returns [`DbError`] if any migration SQL fails.
     pub async fn run(db: &DatabaseConnection) -> Result<(), DbError> {
         run_migrations(db, DESKTOP_MIGRATIONS).await
     }
 }
 
 impl SharedMigrator {
+    /// Run all pending shared migrations.
+    ///
+    /// # Errors
+    /// Returns [`DbError`] if any migration SQL fails.
     pub async fn run(db: &DatabaseConnection) -> Result<(), DbError> {
         run_migrations(db, SHARED_MIGRATIONS).await
     }
@@ -71,7 +79,7 @@ async fn is_applied(db: &DatabaseConnection, name: &str) -> Result<bool, DbError
             .one(db)
             .await
             .map_err(|e| DbError::SeaOrm(e.to_string()))?;
-    Ok(result.map(|r| r.count > 0).unwrap_or(false))
+    Ok(result.is_some_and(|r| r.count > 0))
 }
 
 async fn apply(db: &DatabaseConnection, name: &str, sql: &str) -> Result<(), DbError> {

@@ -2,7 +2,7 @@ use crate::icons::{
     ICON_CHEVRON_DOWN, ICON_CHEVRON_RIGHT, ICON_PROFILE, ICON_SETTINGS, ICON_SIGN_OUT,
 };
 use crate::notification::{NotificationBell, NotificationHistory};
-/// ShellHeader — 60px fixed header with menu bar, breadcrumbs and user avatar menu.
+/// `ShellHeader` — 60px fixed header with menu bar, breadcrumbs and user avatar menu.
 use dioxus::prelude::*;
 use fs_i18n;
 
@@ -245,7 +245,7 @@ pub fn ShellHeader(
             MenuBar {
                 menus: default_menu(),
                 on_action: {
-                    let on_menu_action = on_menu_action.clone();
+                    let on_menu_action = on_menu_action;
                     move |id: String| {
                         if let Some(handler) = &on_menu_action {
                             handler.call(id);
@@ -262,7 +262,7 @@ pub fn ShellHeader(
             // Notification bell
             NotificationBell {
                 history,
-                on_mark_read: move |_| {
+                on_mark_read: move |()| {
                     if let Some(h) = &on_mark_read {
                         h.call(());
                     }
@@ -291,7 +291,7 @@ fn OsWindowDragHandle() -> Element {
             onmousedown: move |_| {
                 dioxus::desktop::window().drag();
             },
-            ondblclick: move |_| {
+            ondoubleclick: move |_| {
                 dioxus::desktop::window().toggle_maximized();
             },
         }
@@ -306,7 +306,7 @@ fn OsWindowDragHandle() -> Element {
 }
 
 /// OS-level window controls: maximize/restore + close.
-/// `minimize()` is not exposed in dioxus-desktop 0.6; toggle_maximized and close are available.
+/// `minimize()` is not exposed in dioxus-desktop 0.6; `toggle_maximized` and close are available.
 #[cfg(feature = "desktop")]
 #[component]
 fn OsWindowControls() -> Element {
@@ -365,8 +365,8 @@ fn MenuBar(menus: Vec<MenuItem>, on_action: EventHandler<String>) -> Element {
                             *open_idx.write() = if current == Some(idx) { None } else { Some(idx) };
                         }
                     },
-                    on_close: move |_| *open_idx.write() = None,
-                    on_action: on_action.clone(),
+                    on_close: move |()| *open_idx.write() = None,
+                    on_action: on_action,
                 }
             }
         }
@@ -458,8 +458,8 @@ fn MenuDropdown(
                             SubMenuRow {
                                 label,
                                 items: sub_items,
-                                on_action: on_action.clone(),
-                                on_close: on_close.clone(),
+                                on_action: on_action,
+                                on_close: on_close,
                             }
                         }
                     }
@@ -571,8 +571,7 @@ fn AvatarMenu(user_name: String, user_avatar: Option<String>) -> Element {
     let initial: String = user_name
         .chars()
         .next()
-        .map(|c| c.to_uppercase().to_string())
-        .unwrap_or_else(|| "?".into());
+        .map_or_else(|| "?".into(), |c| c.to_uppercase().to_string());
     rsx! {
         div { style: "position: relative; flex-shrink: 0;",
             button {
@@ -615,8 +614,8 @@ fn AvatarDropdown(on_close: EventHandler<MouseEvent>) -> Element {
                     border: 1px solid var(--fs-color-border-default, #334155); \
                     border-radius: 8px; min-width: 160px; z-index: 300; \
                     box-shadow: 0 8px 24px rgba(0,0,0,0.5); padding: 4px 0;",
-            AvatarMenuItem { icon: ICON_PROFILE,   label: fs_i18n::t("shell.avatar.profile"),  on_click: on_close.clone() }
-            AvatarMenuItem { icon: ICON_SETTINGS,  label: fs_i18n::t("settings.title"),         on_click: on_close.clone() }
+            AvatarMenuItem { icon: ICON_PROFILE,   label: fs_i18n::t("shell.avatar.profile"),  on_click: on_close }
+            AvatarMenuItem { icon: ICON_SETTINGS,  label: fs_i18n::t("settings.title"),         on_click: on_close }
             hr { style: "border: none; border-top: 1px solid var(--fs-color-border-default, #334155); margin: 4px 0;" }
             AvatarMenuItem { icon: ICON_SIGN_OUT,  label: fs_i18n::t("shell.avatar.sign_out"),  on_click: on_close }
         }

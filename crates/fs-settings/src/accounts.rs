@@ -16,7 +16,7 @@ pub struct OidcProvider {
     pub name: String,
     /// OIDC discovery base URL (e.g. `https://auth.example.com`).
     pub discovery_url: String,
-    /// OAuth2 client ID registered with this provider.
+    /// `OAuth2` client ID registered with this provider.
     pub client_id: String,
     /// Scopes to request (space-separated, e.g. `"openid email profile"`).
     pub scopes: String,

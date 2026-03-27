@@ -1,3 +1,4 @@
+#![deny(clippy::all, clippy::pedantic, warnings)]
 // Replace the system allocator to avoid WebKitGTK heap-corruption on window close.
 // See: https://github.com/DioxusLabs/dioxus/issues (free(): corrupted unsorted chunks)
 #[global_allocator]

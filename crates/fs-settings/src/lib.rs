@@ -1,3 +1,4 @@
+#![deny(clippy::all, clippy::pedantic, warnings)]
 pub mod accounts;
 pub mod app;
 pub mod appearance;
@@ -18,7 +19,7 @@ const I18N_SNIPPETS: &[(&str, &str)] = &[
 pub struct I18nPlugin;
 
 impl fs_i18n::SnippetPlugin for I18nPlugin {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "fs-settings"
     }
     fn snippets(&self) -> &[(&str, &str)] {
@@ -38,6 +39,7 @@ pub use service_roles::{ServiceRole, ServiceRoles, KNOWN_ROLES};
 pub use shortcuts::{register_actions, resolve_shortcut, ActionDef, ShortcutsConfig};
 
 /// Returns the path to a named config file in `~/.config/fsn/`.
+#[must_use]
 ///
 /// Example: `config_path("desktop.toml")` → `/home/user/.config/fsn/desktop.toml`
 pub fn config_path(filename: &str) -> std::path::PathBuf {

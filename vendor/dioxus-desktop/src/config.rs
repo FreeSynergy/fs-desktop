@@ -325,10 +325,7 @@ impl Config {
     /// Use `with_all_navigation()` on `DesktopConfig` to allow all external URLs.
     ///
     /// Tracking: <https://github.com/DioxusLabs/dioxus/pull/5390>
-    pub fn with_navigation_handler(
-        mut self,
-        handler: impl Fn(String) -> bool + 'static,
-    ) -> Self {
+    pub fn with_navigation_handler(mut self, handler: impl Fn(String) -> bool + 'static) -> Self {
         self.navigation_handler = Some(Box::new(handler));
         self
     }

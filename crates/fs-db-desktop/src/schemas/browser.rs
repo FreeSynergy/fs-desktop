@@ -1,7 +1,7 @@
 //! `fs-browser.db` — Browser storage schema (bookmarks, history, downloads).
 
 /// SQL to create all Browser tables. Run at Browser startup.
-pub const SCHEMA: &str = r#"
+pub const SCHEMA: &str = r"
 -- Saved bookmarks.
 CREATE TABLE IF NOT EXISTS bookmarks (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,4 +32,4 @@ CREATE TABLE IF NOT EXISTS downloads (
     started_at TEXT    NOT NULL DEFAULT (datetime('now')),
     finished_at TEXT
 );
-"#;
+";

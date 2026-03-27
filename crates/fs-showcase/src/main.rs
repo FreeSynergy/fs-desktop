@@ -1,3 +1,4 @@
+#![deny(clippy::all, clippy::pedantic, warnings)]
 //! fs-showcase — Component gallery for FreeSynergy.Desktop.
 //!
 //! Only meaningful in debug builds. In release mode it exits immediately.
@@ -39,14 +40,18 @@ fn run() {
 #[cfg(debug_assertions)]
 mod showcase {
     use dioxus::prelude::*;
-    use fs_components::*;
+    use fs_components::{
+        use_toast, Badge, BadgeVariant, Button, ButtonSize, ButtonVariant, Card, Checkbox, Divider,
+        FormField, Input, Select, SelectOption, Spinner, Textarea, ToastMessage, ToastProvider,
+        Tooltip,
+    };
 
     // ── Root ──────────────────────────────────────────────────────────────────
 
     #[allow(non_snake_case)]
     pub fn showcase_app() -> Element {
         let mut btn_loading = use_signal(|| false);
-        let mut input_val = use_signal(|| String::new());
+        let mut input_val = use_signal(String::new);
         let mut checked = use_signal(|| false);
         let mut select_val = use_signal(|| "md".to_string());
 

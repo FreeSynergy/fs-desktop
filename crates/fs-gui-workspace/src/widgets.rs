@@ -30,6 +30,7 @@ pub enum WidgetKind {
 
 impl WidgetKind {
     /// Human-readable label shown in the widget picker.
+    #[must_use]
     pub fn label(&self) -> String {
         match self {
             WidgetKind::Clock => "Clock".to_string(),
@@ -44,13 +45,13 @@ impl WidgetKind {
     }
 
     /// Default (width, height) in pixels for a newly placed widget.
+    #[must_use]
     pub fn default_size(&self) -> (f64, f64) {
         match self {
             WidgetKind::Clock => (220.0, 140.0),
             WidgetKind::SystemInfo => (280.0, 190.0),
             WidgetKind::QuickNotes => (300.0, 230.0),
-            WidgetKind::Messages => (320.0, 220.0),
-            WidgetKind::MyTasks => (320.0, 220.0),
+            WidgetKind::Messages | WidgetKind::MyTasks => (320.0, 220.0),
             WidgetKind::Weather => (260.0, 160.0),
             WidgetKind::BotStatus(_) => (260.0, 140.0),
             WidgetKind::Custom(_) => (280.0, 180.0),
@@ -58,6 +59,7 @@ impl WidgetKind {
     }
 
     /// Emoji icon used as fallback when no icon URL is available.
+    #[must_use]
     pub fn icon(&self) -> &'static str {
         match self {
             WidgetKind::Clock => "🕐",
@@ -71,7 +73,8 @@ impl WidgetKind {
         }
     }
 
-    /// We10X SVG icon URL for the widget picker panel.
+    /// `We10X` SVG icon URL for the widget picker panel.
+    #[must_use]
     pub fn icon_url(&self) -> &'static str {
         match self {
             WidgetKind::Clock      => "https://raw.githubusercontent.com/yeyushengfan258/We10X-icon-theme/master/src/apps/scalable/preferences-system-time.svg",
@@ -86,6 +89,7 @@ impl WidgetKind {
     }
 
     /// Built-in widget kinds, in picker order. Does not include Custom variants.
+    #[must_use]
     pub fn all() -> Vec<WidgetKind> {
         vec![
             WidgetKind::Clock,
@@ -98,6 +102,7 @@ impl WidgetKind {
     }
 
     /// All widget kinds including store-installed Custom widgets.
+    #[must_use]
     pub fn all_with_custom() -> Vec<WidgetKind> {
         use fs_db_desktop::package_registry::{PackageKind, PackageRegistry};
         let mut kinds = Self::all();
@@ -108,6 +113,7 @@ impl WidgetKind {
     }
 
     /// Persistence key string.
+    #[must_use]
     pub fn as_str(&self) -> String {
         match self {
             WidgetKind::Clock => "Clock".to_string(),
@@ -122,7 +128,8 @@ impl WidgetKind {
     }
 
     /// Parse from persistence key string.
-    pub fn from_str(s: &str) -> Option<WidgetKind> {
+    #[must_use]
+    pub fn from_key(s: &str) -> Option<WidgetKind> {
         match s {
             "Clock" => Some(WidgetKind::Clock),
             "SystemInfo" => Some(WidgetKind::SystemInfo),
@@ -166,7 +173,8 @@ pub struct WidgetSlot {
 
 // ── Layout persistence ─────────────────────────────────────────────────────
 
-/// Default widget layout: Clock + SystemInfo side by side.
+/// Default widget layout: Clock + `SystemInfo` side by side.
+#[must_use]
 pub fn default_widget_layout() -> Vec<WidgetSlot> {
     let kinds = [WidgetKind::Clock, WidgetKind::SystemInfo];
     kinds
@@ -175,9 +183,9 @@ pub fn default_widget_layout() -> Vec<WidgetSlot> {
         .map(|(i, kind)| {
             let (w, h) = kind.default_size();
             WidgetSlot {
-                id: i as u32,
+                id: u32::try_from(i).unwrap_or(0),
                 kind: kind.clone(),
-                x: 24.0 + (i as f64) * 296.0,
+                x: 24.0 + f64::from(u32::try_from(i).unwrap_or(0)) * 296.0,
                 y: 24.0,
                 w,
                 h,
@@ -187,6 +195,7 @@ pub fn default_widget_layout() -> Vec<WidgetSlot> {
 }
 
 /// Loads widget layout from `fs-desktop.db`. Falls back to default if empty.
+#[must_use]
 pub fn load_widget_layout(db: &fs_db_desktop::FsdDb) -> Vec<WidgetSlot> {
     let slots = crate::db::load_widgets_from_db(db);
     if slots.is_empty() {
@@ -208,6 +217,8 @@ pub fn save_widget_layout(db: std::sync::Arc<fs_db_desktop::FsdDb>, slots: &[Wid
 /// Adding a new widget = adding a variant + one `match` arm here.
 /// Never add dispatch `match` arms outside this trait impl.
 pub trait WidgetRenderer {
+    /// # Errors
+    /// Returns a render error if the Dioxus component fails to construct.
     fn render(&self, w: f64, h: f64) -> Element;
 }
 
@@ -229,11 +240,15 @@ impl WidgetRenderer for WidgetKind {
 ///
 /// `w` / `h` are the current slot dimensions in pixels — widgets use them
 /// to scale their content proportionally (font size, gap, etc.).
+///
+/// # Errors
+/// Returns a render error if the Dioxus component fails to construct.
 pub fn render_widget(kind: &WidgetKind, w: f64, h: f64) -> Element {
     kind.render(w, h)
 }
 
 /// Returns all widgets for use in the picker (built-in + store-installed).
+#[must_use]
 pub fn all_picker_widgets() -> Vec<WidgetKind> {
     WidgetKind::all_with_custom()
 }
@@ -412,7 +427,7 @@ fn SysRow(icon: String, label: String, value: String, font_size: f64, icon_size:
 /// No persistence — notes are cleared on restart. Textarea fills the slot.
 #[component]
 pub fn QuickNotesWidget(w: f64, h: f64) -> Element {
-    let mut text = use_signal(|| String::new());
+    let mut text = use_signal(String::new);
 
     let scale = content_scale(w, h, 300.0, 230.0, 3.0);
     let font_size = (13.0 * scale).clamp(11.0, 32.0);
@@ -493,7 +508,7 @@ pub fn PlaceholderWidget(kind: WidgetKind) -> Element {
 
 // ── MessagesWidget ────────────────────────────────────────────────────────────
 
-/// A messages widget showing recent messages from the FreeSynergy message bus.
+/// A messages widget showing recent messages from the `FreeSynergy` message bus.
 /// Displays an empty state until the message bus (Phase G) is connected.
 #[component]
 pub fn MessagesWidget(w: f64, h: f64) -> Element {
@@ -712,6 +727,7 @@ fn read_uptime() -> String {
         .next()
         .and_then(|s| s.parse().ok())
         .unwrap_or(0.0);
+    #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
     let secs = secs as u64;
     let days = secs / 86400;
     let hours = (secs % 86400) / 3600;
@@ -735,6 +751,7 @@ fn parse_meminfo_kb(key: &str) -> u64 {
 }
 
 fn kb_to_display(kb: u64) -> String {
+    #[allow(clippy::cast_precision_loss)]
     if kb >= 1_048_576 {
         format!("{:.1}G", kb as f64 / 1_048_576.0)
     } else if kb >= 1024 {
@@ -787,7 +804,7 @@ fn disk_stat(used: bool) -> String {
 /// A compact status widget for one bot instance.
 ///
 /// Shows: name, running/stopped status, last audit action, quick-open button.
-/// Clicking the widget opens BotManager filtered to this bot.
+/// Clicking the widget opens `BotManager` filtered to this bot.
 #[component]
 pub fn BotStatusWidget(bot_name: String, w: f64, h: f64) -> Element {
     let scale = content_scale(w, h, 260.0, 140.0, 1.6);

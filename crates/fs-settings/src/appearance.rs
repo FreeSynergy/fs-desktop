@@ -6,7 +6,7 @@ use fs_i18n;
 /// Appearance settings component.
 ///
 /// Reads and writes the global `AppContext` provided by `Desktop`.
-/// Falls back to local signals when running standalone (no AppContext in tree).
+/// Falls back to local signals when running standalone (no `AppContext` in tree).
 #[component]
 pub fn AppearanceSettings() -> Element {
     use fs_db_desktop::package_registry::{PackageKind, PackageRegistry};
@@ -35,24 +35,22 @@ pub fn AppearanceSettings() -> Element {
     let mut theme_remove_confirm: Signal<Option<String>> = use_signal(|| None);
 
     // Read current values — from AppContext if available, else from local signals.
-    let current_theme = ctx
-        .map(|c| c.theme.read().clone())
-        .unwrap_or_else(|| local_theme.read().clone());
-    let anim_enabled = ctx
-        .map(|c| *c.anim_enabled.read())
-        .unwrap_or_else(|| *local_anim.read());
-    let chrome_opacity = ctx
-        .map(|c| *c.chrome_opacity.read())
-        .unwrap_or_else(|| *local_opacity.read());
-    let chrome_style = ctx
-        .map(|c| c.chrome_style.read().clone())
-        .unwrap_or_else(|| local_chrome_style.read().clone());
-    let btn_style = ctx
-        .map(|c| c.btn_style.read().clone())
-        .unwrap_or_else(|| local_btn_style.read().clone());
-    let sidebar_style = ctx
-        .map(|c| c.sidebar_style.read().clone())
-        .unwrap_or_else(|| local_sidebar_style.read().clone());
+    let current_theme = ctx.map_or_else(|| local_theme.read().clone(), |c| c.theme.read().clone());
+    let anim_enabled = ctx.map_or_else(|| *local_anim.read(), |c| *c.anim_enabled.read());
+    let chrome_opacity = ctx.map_or_else(|| *local_opacity.read(), |c| *c.chrome_opacity.read());
+    let chrome_style = ctx.map_or_else(
+        || local_chrome_style.read().clone(),
+        |c| c.chrome_style.read().clone(),
+    );
+    let btn_style = ctx.map_or_else(
+        || local_btn_style.read().clone(),
+        |c| c.btn_style.read().clone(),
+    );
+    let sidebar_style = ctx.map_or_else(
+        || local_sidebar_style.read().clone(),
+        |c| c.sidebar_style.read().clone(),
+    );
+    #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
     let opacity_pct = (chrome_opacity * 100.0) as u32;
     let opacity_label = if anim_enabled { "On" } else { "Off" };
 
@@ -245,7 +243,7 @@ pub fn AppearanceSettings() -> Element {
                                                 let path = css_path.clone().unwrap_or_default();
                                                 move |_| {
                                                     if let Ok(css) = std::fs::read_to_string(&path) {
-                                                        set_theme(format!("__custom__{}", css));
+                                                        set_theme(format!("__custom__{css}"));
                                                     }
                                                 }
                                             },
@@ -466,7 +464,7 @@ pub fn AppearanceSettings() -> Element {
                                                     background: linear-gradient(135deg, {c1}, {c2}); \
                                                     flex-shrink: 0;",
                                             onclick: move |_| {
-                                                set_wallpaper(format!("background: {};", gradient_owned));
+                                                set_wallpaper(format!("background: {gradient_owned};"));
                                             },
                                         }
                                     }
@@ -497,8 +495,7 @@ pub fn AppearanceSettings() -> Element {
                             let url = wallpaper_url.read().clone();
                             if !url.is_empty() {
                                 let css = format!(
-                                    "background-image: url('{}'); background-size: cover; background-position: center;",
-                                    url
+                                    "background-image: url('{url}'); background-size: cover; background-position: center;"
                                 );
                                 set_wallpaper(css);
                             }
@@ -630,7 +627,7 @@ pub fn AppearanceSettings() -> Element {
                         // Inject --fs- prefix and apply as live preview.
                         let prefixed = prefix_theme_css(&css, "fsn");
                         if let Some(mut c) = ctx {
-                            c.theme.set(format!("__custom__{}", prefixed));
+                            c.theme.set(format!("__custom__{prefixed}"));
                         }
                         editor_saved.set(true);
                         editor_error.set(None);

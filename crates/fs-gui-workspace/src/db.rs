@@ -5,7 +5,7 @@
 //!
 //! All functions receive the shared handle instead of opening a new connection pool
 //! on every call — this eliminates the `free(): corrupted unsorted chunks` crash
-//! caused by SQLite FFI teardown racing with partially-initialised pools that were
+//! caused by `SQLite` FFI teardown racing with partially-initialised pools that were
 //! spawned fire-and-forget.
 
 use std::sync::Arc;
@@ -28,6 +28,7 @@ impl DbContext {
 
     /// Loads the active theme from `fs-desktop.db`.
     /// Falls back to `"midnight-blue"` on any error.
+    #[must_use]
     pub fn load_theme(&self) -> String {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
@@ -42,6 +43,7 @@ impl DbContext {
 
     /// Loads widget slots from `fs-desktop.db`.
     /// Returns an empty vec on error (caller falls back to the default layout).
+    #[must_use]
     pub fn load_widgets(&self) -> Vec<WidgetSlot> {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
@@ -51,7 +53,7 @@ impl DbContext {
                     .await
                     .unwrap_or_default()
                     .into_iter()
-                    .filter_map(Self::db_slot_to_widget)
+                    .filter_map(|s| Self::db_slot_to_widget(&s))
                     .collect()
             })
         })
@@ -59,6 +61,7 @@ impl DbContext {
 
     /// Loads the i18n language selection from `fs-shared.db`.
     /// Falls back to `"de"` on error.
+    #[must_use]
     pub fn load_language(&self) -> String {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
@@ -73,6 +76,7 @@ impl DbContext {
 
     /// Loads the wallpaper CSS from `fs-shared.db`.
     /// Returns an empty string if not set (caller uses the default).
+    #[must_use]
     pub fn load_wallpaper_css(&self) -> String {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
@@ -109,6 +113,7 @@ impl DbContext {
                     y: s.y,
                     w: s.w,
                     h: s.h,
+                    #[allow(clippy::cast_possible_truncation)]
                     sort_order: i as u32,
                 })
                 .collect();
@@ -134,8 +139,8 @@ impl DbContext {
 
     // ── Conversions ───────────────────────────────────────────────────────────
 
-    fn db_slot_to_widget(db: DbWidgetSlot) -> Option<WidgetSlot> {
-        let kind = WidgetKind::from_str(&db.kind)?;
+    fn db_slot_to_widget(db: &DbWidgetSlot) -> Option<WidgetSlot> {
+        let kind = WidgetKind::from_key(&db.kind)?;
         Some(WidgetSlot {
             id: db.id,
             kind,
@@ -151,6 +156,7 @@ impl DbContext {
 // load_* take &FsdDb (can't wrap in DbContext without Clone) — inline as before.
 // save_* take Arc<FsdDb> — delegate to DbContext.
 
+#[must_use]
 pub fn load_theme_from_db(db: &FsdDb) -> String {
     tokio::task::block_in_place(|| {
         tokio::runtime::Handle::current().block_on(async {
@@ -162,6 +168,7 @@ pub fn load_theme_from_db(db: &FsdDb) -> String {
     })
 }
 
+#[must_use]
 pub fn load_widgets_from_db(db: &FsdDb) -> Vec<WidgetSlot> {
     tokio::task::block_in_place(|| {
         tokio::runtime::Handle::current().block_on(async {
@@ -170,12 +177,13 @@ pub fn load_widgets_from_db(db: &FsdDb) -> Vec<WidgetSlot> {
                 .await
                 .unwrap_or_default()
                 .into_iter()
-                .filter_map(DbContext::db_slot_to_widget)
+                .filter_map(|s| DbContext::db_slot_to_widget(&s))
                 .collect()
         })
     })
 }
 
+#[must_use]
 pub fn load_language_from_db(db: &FsdDb) -> String {
     tokio::task::block_in_place(|| {
         tokio::runtime::Handle::current().block_on(async {
@@ -187,6 +195,7 @@ pub fn load_language_from_db(db: &FsdDb) -> String {
     })
 }
 
+#[must_use]
 pub fn load_wallpaper_css_from_db(db: &FsdDb) -> String {
     tokio::task::block_in_place(|| {
         tokio::runtime::Handle::current().block_on(async {
@@ -199,14 +208,14 @@ pub fn load_wallpaper_css_from_db(db: &FsdDb) -> String {
 }
 
 pub fn save_theme_to_db(db: Arc<FsdDb>, name: String) {
-    DbContext(db).save_theme(name)
+    DbContext(db).save_theme(name);
 }
 pub fn save_widgets_to_db(db: Arc<FsdDb>, slots: Vec<WidgetSlot>) {
-    DbContext(db).save_widgets(slots)
+    DbContext(db).save_widgets(slots);
 }
 pub fn save_language_to_db(db: Arc<FsdDb>, lang: String) {
-    DbContext(db).save_language(lang)
+    DbContext(db).save_language(lang);
 }
 pub fn save_wallpaper_css_to_db(db: Arc<FsdDb>, css: String) {
-    DbContext(db).save_wallpaper_css(css)
+    DbContext(db).save_wallpaper_css(css);
 }

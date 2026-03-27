@@ -1,4 +1,4 @@
-/// SplitView — resizable horizontal master/detail split panel.
+/// `SplitView` — resizable horizontal master/detail split panel.
 use dioxus::prelude::*;
 
 /// State of the split panel.
@@ -13,7 +13,8 @@ pub enum SplitState {
 }
 
 impl SplitState {
-    /// Cycle: Collapsed → Half → FullRight → Collapsed.
+    /// Cycle: Collapsed → Half → `FullRight` → Collapsed.
+    #[must_use]
     pub fn next(&self) -> Self {
         match self {
             Self::Collapsed => Self::Half,
@@ -49,7 +50,7 @@ pub fn SplitView(props: SplitViewProps) -> Element {
         _ => "width: 0; min-width: 0; overflow: hidden; flex-shrink: 0;".into(),
     };
 
-    let on_change = props.on_state_change.clone();
+    let on_change = props.on_state_change;
 
     rsx! {
         div {
@@ -57,7 +58,7 @@ pub fn SplitView(props: SplitViewProps) -> Element {
             onmousemove: move |evt| {
                 if let Some((start_x, start_w)) = *drag_start.read() {
                     let dx = evt.data().client_coordinates().x - start_x;
-                    master_px.set((start_w + dx).max(160.0).min(600.0));
+                    master_px.set((start_w + dx).clamp(160.0, 600.0));
                 }
             },
             onmouseup:    move |_| drag_start.set(None),

@@ -51,13 +51,14 @@ pub const BUILTIN_LANGUAGES: &[(&str, &str)] = &[("en", "English")];
 
 /// Returns the currently active language code, read from the user's locale inventory.
 /// Falls back to "en" when no preference is saved.
+#[must_use]
 pub fn load_active_language() -> String {
     LanguageManager::new().effective_settings().language
 }
 
 // ── Internal types ───────────────────────────────────────────────────────────
 
-/// Local view of a `LocaleEntry` — implements PartialEq for use as Dioxus prop.
+/// Local view of a `LocaleEntry` — implements `PartialEq` for use as Dioxus prop.
 #[derive(Clone, PartialEq, Debug)]
 struct LocaleInfo {
     code: String,
@@ -204,7 +205,7 @@ pub fn LanguageSettings() -> Element {
             TranslationEditor {
                 lang_code: code,
                 lang_name: name,
-                on_close: move |_| editor_lang.set(None),
+                on_close: move |()| editor_lang.set(None),
             }
         };
     }
@@ -373,7 +374,7 @@ fn DefaultPane(installed: Vec<LangEntry>) -> Element {
                                             selected: *selected.read() == entry.code,
                                             on_select: {
                                                 let code = entry.code.clone();
-                                                move |_| *selected.write() = code.clone()
+                                                move |_| (*selected.write()).clone_from(&code)
                                             },
                                         }
                                     }
@@ -888,7 +889,7 @@ fn LangEditPane(entry: LangEntry, on_edit: EventHandler<(String, String)>) -> El
                                         border-radius: var(--fs-radius-md); cursor: pointer; \
                                         color: var(--fs-color-primary);",
                                 onclick: move |_| {
-                                    on_edit.call(("new".to_string(), "New Language".to_string()))
+                                    on_edit.call(("new".to_string(), "New Language".to_string()));
                                 },
                                 {fs_i18n::t("settings.language.contrib.btn_new_lang")}
                             }

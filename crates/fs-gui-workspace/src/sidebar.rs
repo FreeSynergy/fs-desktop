@@ -61,7 +61,7 @@ impl SidebarEntry for ManagerBundle {
             "managers-folder",
             ICON_MANAGERS,
             fs_i18n::t("shell.nav.managers"),
-            self.0.iter().map(|m| m.sidebar_item()).collect(),
+            self.0.iter().map(SidebarEntry::sidebar_item).collect(),
         )
     }
 }
@@ -74,7 +74,7 @@ fn installed_app_items() -> Vec<SidebarItem> {
     PackageRegistry::by_kind(PackageKind::App)
         .iter()
         .filter(|pkg| pkg.id != "fs-desktop" && !pkg.pinned)
-        .map(|pkg| pkg.sidebar_item())
+        .map(SidebarEntry::sidebar_item)
         .collect()
 }
 
@@ -94,6 +94,7 @@ fn installed_manager_bundle() -> Option<SidebarItem> {
 ///
 /// Contains all non-pinned installed apps and, if present, the managers folder.
 /// Everything comes from the `PackageRegistry` — nothing is hard-coded here.
+#[must_use]
 pub fn default_sidebar_sections() -> Vec<SidebarSection> {
     let mut items = installed_app_items();
 
@@ -108,11 +109,12 @@ pub fn default_sidebar_sections() -> Vec<SidebarSection> {
 ///
 /// Includes all user-pinned apps and, when `fs-desktop` is registered,
 /// the Settings entry (always at the very bottom).
+#[must_use]
 pub fn default_pinned_items() -> Vec<SidebarItem> {
     let mut pinned: Vec<SidebarItem> = PackageRegistry::by_kind(PackageKind::App)
         .iter()
         .filter(|pkg| pkg.id != "fs-desktop" && pkg.pinned)
-        .map(|pkg| pkg.sidebar_item())
+        .map(SidebarEntry::sidebar_item)
         .collect();
 
     if PackageRegistry::is_installed("fs-desktop") {

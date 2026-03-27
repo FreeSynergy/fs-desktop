@@ -1,4 +1,4 @@
-/// AppLauncher — full-screen overlay with grouped app tiles + search bar.
+/// `AppLauncher` — full-screen overlay with grouped app tiles + search bar.
 ///
 /// Layout:
 ///  - Search bar at the top
@@ -48,6 +48,7 @@ impl AppGroup {
     /// Build groups from a flat app list using `AppEntry::group`.
     /// Apps without a group fall into "Other".
     /// Insertion order is preserved by tracking order in a separate Vec.
+    #[must_use]
     pub fn from_entries(entries: &[AppEntry]) -> Vec<AppGroup> {
         let mut order: Vec<String> = Vec::new();
         let mut map: std::collections::HashMap<String, Vec<AppEntry>> =
@@ -179,7 +180,7 @@ pub fn AppLauncher(props: AppLauncherProps) -> Element {
                             AppGroupSection {
                                 key: "{group.id}",
                                 group: group.clone(),
-                                on_launch: props.on_launch.clone(),
+                                on_launch: props.on_launch,
                             }
                         }
                     }
@@ -190,11 +191,11 @@ pub fn AppLauncher(props: AppLauncherProps) -> Element {
                     LauncherPagination {
                         current: cur_page,
                         total: total_pages,
-                        on_prev: move |_| {
+                        on_prev: move |()| {
                             let p = *page.read();
                             if p > 0 { *page.write() = p - 1; }
                         },
-                        on_next: move |_| {
+                        on_next: move |()| {
                             let p = *page.read();
                             if p + 1 < total_pages { *page.write() = p + 1; }
                         },

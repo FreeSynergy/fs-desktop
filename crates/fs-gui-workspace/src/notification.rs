@@ -86,6 +86,7 @@ impl NotificationManager {
         self.items.retain(|n| n.id != id);
     }
 
+    #[must_use]
     pub fn items(&self) -> &[Notification] {
         &self.items
     }
@@ -164,10 +165,12 @@ impl NotificationHistory {
         }
     }
 
+    #[must_use]
     pub fn unread_count(&self) -> usize {
         self.entries.iter().filter(|e| !e.read).count()
     }
 
+    #[must_use]
     pub fn entries(&self) -> &[HistoryEntry] {
         &self.entries
     }

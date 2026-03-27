@@ -1,14 +1,14 @@
-//! WindowFrame — FsObject implementation for windows.
+//! `WindowFrame` — `FsObject` implementation for windows.
 //!
 //! Features (per spec technik/ui-objekte.md):
 //! - Drag at titlebar with fullscreen overlay (no event loss)
 //! - Resize from all 8 handles (5px tolerance via CSS handles)
 //! - Minimize → icon on desktop (handled in desktop.rs)
-//! - Close: if has_unsaved_changes → UnsavedChangesDialog
+//! - Close: if `has_unsaved_changes` → `UnsavedChangesDialog`
 //! - Window sidebar: universal Sidebar (left, overlay, hover-expand)
 //! - Scrollable content area (.fs-scrollable)
 //! - Double-click on titlebar → maximize / restore previous size+position
-//! - Right-side help panel: universal HelpSidebarPanel (same as Desktop shell)
+//! - Right-side help panel: universal `HelpSidebarPanel` (same as Desktop shell)
 // WindowRenderFn is a fn pointer; #[component] derives PartialEq on props structs
 // that include it — comparison is benign here since the same fn ptr is always passed.
 #![allow(unpredictable_function_pointer_comparisons)]
@@ -22,7 +22,7 @@ use crate::window::{OpenWindow, WindowButton, WindowId, WindowRenderFn, WindowSi
 // ── CSS constants ─────────────────────────────────────────────────────────────
 
 /// Extra CSS injected for FsObject-specific styles (pulse animation, resize cursors).
-pub const FSNOBJ_CSS: &str = r#"
+pub const FSNOBJ_CSS: &str = r"
 /* ── Pulsing green dot for minimized window icons ─── */
 @keyframes fs-pulse-green {
     0%   { opacity: 0; }
@@ -78,7 +78,7 @@ pub const FSNOBJ_CSS: &str = r#"
     white-space: nowrap;
     text-shadow: 0 1px 3px rgba(0,0,0,0.8);
 }
-"#;
+";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -89,7 +89,7 @@ pub struct WindowFrameProps {
     pub on_focus: EventHandler<WindowId>,
     pub on_minimize: EventHandler<WindowId>,
     pub on_maximize: EventHandler<WindowId>,
-    /// Highest z_index among all open windows.
+    /// Highest `z_index` among all open windows.
     /// The hover-boost only lifts this window above the current top,
     /// so intentionally focused windows are never displaced by hover.
     #[props(default = 0)]
@@ -123,7 +123,7 @@ struct ResizeState {
 
 // ── WindowFrame ───────────────────────────────────────────────────────────────
 
-/// A draggable, resizable, closable window — the FsObject implementation.
+/// A draggable, resizable, closable window — the `FsObject` implementation.
 #[component]
 pub fn WindowFrame(props: WindowFrameProps) -> Element {
     let win = &props.window;
@@ -131,8 +131,8 @@ pub fn WindowFrame(props: WindowFrameProps) -> Element {
 
     // ── Position + size (in pixels) ───────────────────────────────────────────
     let init_pos = (
-        100.0 + (id.0 % 8) as f64 * 40.0,
-        60.0 + (id.0 % 6) as f64 * 40.0,
+        100.0 + f64::from(u32::try_from(id.0 % 8).unwrap_or(0)) * 40.0,
+        60.0 + f64::from(u32::try_from(id.0 % 6).unwrap_or(0)) * 40.0,
     );
     let _init_dim = win.size.initial_dimensions();
 
@@ -204,8 +204,7 @@ pub fn WindowFrame(props: WindowFrameProps) -> Element {
              border-radius: 8px; \
              box-shadow: var(--fs-window-shadow); \
              pointer-events: all; \
-             z-index: {}; overflow: visible;",
-            effective_z
+             z-index: {effective_z}; overflow: visible;"
         )
     };
 
@@ -214,10 +213,10 @@ pub fn WindowFrame(props: WindowFrameProps) -> Element {
         "grabbing"
     } else {
         match resize.read().dir {
-            Some(ResizeDir::N) | Some(ResizeDir::S) => "ns-resize",
-            Some(ResizeDir::E) | Some(ResizeDir::W) => "ew-resize",
-            Some(ResizeDir::NW) | Some(ResizeDir::SE) => "nwse-resize",
-            Some(ResizeDir::NE) | Some(ResizeDir::SW) => "nesw-resize",
+            Some(ResizeDir::N | ResizeDir::S) => "ns-resize",
+            Some(ResizeDir::E | ResizeDir::W) => "ew-resize",
+            Some(ResizeDir::NW | ResizeDir::SE) => "nwse-resize",
+            Some(ResizeDir::NE | ResizeDir::SW) => "nesw-resize",
             None => "default",
         }
     };
@@ -375,15 +374,15 @@ pub fn WindowFrame(props: WindowFrameProps) -> Element {
             // ── Unsaved Changes dialog (modal, inline) ─────────────────────
             if *close_requested.read() {
                 UnsavedChangesDialog {
-                    on_save: move |_| {
+                    on_save: move |()| {
                         close_requested.set(false);
                         props.on_close.call(id);
                     },
-                    on_discard: move |_| {
+                    on_discard: move |()| {
                         close_requested.set(false);
                         props.on_close.call(id);
                     },
-                    on_cancel: move |_| {
+                    on_cancel: move |()| {
                         close_requested.set(false);
                     },
                 }
@@ -554,6 +553,7 @@ fn WindowControls(
 // ── Unsaved Changes dialog ────────────────────────────────────────────────────
 
 #[derive(Props, Clone, PartialEq)]
+#[allow(clippy::struct_field_names)]
 struct UnsavedChangesDialogProps {
     on_save: EventHandler<()>,
     on_discard: EventHandler<()>,
@@ -678,7 +678,7 @@ pub struct MinimizedWindowIconProps {
 /// Renders a minimized window as a draggable icon with pulsing green dot.
 ///
 /// Bug C fix: restore-on-click now works even though the overlay intercepts mouseup.
-/// We track drag_start and measure movement — if < 5px, treat as a click (restore).
+/// We track `drag_start` and measure movement — if < 5px, treat as a click (restore).
 #[component]
 pub fn MinimizedWindowIcon(props: MinimizedWindowIconProps) -> Element {
     let id = props.window.id;

@@ -1,4 +1,5 @@
-//! FreeSynergy.Desktop — SQLite storage layer (SeaORM-based).
+#![deny(clippy::all, clippy::pedantic, warnings)]
+//! FreeSynergy.Desktop — `SQLite` storage layer (`SeaORM`-based).
 //!
 //! Manages four databases:
 //! - `fs-desktop.db`: widget positions, active theme, shortcuts
@@ -41,6 +42,9 @@ pub struct FsdDb {
 
 impl FsdDb {
     /// Open (or create) all four databases at their default paths.
+    ///
+    /// # Errors
+    /// Returns [`DbError`] if any database file cannot be opened or migrations fail.
     pub async fn open() -> Result<Self, DbError> {
         let desktop = DesktopDb::open().await?;
         let shared = SharedDb::open().await?;
@@ -54,22 +58,26 @@ impl FsdDb {
         })
     }
 
+    #[must_use]
     pub fn desktop(&self) -> &DesktopDb {
         &self.desktop
     }
+    #[must_use]
     pub fn shared(&self) -> &SharedDb {
         &self.shared
     }
+    #[must_use]
     pub fn container(&self) -> &ContainerDb {
         &self.container
     }
+    #[must_use]
     pub fn store(&self) -> &StoreDb {
         &self.store
     }
 
     /// Explicitly close all four connection pools.
     ///
-    /// Call this on clean shutdown to avoid heap corruption from SQLite FFI
+    /// Call this on clean shutdown to avoid heap corruption from `SQLite` FFI
     /// teardown racing with the Tokio runtime shutdown.
     pub async fn close(self) {
         let _ = self.desktop.close().await;
@@ -80,6 +88,7 @@ impl FsdDb {
 }
 
 /// Returns `~/.local/share/fsn/<name>` as the path for an FSN database.
+#[must_use]
 pub fn db_path(filename: &str) -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
     PathBuf::from(home).join(".local/share/fsn").join(filename)

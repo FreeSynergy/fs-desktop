@@ -1,10 +1,10 @@
-/// AppShell — unified app wrapper with mode context and layout primitives.
+/// `AppShell` — unified app wrapper with mode context and layout primitives.
 use dioxus::prelude::*;
 
 /// How an fs-* app is rendered.
 #[derive(Clone, PartialEq, Debug, Default)]
 pub enum AppMode {
-    /// Embedded inside a WindowFrame in the desktop shell.
+    /// Embedded inside a `WindowFrame` in the desktop shell.
     #[default]
     Window,
     /// Running as its own top-level OS window.
@@ -15,6 +15,7 @@ pub enum AppMode {
 
 impl AppMode {
     /// CSS `height` + `width` values for the root shell div.
+    #[must_use]
     pub fn css_dimensions(&self) -> &'static str {
         match self {
             Self::Window | Self::Tui => "height: 100%; width: 100%;",
@@ -24,7 +25,7 @@ impl AppMode {
 }
 
 /// Global CSS: Midnight Blue theme variables + page-transition animations.
-/// Injected at the root and within every AppShell so variables are always available.
+/// Injected at the root and within every `AppShell` so variables are always available.
 pub const GLOBAL_CSS: &str = r#"
 :root, [data-theme="midnight-blue"] {
     /* ── Midnight Blue – backgrounds ──────────────────────────────── */

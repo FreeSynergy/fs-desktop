@@ -7,7 +7,7 @@
 //! - Federation membership
 
 /// SQL to create all Node core tables. Run at Node startup.
-pub const SCHEMA: &str = r#"
+pub const SCHEMA: &str = r"
 -- Managed hosts.
 CREATE TABLE IF NOT EXISTS hosts (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,4 +63,4 @@ CREATE TABLE IF NOT EXISTS federation_rights (
     right     TEXT    NOT NULL,  -- read / write / execute / search
     scope     TEXT    NOT NULL DEFAULT '*'
 );
-"#;
+";

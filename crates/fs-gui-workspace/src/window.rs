@@ -1,4 +1,4 @@
-/// Window system — all views are FsObject windows.
+/// Window system — all views are `FsObject` windows.
 ///
 /// Design:
 /// - `WindowId`       — unique identifier
@@ -12,9 +12,9 @@
 /// - `WindowRenderFn` — type-erased zero-arg Dioxus component for the content
 /// - `OpenWindow`     — Window + render fn (a live, renderable window)
 /// - `WindowHost`     — trait: container that manages child windows
-/// - `WindowManager`  — concrete WindowHost (used by Desktop and standalone hosts)
+/// - `WindowManager`  — concrete `WindowHost` (used by Desktop and standalone hosts)
 ///
-/// The Desktop implements WindowHost. Each app implements FsWindow.
+/// The Desktop implements `WindowHost`. Each app implements `FsWindow`.
 /// A standalone app wraps itself in a single-window host — same chrome, same path.
 ///
 /// # Layout model
@@ -33,7 +33,7 @@ static NEXT_WINDOW_ID: AtomicU64 = AtomicU64::new(1);
 
 /// Monotonically increasing z-index counter.
 /// Every `open_window` and `focus_window` call gets a unique, increasing value,
-/// so the most recently opened/focused window always has the highest base z_index.
+/// so the most recently opened/focused window always has the highest base `z_index`.
 static WINDOW_Z: AtomicU32 = AtomicU32::new(1);
 
 fn next_z() -> u32 {
@@ -72,7 +72,8 @@ impl Default for WindowSize {
 }
 
 impl WindowSize {
-    /// Returns (initial_width, initial_height) in pixels.
+    /// Returns (`initial_width`, `initial_height`) in pixels.
+    #[must_use]
     pub fn initial_dimensions(&self) -> (f64, f64) {
         match self {
             Self::Fixed { width, height } => (*width, *height),
@@ -139,6 +140,7 @@ impl Default for WindowLayout {
 
 impl WindowLayout {
     /// Standard layout: main sidebar left, help panel right, tabbar visible.
+    #[must_use]
     pub fn standard() -> Self {
         Self {
             main_sidebar: SidebarSlot::Left,
@@ -149,6 +151,7 @@ impl WindowLayout {
     }
 
     /// Mirrored layout: main sidebar right, help panel left.
+    #[must_use]
     pub fn mirrored() -> Self {
         Self {
             main_sidebar: SidebarSlot::Right,
@@ -159,6 +162,7 @@ impl WindowLayout {
     }
 
     /// Minimal layout: both sidebars hidden, no tab bar.
+    #[must_use]
     pub fn minimal() -> Self {
         Self {
             main_sidebar: SidebarSlot::Hidden,
@@ -169,11 +173,13 @@ impl WindowLayout {
     }
 
     /// Returns `true` when a left-side panel will be rendered.
+    #[must_use]
     pub fn has_left_panel(&self) -> bool {
         self.main_sidebar == SidebarSlot::Left || self.help_panel == SidebarSlot::Left
     }
 
     /// Returns `true` when a right-side panel will be rendered.
+    #[must_use]
     pub fn has_right_panel(&self) -> bool {
         self.main_sidebar == SidebarSlot::Right || self.help_panel == SidebarSlot::Right
     }
@@ -225,7 +231,7 @@ impl WindowSidebarItem {
 pub trait FsWindow {
     fn title_key(&self) -> &str;
 
-    fn icon(&self) -> &str {
+    fn icon(&self) -> &'static str {
         "🗗"
     }
     fn default_size(&self) -> WindowSize {
@@ -309,6 +315,7 @@ pub trait FsWindow {
 ///
 /// Panels that have no component assigned become invisible automatically.
 #[derive(Clone, PartialEq)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct Window {
     pub id: WindowId,
     pub title_key: String,
@@ -359,31 +366,38 @@ impl Window {
         }
     }
 
+    #[must_use]
     pub fn with_size(mut self, size: WindowSize) -> Self {
         self.size = size;
         self
     }
+    #[must_use]
     pub fn with_buttons(mut self, b: Vec<WindowButton>) -> Self {
         self.buttons = b;
         self
     }
+    #[must_use]
     pub fn with_help(mut self, t: impl Into<String>) -> Self {
         self.help_topic = Some(t.into());
         self
     }
+    #[must_use]
     pub fn with_icon(mut self, icon: impl Into<String>) -> Self {
         self.icon = icon.into();
         self
     }
+    #[must_use]
     pub fn with_sidebar(mut self, items: Vec<WindowSidebarItem>) -> Self {
         self.sidebar_items = items;
         self
     }
+    #[must_use]
     pub fn with_desktop(mut self, index: usize) -> Self {
         self.desktop_index = index;
         self
     }
     /// Override the default chrome layout for this window.
+    #[must_use]
     pub fn with_layout(mut self, layout: WindowLayout) -> Self {
         self.layout = layout;
         self
@@ -531,32 +545,36 @@ impl WindowHost for WindowManager {
 // Backward-compatible shims — existing call sites continue to compile unchanged.
 impl WindowManager {
     pub fn open(&mut self, w: OpenWindow) {
-        self.open_window(w)
+        self.open_window(w);
     }
     pub fn close(&mut self, id: WindowId) {
-        self.close_window(id)
+        self.close_window(id);
     }
     pub fn focus(&mut self, id: WindowId) {
-        self.focus_window(id)
+        self.focus_window(id);
     }
     pub fn minimize(&mut self, id: WindowId) {
-        self.minimize_window(id)
+        self.minimize_window(id);
     }
     pub fn maximize(&mut self, id: WindowId) {
-        self.maximize_window(id)
+        self.maximize_window(id);
     }
     pub fn set_sidebar_active_compat(&mut self, id: WindowId, item_id: String) {
-        self.set_sidebar_active(id, item_id)
+        self.set_sidebar_active(id, item_id);
     }
+    #[must_use]
     pub fn windows(&self) -> &[OpenWindow] {
         self.open_windows()
     }
+    #[must_use]
     pub fn is_open(&self, id: WindowId) -> bool {
         self.is_window_open(id)
     }
+    #[must_use]
     pub fn minimized_windows(&self) -> Vec<&OpenWindow> {
         self.windows.iter().filter(|w| w.minimized).collect()
     }
+    #[must_use]
     pub fn visible_windows(&self) -> Vec<&OpenWindow> {
         self.windows.iter().filter(|w| !w.minimized).collect()
     }

@@ -1,15 +1,15 @@
 //! Package registry — tracks Store-installed packages in `~/.local/share/fsn/packages.json`.
 //!
 //! Shared persistence layer for languages, themes, widgets and other packages
-//! installed from the FreeSynergy Store. Uses plain JSON so every program
+//! installed from the `FreeSynergy` Store. Uses plain JSON so every program
 //! (fs-store, fs-settings, fs-gui-workspace) can read/write it without migrations.
 
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::path::PathBuf;
 
-/// Kind of a FreeSynergy package — used in both the store catalog and the local registry.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+/// Kind of a `FreeSynergy` package — used in both the store catalog and the local registry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum PackageKind {
     #[default]
@@ -36,9 +36,9 @@ pub enum PackageKind {
 
 impl PackageKind {
     /// Convert a Store catalog `type` string to a `PackageKind`.
+    #[must_use]
     pub fn from_type_str(t: &str) -> Self {
         match t {
-            "app" => Self::App,
             "container" => Self::Container,
             "binary" => Self::Binary,
             "manager" => Self::Manager,
@@ -70,6 +70,7 @@ impl PackageKind {
         PackageKind::Bundle,
     ];
 
+    #[must_use]
     pub fn label(&self) -> &'static str {
         match self {
             PackageKind::App => "App",
@@ -87,6 +88,7 @@ impl PackageKind {
         }
     }
 
+    #[must_use]
     pub fn icon(&self) -> &'static str {
         match self {
             PackageKind::App => {
@@ -157,7 +159,7 @@ pub struct InstalledPackage {
     pub name: String,
     /// Package kind.
     pub kind: PackageKind,
-    /// Installed version (SemVer).
+    /// Installed version (`SemVer`).
     pub version: String,
     /// Emoji or icon identifier for sidebar display (e.g. `"🌐"`).
     #[serde(default)]
@@ -186,6 +188,7 @@ impl PackageRegistry {
     }
 
     /// Load all installed packages from disk.
+    #[must_use]
     pub fn load() -> Vec<InstalledPackage> {
         let path = Self::registry_path();
         let content = std::fs::read_to_string(&path).unwrap_or_default();
@@ -193,11 +196,13 @@ impl PackageRegistry {
     }
 
     /// Returns `true` if a package with `id` is registered.
+    #[must_use]
     pub fn is_installed(id: &str) -> bool {
         Self::load().iter().any(|p| p.id == id)
     }
 
     /// Returns all packages of a given kind.
+    #[must_use]
     pub fn by_kind(kind: PackageKind) -> Vec<InstalledPackage> {
         Self::load()
             .into_iter()
@@ -206,6 +211,9 @@ impl PackageRegistry {
     }
 
     /// Register (or update) a package. Upserts by ID.
+    ///
+    /// # Errors
+    /// Returns an error string if the registry directory cannot be created or the file cannot be written.
     pub fn install(pkg: InstalledPackage) -> Result<(), String> {
         let path = Self::registry_path();
         if let Some(parent) = path.parent() {
@@ -219,6 +227,9 @@ impl PackageRegistry {
     }
 
     /// Remove a package by ID. Also removes the downloaded file from disk if present.
+    ///
+    /// # Errors
+    /// Returns an error string if the registry file cannot be written.
     pub fn remove(id: &str) -> Result<(), String> {
         let path = Self::registry_path();
         let mut packages = Self::load();
@@ -234,6 +245,9 @@ impl PackageRegistry {
     }
 
     /// Toggle the pinned state of a package by ID.
+    ///
+    /// # Errors
+    /// Returns an error string if the registry file cannot be written.
     pub fn set_pinned(id: &str, pinned: bool) -> Result<(), String> {
         let path = Self::registry_path();
         let mut packages = Self::load();
@@ -245,6 +259,9 @@ impl PackageRegistry {
     }
 
     /// Remove a bundle and all packages that were installed as members of that bundle.
+    ///
+    /// # Errors
+    /// Returns an error string if the registry file cannot be written.
     pub fn remove_bundle(bundle_id: &str) -> Result<(), String> {
         let path = Self::registry_path();
         let mut packages = Self::load();

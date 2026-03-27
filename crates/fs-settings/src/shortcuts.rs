@@ -16,6 +16,7 @@ pub struct ActionDef {
 }
 
 /// All desktop actions. The source of truth for shortcut defaults.
+#[must_use]
 pub fn register_actions() -> Vec<ActionDef> {
     vec![
         ActionDef {
@@ -106,11 +107,12 @@ pub fn register_actions() -> Vec<ActionDef> {
 }
 
 /// Returns the current shortcut for an action (custom > default).
+#[must_use]
 pub fn resolve_shortcut<'a>(action: &'a ActionDef, config: &'a ShortcutsConfig) -> Option<&'a str> {
     config
         .custom
         .get(action.id)
-        .map(|s| s.as_str())
+        .map(std::string::String::as_str)
         .or(action.default_shortcut)
 }
 
@@ -122,6 +124,7 @@ pub struct ShortcutsConfig {
 }
 
 impl ShortcutsConfig {
+    #[must_use]
     pub fn load() -> Self {
         let path = config_path("shortcuts.toml");
         let content = std::fs::read_to_string(&path).unwrap_or_default();
@@ -153,7 +156,7 @@ pub fn ShortcutsSettings() -> Element {
 
     // Build sorted, deduplicated category list
     let mut categories: Vec<&str> = actions.iter().map(|a| a.category).collect();
-    categories.sort();
+    categories.sort_unstable();
     categories.dedup();
 
     let q = search.read().to_lowercase();
@@ -202,8 +205,7 @@ pub fn ShortcutsSettings() -> Element {
                 recording.set(None);
                 return;
             }
-            Key::Control | Key::Alt | Key::Shift | Key::Super | Key::Meta => return,
-            _ => return,
+            Key::Control | Key::Alt | Key::Shift | Key::Super | Key::Meta | _ => return,
         };
 
         let mods = evt.modifiers();
@@ -273,9 +275,7 @@ pub fn ShortcutsSettings() -> Element {
                                 for action in cat_actions {
                                     {
                                         let action = *action;
-                                        let current = resolve_shortcut(action, &cfg)
-                                            .map(|s| s.to_string())
-                                            .unwrap_or_else(|| "—".to_string());
+                                        let current = resolve_shortcut(action, &cfg).map_or_else(|| "—".to_string(), std::string::ToString::to_string);
                                         let is_default = !cfg.custom.contains_key(action.id);
                                         let is_recording = recording_id.as_deref() == Some(action.id);
                                         let action_id = action.id.to_string();

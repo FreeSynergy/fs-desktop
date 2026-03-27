@@ -19,11 +19,13 @@ impl ContextMenuItem {
         }
     }
 
+    #[must_use]
     pub fn with_icon(mut self, icon: &'static str) -> Self {
         self.icon = Some(icon);
         self
     }
 
+    #[must_use]
     pub fn danger(mut self) -> Self {
         self.danger = true;
         self
@@ -39,6 +41,7 @@ pub struct ContextMenuState {
 }
 
 impl ContextMenuState {
+    #[must_use]
     pub fn open_at(x: f64, y: f64, items: Vec<ContextMenuItem>) -> Self {
         Self {
             open: true,

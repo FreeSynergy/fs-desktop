@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 /// How a wallpaper is sourced.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[derive(Default)]
 pub enum WallpaperSource {
     /// Solid color background.
     Color { hex: String },
@@ -14,13 +15,8 @@ pub enum WallpaperSource {
     /// Local file path.
     File { path: String },
     /// Built-in default.
+    #[default]
     Default,
-}
-
-impl Default for WallpaperSource {
-    fn default() -> Self {
-        Self::Default
-    }
 }
 
 /// How the wallpaper is rendered.
@@ -46,10 +42,11 @@ pub struct Wallpaper {
 
 impl Wallpaper {
     /// Returns the CSS background property value.
+    #[must_use]
     pub fn to_css_background(&self) -> String {
         match &self.source {
-            WallpaperSource::Color { hex } => format!("background-color: {};", hex),
-            WallpaperSource::Gradient { css } => format!("background: {};", css),
+            WallpaperSource::Color { hex } => format!("background-color: {hex};"),
+            WallpaperSource::Gradient { css } => format!("background: {css};"),
             WallpaperSource::Url { url } => {
                 format!(
                     "background-image: url('{}'); background-size: {};",
@@ -75,8 +72,7 @@ impl Wallpaper {
             WallpaperFit::Cover => "cover",
             WallpaperFit::Contain => "contain",
             WallpaperFit::Stretch => "100% 100%",
-            WallpaperFit::Center => "auto",
-            WallpaperFit::Tile => "auto",
+            WallpaperFit::Center | WallpaperFit::Tile => "auto",
         }
     }
 }

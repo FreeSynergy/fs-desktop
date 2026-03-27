@@ -51,7 +51,7 @@ const LEGACY_IDS: &[&str] = &[
     "bot-manager",
 ];
 
-/// Pre-registers all built-in packages in the PackageRegistry (idempotent).
+/// Pre-registers all built-in packages in the `PackageRegistry` (idempotent).
 /// Should be called once at Desktop startup before the sidebar is rendered.
 pub fn ensure_registered() {
     // Remove stale legacy entries so renamed IDs don't produce duplicates.
@@ -74,7 +74,7 @@ pub fn ensure_registered() {
             let has_binary = pkg
                 .file_path
                 .as_ref()
-                .map_or(true, |p| std::path::Path::new(p).exists());
+                .is_none_or(|p| std::path::Path::new(p).exists());
             if !has_binary {
                 let _ = PackageRegistry::remove(&pkg.id);
             }
@@ -87,7 +87,7 @@ pub fn ensure_registered() {
         let entry = InstalledPackage {
             id: pkg.id.to_string(),
             name: pkg.name.to_string(),
-            kind: pkg.kind.clone(),
+            kind: pkg.kind,
             version: pkg.version.to_string(),
             icon: pkg.icon.to_string(),
             file_path: None,

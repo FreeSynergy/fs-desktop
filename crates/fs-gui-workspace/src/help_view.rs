@@ -1,6 +1,6 @@
 use crate::icons::ICON_HELP;
 /// Help View — context-sensitive help and keyboard shortcuts reference.
-/// Also exports HelpSidebarPanel: the collapsible right-side help panel for the Desktop.
+/// Also exports `HelpSidebarPanel`: the collapsible right-side help panel for the Desktop.
 use dioxus::prelude::*;
 use fs_components::{Sidebar, SidebarItem, SidebarSide, FS_SIDEBAR_CSS};
 use fs_settings::{register_actions, resolve_shortcut, ShortcutsConfig};
@@ -200,7 +200,7 @@ fn ShortcutsReference() -> Element {
     let actions = register_actions();
 
     let mut categories: Vec<&str> = actions.iter().map(|a| a.category).collect();
-    categories.sort();
+    categories.sort_unstable();
     categories.dedup();
 
     rsx! {
@@ -338,8 +338,8 @@ pub fn HelpSidebarPanel(
     let mut ai_was_online: Signal<bool> = use_signal(|| false);
 
     {
-        let on_offline = on_ai_offline.clone();
-        let on_online = on_ai_online.clone();
+        let on_offline = on_ai_offline;
+        let on_online = on_ai_online;
         use_future(move || async move {
             loop {
                 let url = fs_ai::ai_api_url();
@@ -397,7 +397,7 @@ pub fn HelpSidebarPanel(
                 onmousemove: move |evt: MouseEvent| {
                     let c = evt.data().client_coordinates();
                     let dx = *resize_w_sx.read() - c.x;
-                    let new_w = (*resize_w_sw.read() + dx).max(180.0).min(600.0);
+                    let new_w = (*resize_w_sw.read() + dx).clamp(180.0, 600.0);
                     panel_width.set(new_w);
                 },
                 onmouseup: move |_| resizing_w.set(false),
@@ -412,7 +412,7 @@ pub fn HelpSidebarPanel(
                 onmousemove: move |evt: MouseEvent| {
                     let c = evt.data().client_coordinates();
                     let dy = c.y - *resize_ai_sy.read();
-                    let new_h = (*resize_ai_sh.read() + dy).max(100.0).min(450.0);
+                    let new_h = (*resize_ai_sh.read() + dy).clamp(100.0, 450.0);
                     ai_height.set(new_h);
                 },
                 onmouseup: move |_| resizing_ai.set(false),

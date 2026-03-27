@@ -15,6 +15,9 @@ pub struct ContainerDb {
 
 impl ContainerDb {
     /// Open (or create) `~/.local/share/fsn/fs-container-app.db`, applying the schema.
+    ///
+    /// # Errors
+    /// Returns [`DbError`] if the database file cannot be opened or the schema fails.
     pub async fn open() -> Result<Self, DbError> {
         let path = db_path("fs-container-app.db");
         std::fs::create_dir_all(path.parent().unwrap_or(std::path::Path::new(".")))
@@ -30,12 +33,16 @@ impl ContainerDb {
         Ok(Self { conn })
     }
 
-    /// Access the underlying SeaORM connection for raw queries.
+    /// Access the underlying `SeaORM` connection for raw queries.
+    #[must_use]
     pub fn db(&self) -> &DatabaseConnection {
         self.conn.inner()
     }
 
     /// Explicitly close the connection pool.
+    ///
+    /// # Errors
+    /// Returns [`DbError`] if the pool cannot be closed cleanly.
     pub async fn close(self) -> Result<(), DbError> {
         self.conn
             .close()

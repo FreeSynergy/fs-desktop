@@ -9,21 +9,23 @@ use crate::window::WindowId;
 pub const DASHBOARD_ICONS_BASE: &str =
     "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg";
 
-/// We10X icon theme raw base URL (scalable SVGs from the upstream repo).
+/// `We10X` icon theme raw base URL (scalable SVGs from the upstream repo).
 pub const WE10X_ICONS_BASE: &str =
     "https://raw.githubusercontent.com/yeyushengfan258/We10X-icon-theme/master/src";
 
 /// Returns the CDN URL for a Homarr Dashboard Icon.
 /// `icon_name` must be the slug as it appears in the dashboard-icons repo (e.g. "kanidm").
+#[must_use]
 pub fn homarr_icon_url(icon_name: &str) -> String {
-    format!("{}/{}.svg", DASHBOARD_ICONS_BASE, icon_name)
+    format!("{DASHBOARD_ICONS_BASE}/{icon_name}.svg")
 }
 
-/// Returns the raw GitHub URL for a We10X icon.
+/// Returns the raw GitHub URL for a `We10X` icon.
 /// `subdir` is the category (e.g. "apps/scalable", "places/scalable").
 /// `icon_name` is the file stem without extension (e.g. "preferences-system").
+#[must_use]
 pub fn we10x_icon_url(subdir: &str, icon_name: &str) -> String {
-    format!("{}/{}/{}.svg", WE10X_ICONS_BASE, subdir, icon_name)
+    format!("{WE10X_ICONS_BASE}/{subdir}/{icon_name}.svg")
 }
 
 /// A registered application that can appear in the taskbar.
@@ -33,7 +35,7 @@ pub struct AppEntry {
     pub id: String,
     /// i18n key for the display name.
     pub label_key: String,
-    /// Fallback emoji/text icon shown when no icon_url is available.
+    /// Fallback emoji/text icon shown when no `icon_url` is available.
     pub icon: String,
     /// Optional icon URL (e.g. Homarr CDN SVG or local path).
     /// When set, `icon` is used as the `alt` text.
@@ -47,6 +49,7 @@ pub struct AppEntry {
 }
 
 impl AppEntry {
+    #[must_use]
     pub fn is_running(&self) -> bool {
         !self.windows.is_empty()
     }
@@ -71,6 +74,7 @@ impl AppEntry {
 
 /// Builds the default pinned apps list.
 /// Only the Store is pinned by default; all other apps appear after installation.
+#[must_use]
 pub fn default_apps() -> Vec<AppEntry> {
     vec![AppEntry {
         id: "store".into(),
@@ -88,13 +92,13 @@ pub fn default_apps() -> Vec<AppEntry> {
 pub fn Taskbar(
     apps: Vec<AppEntry>,
     on_launch: EventHandler<String>,
-    /// Active language code, e.g. "en" or "de". When set, LangSwitcher is shown.
+    /// Active language code, e.g. "en" or "de". When set, `LangSwitcher` is shown.
     #[props(default)]
     active_lang: Option<String>,
     /// All subscribed language codes the user can switch to.
     #[props(default)]
     subscribed_langs: Vec<String>,
-    /// Called when the user selects a language from the LangSwitcher dropdown.
+    /// Called when the user selects a language from the `LangSwitcher` dropdown.
     #[props(default)]
     on_switch_lang: Option<EventHandler<String>>,
 ) -> Element {
@@ -110,7 +114,7 @@ pub fn Taskbar(
             TaskbarApps {
                 apps: apps.clone(),
                 on_launch: {
-                    let on_launch = on_launch.clone();
+                    let on_launch = on_launch;
                     move |id| on_launch.call(id)
                 }
             }

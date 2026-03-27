@@ -22,6 +22,9 @@ pub struct DesktopDb {
 
 impl DesktopDb {
     /// Open (or create) `~/.local/share/fsn/fs-desktop.db`, running migrations.
+    ///
+    /// # Errors
+    /// Returns [`DbError`] if the database file cannot be opened or migrations fail.
     pub async fn open() -> Result<Self, DbError> {
         let path = db_path("fs-desktop.db");
         std::fs::create_dir_all(path.parent().unwrap_or(std::path::Path::new(".")))
@@ -42,17 +45,21 @@ impl DesktopDb {
     // ── Theme ─────────────────────────────────────────────────────────────────
 
     /// Returns the active theme name (never empty — default is `midnight-blue`).
+    ///
+    /// # Errors
+    /// Returns [`DbError`] if the database query fails.
     pub async fn active_theme(&self) -> Result<String, DbError> {
         let row = active_theme::Entity::find_by_id(1)
             .one(self.db())
             .await
             .map_err(|e| DbError::SeaOrm(e.to_string()))?;
-        Ok(row
-            .map(|m| m.name)
-            .unwrap_or_else(|| "midnight-blue".into()))
+        Ok(row.map_or_else(|| "midnight-blue".into(), |m| m.name))
     }
 
     /// Persists the active theme name.
+    ///
+    /// # Errors
+    /// Returns [`DbError`] if the database update fails.
     pub async fn set_active_theme(&self, name: &str) -> Result<(), DbError> {
         let active = active_theme::ActiveModel {
             id: Set(1),
@@ -68,6 +75,9 @@ impl DesktopDb {
     // ── Widget slots ──────────────────────────────────────────────────────────
 
     /// Loads all widget slots ordered by `sort_order`.
+    ///
+    /// # Errors
+    /// Returns [`DbError`] if the database query fails.
     pub async fn widget_slots(&self) -> Result<Vec<DbWidgetSlot>, DbError> {
         let rows = widget_slot::Entity::find()
             .order_by(widget_slot::Column::SortOrder, Order::Asc)
@@ -78,6 +88,9 @@ impl DesktopDb {
     }
 
     /// Replaces ALL widget slots with the given list (full replace on save).
+    ///
+    /// # Errors
+    /// Returns [`DbError`] if the transaction or any insert fails.
     pub async fn save_widget_slots(&self, slots: &[DbWidgetSlot]) -> Result<(), DbError> {
         let tx = self
             .db()
@@ -95,6 +108,7 @@ impl DesktopDb {
                 pos_y: Set(s.y),
                 width: Set(s.w),
                 height: Set(s.h),
+                #[allow(clippy::cast_possible_wrap)]
                 sort_order: Set(i as i64),
                 ..Default::default()
             };
@@ -111,6 +125,9 @@ impl DesktopDb {
     // ── Shortcuts ─────────────────────────────────────────────────────────────
 
     /// Returns all custom shortcut overrides.
+    ///
+    /// # Errors
+    /// Returns [`DbError`] if the database query fails.
     pub async fn shortcuts(&self) -> Result<Vec<DbShortcut>, DbError> {
         let rows = shortcut::Entity::find()
             .all(self.db())
@@ -126,6 +143,9 @@ impl DesktopDb {
     }
 
     /// Upserts a single shortcut override.
+    ///
+    /// # Errors
+    /// Returns [`DbError`] if the database upsert fails.
     pub async fn set_shortcut(&self, action_id: &str, key_combo: &str) -> Result<(), DbError> {
         use sea_orm::sea_query::OnConflict;
         let active = shortcut::ActiveModel {
@@ -146,6 +166,9 @@ impl DesktopDb {
     }
 
     /// Removes a shortcut override (reverts to default).
+    ///
+    /// # Errors
+    /// Returns [`DbError`] if the database delete fails.
     pub async fn delete_shortcut(&self, action_id: &str) -> Result<(), DbError> {
         shortcut::Entity::delete_many()
             .filter(shortcut::Column::ActionId.eq(action_id))
@@ -156,6 +179,9 @@ impl DesktopDb {
     }
 
     /// Explicitly close the connection pool.
+    ///
+    /// # Errors
+    /// Returns [`DbError`] if the pool cannot be closed cleanly.
     pub async fn close(self) -> Result<(), DbError> {
         self.conn
             .close()
@@ -181,12 +207,14 @@ pub struct DbWidgetSlot {
 impl From<widget_slot::Model> for DbWidgetSlot {
     fn from(m: widget_slot::Model) -> Self {
         Self {
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
             id: m.id as u32,
             kind: m.kind,
             x: m.pos_x,
             y: m.pos_y,
             w: m.width,
             h: m.height,
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
             sort_order: m.sort_order as u32,
         }
     }

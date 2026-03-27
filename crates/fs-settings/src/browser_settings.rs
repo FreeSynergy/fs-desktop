@@ -78,7 +78,7 @@ fn SearchEngineBtn(engine: SearchEngine, config: Signal<BrowserConfig>) -> Eleme
                     border: 2px solid {border}; cursor: pointer; \
                     background: var(--fs-color-bg-surface, #1e293b); \
                     text-align: left; font-weight: {weight}; width: 100%;",
-            onclick: move |_| config.write().search_engine = id.clone(),
+            onclick: move |_| config.write().search_engine.clone_from(&id),
             span { style: "font-size: 16px;", "🔍" }
             span {
                 style: "font-size: 14px; color: var(--fs-color-text-primary);",

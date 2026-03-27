@@ -1,3 +1,4 @@
+#![deny(clippy::all, clippy::pedantic, warnings)]
 pub mod ai_view;
 pub mod app_shell;
 pub mod builtin_apps;
@@ -32,7 +33,7 @@ const I18N_SNIPPETS: &[(&str, &str)] = &[
 struct ShellI18nPlugin;
 
 impl fs_i18n::SnippetPlugin for ShellI18nPlugin {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "fs-gui-workspace"
     }
     fn snippets(&self) -> &[(&str, &str)] {

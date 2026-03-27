@@ -2,7 +2,7 @@
 ///
 /// Uses `spawn_window` from `fs_components::launch` to spawn independent windows.
 /// Each window has its own Dioxus tree but shares no state with the main shell.
-/// All dioxus::desktop API calls are isolated in `fs_components::launch`.
+/// All `dioxus::desktop` API calls are isolated in `fs_components::launch`.
 ///
 /// # Usage
 /// ```rust,ignore
@@ -94,6 +94,7 @@ impl MultiwindowHandle {
 }
 
 /// Hook that returns a `MultiwindowHandle`.
+#[must_use]
 pub fn use_multiwindow() -> MultiwindowHandle {
     MultiwindowHandle
 }

@@ -22,6 +22,9 @@ pub struct SharedDb {
 
 impl SharedDb {
     /// Open (or create) `~/.local/share/fsn/fs-shared.db`, running migrations.
+    ///
+    /// # Errors
+    /// Returns [`DbError`] if the database file cannot be opened or migrations fail.
     pub async fn open() -> Result<Self, DbError> {
         let path = db_path("fs-shared.db");
         std::fs::create_dir_all(path.parent().unwrap_or(std::path::Path::new(".")))
@@ -42,6 +45,9 @@ impl SharedDb {
     // ── Settings ──────────────────────────────────────────────────────────────
 
     /// Gets a setting value by key. Returns `None` if not set.
+    ///
+    /// # Errors
+    /// Returns [`DbError`] if the database query fails.
     pub async fn get_setting(&self, key: &str) -> Result<Option<String>, DbError> {
         let row = setting::Entity::find_by_id(key.to_string())
             .one(self.db())
@@ -51,6 +57,9 @@ impl SharedDb {
     }
 
     /// Gets a setting value, returning `default` if not set.
+    ///
+    /// # Errors
+    /// Returns [`DbError`] if the database query fails.
     pub async fn get_setting_or(&self, key: &str, default: &str) -> Result<String, DbError> {
         Ok(self
             .get_setting(key)
@@ -59,6 +68,9 @@ impl SharedDb {
     }
 
     /// Upserts a setting.
+    ///
+    /// # Errors
+    /// Returns [`DbError`] if the database upsert fails.
     pub async fn set_setting(&self, key: &str, value: &str) -> Result<(), DbError> {
         use sea_orm::sea_query::OnConflict;
         let now = unix_now();
@@ -80,6 +92,9 @@ impl SharedDb {
     }
 
     /// Deletes a setting (resets to default behavior).
+    ///
+    /// # Errors
+    /// Returns [`DbError`] if the database delete fails.
     pub async fn delete_setting(&self, key: &str) -> Result<(), DbError> {
         setting::Entity::delete_by_id(key.to_string())
             .exec(self.db())
@@ -91,6 +106,9 @@ impl SharedDb {
     // ── Audit log ─────────────────────────────────────────────────────────────
 
     /// Appends an audit log entry.
+    ///
+    /// # Errors
+    /// Returns [`DbError`] if the database insert fails.
     pub async fn audit(
         &self,
         actor: &str,
@@ -101,7 +119,7 @@ impl SharedDb {
         let active = audit::ActiveModel {
             actor: Set(actor.to_string()),
             action: Set(action.to_string()),
-            target: Set(target.map(|s| s.to_string())),
+            target: Set(target.map(ToString::to_string)),
             outcome: Set(outcome.to_string()),
             created_at: Set(unix_now()),
             ..Default::default()
@@ -114,10 +132,13 @@ impl SharedDb {
     }
 
     /// Returns the most recent N audit log entries.
+    ///
+    /// # Errors
+    /// Returns [`DbError`] if the database query fails.
     pub async fn recent_audit(&self, limit: u32) -> Result<Vec<AuditEntry>, DbError> {
         let rows = audit::Entity::find()
             .order_by(audit::Column::CreatedAt, Order::Desc)
-            .limit(limit as u64)
+            .limit(u64::from(limit))
             .all(self.db())
             .await
             .map_err(|e| DbError::SeaOrm(e.to_string()))?;
@@ -125,6 +146,9 @@ impl SharedDb {
     }
 
     /// Explicitly close the connection pool.
+    ///
+    /// # Errors
+    /// Returns [`DbError`] if the pool cannot be closed cleanly.
     pub async fn close(self) -> Result<(), DbError> {
         self.conn
             .close()
@@ -138,7 +162,7 @@ impl SharedDb {
 fn unix_now() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
+        .map(|d| d.as_secs().cast_signed())
         .unwrap_or(0)
 }
 
