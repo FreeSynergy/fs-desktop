@@ -1,0 +1,16 @@
+[package]
+name        = "fs-desktop"
+version     = "0.1.0"
+type        = "program"
+description = "FreeSynergy Desktop Shell — Wayland compositor, Window Manager, Settings, Profile"
+license     = "MIT"
+authors     = ["FreeSynergy.Net"]
+repository  = "https://github.com/FreeSynergy/fs-desktop"
+
+[capabilities]
+provides = ["desktop.shell", "desktop.window-manager", "desktop.settings", "desktop.profile"]
+requires = ["gui.engine", "session.store"]
+
+[metadata]
+category = "program"
+tags     = ["desktop", "wayland", "shell", "iced", "libcosmic"]
