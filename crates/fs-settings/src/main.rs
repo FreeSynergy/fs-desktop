@@ -4,7 +4,7 @@
 #[cfg(feature = "iced")]
 fn main() -> fs_gui_engine_iced::iced::Result {
     use fs_settings::app::{Message, SettingsApp};
-    fs_gui_engine_iced::IcedEngine::run::<SettingsApp, Message, _, _>(
+    fs_gui_engine_iced::IcedEngine::run_app::<SettingsApp, Message, _, _>(
         "FreeSynergy Settings",
         SettingsApp::update,
         SettingsApp::view,

@@ -4,7 +4,7 @@ fn main() {
     {
         use fs_gui_engine_iced::IcedEngine;
         use fs_profile::app::{ProfileApp, ProfileMessage};
-        let _ = IcedEngine::run::<ProfileApp, ProfileMessage, _, _>(
+        let _ = IcedEngine::run_app::<ProfileApp, ProfileMessage, _, _>(
             "FreeSynergy — Profile",
             ProfileApp::update,
             ProfileApp::view,

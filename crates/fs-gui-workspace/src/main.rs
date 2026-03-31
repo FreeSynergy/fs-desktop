@@ -9,7 +9,7 @@ fn main() {
     {
         use fs_gui_engine_iced::IcedEngine;
         use fs_gui_workspace::shell::{DesktopMessage, DesktopShell};
-        let _ = IcedEngine::run::<DesktopShell, DesktopMessage, _, _>(
+        let _ = IcedEngine::run_app::<DesktopShell, DesktopMessage, _, _>(
             "FreeSynergy Desktop",
             DesktopShell::update,
             DesktopShell::view,

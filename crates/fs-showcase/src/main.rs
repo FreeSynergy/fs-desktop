@@ -27,7 +27,7 @@ fn run() {
     #[cfg(feature = "iced")]
     {
         use fs_gui_engine_iced::IcedEngine;
-        let _ = IcedEngine::run::<ShowcaseApp, ShowcaseMessage, _, _>(
+        let _ = IcedEngine::run_app::<ShowcaseApp, ShowcaseMessage, _, _>(
             "FreeSynergy \u{2013} Component Showcase",
             ShowcaseApp::update,
             ShowcaseApp::view,
