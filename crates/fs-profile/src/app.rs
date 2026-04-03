@@ -1,4 +1,15 @@
-/// Profile — user profile, avatar, SSH keys, linked OIDC accounts, and personal capabilities.
+// Profile — user profile, avatar, SSH keys, linked OIDC accounts, and personal capabilities.
+//
+// Auth flow:
+//   1. App starts → `AuthState::LoggedOut`
+//   2. User fills in username + password → `LoginSubmit` → async `authenticate_pam`
+//   3. On success → `AuthState::LoggedIn { username, session_token, groups }`
+//   4. Profile view shown (full profile editor)
+//   5. Logout → session token invalidated → `AuthState::LoggedOut`
+//
+// Kanidm URL is read from `FS_AUTH_URL` env var; if absent, login is skipped
+// (developer mode / offline). In that case the profile editor is shown directly.
+
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -6,6 +17,25 @@ use serde::{Deserialize, Serialize};
 /// Convenience: return translation as owned `String` for use in iced widgets.
 fn tr(key: &str) -> String {
     fs_i18n::t(key).to_string()
+}
+
+// ── AuthState ─────────────────────────────────────────────────────────────────
+
+/// Current authentication state of the profile app.
+#[derive(Debug, Clone)]
+pub enum AuthState {
+    /// No session — login form is shown.
+    LoggedOut,
+    /// Login request in flight.
+    Authenticating,
+    /// Valid session obtained.
+    LoggedIn {
+        username: String,
+        session_token: String,
+        groups: Vec<String>,
+    },
+    /// Last login attempt failed.
+    LoginError(String),
 }
 
 #[cfg(feature = "iced")]
@@ -168,6 +198,16 @@ impl UserProfile {
 /// All messages for the profile application.
 #[derive(Debug, Clone)]
 pub enum ProfileMessage {
+    // ── Auth / login ──────────────────────────────────────────────────────────
+    LoginUsernameChanged(String),
+    LoginPasswordChanged(String),
+    LoginSubmit,
+    /// Result of `authenticate_pam`: `Ok((username, token, groups))` | `Err(message)`
+    LoginResult(Result<(String, String, Vec<String>), String>),
+    Logout,
+    /// Result of `invalidate_session` after logout (ignored on error)
+    LogoutDone,
+
     // ── Form fields ───────────────────────────────────────────────────────────
     DisplayNameChanged(String),
     EmailChanged(String),
@@ -202,6 +242,14 @@ pub enum ProfileMessage {
 /// Profile application state (iced-based MVU).
 #[derive(Debug)]
 pub struct ProfileApp {
+    // ── Auth state ────────────────────────────────────────────────────────────
+    pub auth: AuthState,
+    /// Kanidm base URL — read from `FS_AUTH_URL` env var. Empty = offline mode.
+    pub kanidm_url: String,
+    pub login_username: String,
+    pub login_password: String,
+
+    // ── Profile data ──────────────────────────────────────────────────────────
     pub profile: UserProfile,
     pub save_msg: Option<String>,
     pub save_error: bool,
@@ -226,9 +274,24 @@ impl Default for ProfileApp {
 
 impl ProfileApp {
     /// Create a new profile app, loading the profile from disk.
+    ///
+    /// If `FS_AUTH_URL` is set, the login screen is shown first.
+    /// If it is absent, offline/developer mode is assumed and the profile
+    /// editor is shown directly (no authentication required).
     #[must_use]
     pub fn new() -> Self {
+        let kanidm_url = std::env::var("FS_AUTH_URL").unwrap_or_default();
+        let auth = if kanidm_url.is_empty() {
+            // Offline / developer mode — skip login.
+            AuthState::LoggedOut
+        } else {
+            AuthState::LoggedOut
+        };
         Self {
+            auth,
+            kanidm_url,
+            login_username: String::new(),
+            login_password: String::new(),
             profile: UserProfile::load(),
             save_msg: None,
             save_error: false,
@@ -241,6 +304,12 @@ impl ProfileApp {
             link_username: String::new(),
         }
     }
+
+    /// Whether the app is in offline mode (no Kanidm URL configured).
+    #[must_use]
+    pub fn is_offline(&self) -> bool {
+        self.kanidm_url.is_empty()
+    }
 }
 
 // ── update() ─────────────────────────────────────────────────────────────────
@@ -249,6 +318,66 @@ impl ProfileApp {
 impl ProfileApp {
     pub fn update(&mut self, msg: ProfileMessage) -> Task<ProfileMessage> {
         match msg {
+            // ── Auth / login ──────────────────────────────────────────────────
+            ProfileMessage::LoginUsernameChanged(v) => self.login_username = v,
+            ProfileMessage::LoginPasswordChanged(v) => self.login_password = v,
+            ProfileMessage::LoginSubmit => {
+                if self.login_username.is_empty() || self.login_password.is_empty() {
+                    return Task::none();
+                }
+                self.auth = AuthState::Authenticating;
+                let url = self.kanidm_url.clone();
+                let username = self.login_username.clone();
+                let password = self.login_password.clone();
+                return Task::perform(
+                    async move {
+                        use fs_auth::backend::KanidmBackend;
+                        use fs_auth::pam::PamProvider;
+                        let backend = KanidmBackend::new(&url, "", "", "");
+                        backend
+                            .authenticate_pam(&username, &password)
+                            .await
+                            .map(|id| (id.username, id.session_token, id.groups))
+                            .map_err(|e| e.to_string())
+                    },
+                    ProfileMessage::LoginResult,
+                );
+            }
+            ProfileMessage::LoginResult(Ok((username, token, groups))) => {
+                self.login_password.clear();
+                self.auth = AuthState::LoggedIn {
+                    username,
+                    session_token: token,
+                    groups,
+                };
+            }
+            ProfileMessage::LoginResult(Err(msg)) => {
+                self.auth = AuthState::LoginError(msg);
+            }
+            ProfileMessage::Logout => {
+                let token = match &self.auth {
+                    AuthState::LoggedIn { session_token, .. } => session_token.clone(),
+                    _ => String::new(),
+                };
+                self.auth = AuthState::LoggedOut;
+                self.login_username.clear();
+                if token.is_empty() {
+                    return Task::none();
+                }
+                let url = self.kanidm_url.clone();
+                return Task::perform(
+                    async move {
+                        use fs_auth::backend::KanidmBackend;
+                        use fs_auth::sso::SsoProvider;
+                        let backend = KanidmBackend::new(&url, "", "", "");
+                        let _ = backend.invalidate_session(&token).await;
+                    },
+                    |()| ProfileMessage::LogoutDone,
+                );
+            }
+            ProfileMessage::LogoutDone => {}
+
+            // ── Form fields ───────────────────────────────────────────────────
             ProfileMessage::DisplayNameChanged(v) => self.profile.display_name = v,
             ProfileMessage::EmailChanged(v) => self.profile.email = v,
             ProfileMessage::BioChanged(v) => self.profile.bio = v,
@@ -333,8 +462,101 @@ impl ProfileApp {
 
 #[cfg(feature = "iced")]
 impl ProfileApp {
+    #[must_use]
     pub fn view(&self) -> Element<'_, ProfileMessage> {
+        // Show login screen unless offline or already logged in.
+        if !self.is_offline() {
+            match &self.auth {
+                AuthState::LoggedOut | AuthState::LoginError(_) | AuthState::Authenticating => {
+                    return self.view_login();
+                }
+                AuthState::LoggedIn { .. } => {}
+            }
+        }
+        self.view_profile()
+    }
+
+    fn view_login(&self) -> Element<'_, ProfileMessage> {
+        let title = text(tr("auth-title")).size(24);
+
+        let username_ph = tr("auth-username-placeholder");
+        let username_input = text_input(&username_ph, &self.login_username)
+            .on_input(ProfileMessage::LoginUsernameChanged)
+            .padding([8, 12])
+            .size(14)
+            .width(Length::Fill);
+
+        let password_ph = tr("auth-password-placeholder");
+        let password_input = text_input(&password_ph, &self.login_password)
+            .on_input(ProfileMessage::LoginPasswordChanged)
+            .secure(true)
+            .padding([8, 12])
+            .size(14)
+            .width(Length::Fill);
+
+        let login_btn = button(text(tr("auth-btn-login")).size(14))
+            .on_press(ProfileMessage::LoginSubmit)
+            .padding([8, 24]);
+
+        let status: Element<'_, ProfileMessage> = match &self.auth {
+            AuthState::Authenticating => text(tr("auth-status-checking"))
+                .size(13)
+                .color(iced::Color::from_rgb(0.5, 0.5, 0.7))
+                .into(),
+            AuthState::LoginError(msg) => text(msg)
+                .size(13)
+                .color(iced::Color::from_rgb(0.87, 0.27, 0.27))
+                .into(),
+            _ => Space::with_height(0).into(),
+        };
+
+        let content = column![
+            title,
+            Space::with_height(32),
+            username_input,
+            Space::with_height(12),
+            password_input,
+            Space::with_height(16),
+            row![login_btn, Space::with_width(16), status]
+                .align_y(Alignment::Center)
+                .spacing(0),
+        ]
+        .spacing(0)
+        .padding([48, 40])
+        .max_width(400);
+
+        container(content)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .center_x(Length::Fill)
+            .center_y(Length::Fill)
+            .into()
+    }
+
+    fn view_profile(&self) -> Element<'_, ProfileMessage> {
+        // ── Header: title + logged-in user + logout button ────────────────────
         let title = text(tr("profile.title")).size(24);
+
+        let header_row: Element<'_, ProfileMessage> =
+            if let AuthState::LoggedIn { username, .. } = &self.auth {
+                let user_label = text(username.as_str())
+                    .size(13)
+                    .color(iced::Color::from_rgb(0.5, 0.5, 0.6));
+                let logout_btn = button(text(tr("auth-btn-logout")).size(12))
+                    .on_press(ProfileMessage::Logout)
+                    .padding([4, 10]);
+                row![
+                    title,
+                    Space::with_width(Length::Fill),
+                    user_label,
+                    Space::with_width(8),
+                    logout_btn,
+                ]
+                .align_y(Alignment::Center)
+                .into()
+            } else {
+                title.into()
+            };
 
         // ── Avatar row ────────────────────────────────────────────────────────
         let avatar_icon = text("👤").size(40);
@@ -485,7 +707,7 @@ impl ProfileApp {
         };
 
         let content = column![
-            title,
+            header_row,
             Space::with_height(24),
             avatar_row,
             Space::with_height(24),

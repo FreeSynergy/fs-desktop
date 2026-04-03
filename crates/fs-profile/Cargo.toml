@@ -15,13 +15,15 @@ path = "src/main.rs"
 
 [features]
 default = ["iced"]
-iced    = ["dep:fs-gui-engine-iced"]
+iced    = ["dep:fs-gui-engine-iced", "dep:tokio"]
 
 [dependencies]
 fs-i18n            = { workspace = true }
+fs-auth            = { workspace = true, features = ["kanidm"] }
 fs-gui-engine-iced = { workspace = true, optional = true }
 serde              = { workspace = true }
 toml               = { workspace = true }
 anyhow             = { workspace = true }
 tracing            = { workspace = true }
 chrono             = { workspace = true }
+tokio              = { workspace = true, optional = true }
