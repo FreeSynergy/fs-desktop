@@ -8,9 +8,9 @@
 
 #[cfg(feature = "iced")]
 use fs_gui_engine_iced::iced::{
-    self,
-    widget::{button, column, container, row, scrollable, text, text_input, Space},
-    Alignment, Element, Length, Task,
+    self, event, mouse, time,
+    widget::{button, column, container, row, scrollable, svg, text, text_input, Space},
+    window, Alignment, Border, Color, Element, Length, Shadow, Subscription, Task, Vector,
 };
 
 use chrono::Local;
@@ -20,11 +20,77 @@ fn tr(key: &str) -> String {
     fs_i18n::t(key).to_string()
 }
 
-/// Convert a `u32` pixel value to `Length::Fixed`.
+/// Convert an f32 pixel value to `Length::Fixed`.
 #[cfg(feature = "iced")]
-#[allow(clippy::cast_precision_loss)]
-fn px(v: u32) -> Length {
-    Length::Fixed(v as f32)
+fn pxf(v: f32) -> Length {
+    Length::Fixed(v)
+}
+
+/// Create an `iced` SVG handle from a raw SVG string.
+///
+/// `currentColor` only works in HTML/CSS context — we replace it with a
+/// concrete hex color before creating the memory handle so `resvg` renders it.
+/// The `_size` hint is informational (the SVG carries its own `width`/`height`).
+#[cfg(feature = "iced")]
+fn svg_icon(svg_str: &str, _size: f32, color: &str) -> svg::Handle {
+    let data = svg_str
+        .replace("stroke=\"currentColor\"", &format!("stroke=\"{color}\""))
+        .replace("fill=\"currentColor\"", &format!("fill=\"{color}\""));
+    svg::Handle::from_memory(data.into_bytes())
+}
+
+/// Theme-aware color palette for the shell chrome.
+#[cfg(feature = "iced")]
+struct Palette {
+    /// Primary background (header, sidebars, taskbar).
+    bg_chrome: Color,
+    /// Content area background.
+    bg_content: Color,
+    /// Subtle border / divider.
+    border: Color,
+    /// Accent border (bottom of header, right of sidebar).
+    border_accent: Color,
+    /// Icon / label foreground color as hex string (for SVG replacement).
+    icon_color: &'static str,
+    /// Muted text (section labels).
+    muted: Color,
+    /// Active item highlight background.
+    active_bg: Color,
+    /// Active item border.
+    active_border: Color,
+    /// Accent (brand cyan).
+    cyan: Color,
+}
+
+#[cfg(feature = "iced")]
+impl Palette {
+    fn dark() -> Self {
+        Self {
+            bg_chrome: Color::from_rgba(0.04, 0.06, 0.14, 0.97),
+            bg_content: Color::from_rgb(0.05, 0.07, 0.15),
+            border: Color::from_rgba(0.58, 0.67, 0.78, 0.10),
+            border_accent: Color::from_rgba(0.02, 0.74, 0.84, 0.25),
+            icon_color: "#94a3b8",
+            muted: Color::from_rgb(0.40, 0.50, 0.60),
+            active_bg: Color::from_rgba(0.02, 0.74, 0.84, 0.12),
+            active_border: Color::from_rgb(0.02, 0.74, 0.84),
+            cyan: Color::from_rgb(0.02, 0.74, 0.84),
+        }
+    }
+
+    fn light() -> Self {
+        Self {
+            bg_chrome: Color::from_rgba(0.95, 0.97, 1.00, 0.97),
+            bg_content: Color::from_rgb(0.97, 0.98, 1.00),
+            border: Color::from_rgba(0.0, 0.0, 0.0, 0.08),
+            border_accent: Color::from_rgba(0.02, 0.60, 0.75, 0.35),
+            icon_color: "#334155",
+            muted: Color::from_rgb(0.45, 0.52, 0.60),
+            active_bg: Color::from_rgba(0.02, 0.74, 0.84, 0.10),
+            active_border: Color::from_rgb(0.02, 0.60, 0.75),
+            cyan: Color::from_rgb(0.02, 0.60, 0.75),
+        }
+    }
 }
 
 /// Convenience: translate key with variables to owned `String`.
@@ -86,15 +152,18 @@ pub enum DesktopMessage {
     UnpinApp(String),
 
     // ── Sidebar state machine ─────────────────────────────────────────────────
-    /// Cursor moved — x position + window width for proximity check.
-    CursorMoved {
-        x: f32,
-        window_width: f32,
-    },
+    /// Cursor moved — x position (window width is stored in state).
+    CursorMoved(f32),
+    /// Window resized — new logical width.
+    WindowResized(f32),
+    /// Animation tick for sidebar width lerp (~30 fps).
+    SidebarAnimTick,
     /// Toggle pin on the left sidebar (stays open / auto-collapse).
     LeftSidebarTogglePin,
     /// Toggle pin on the right help sidebar.
     RightSidebarTogglePin,
+    /// Toggle light / dark mode.
+    ToggleTheme,
 
     // ── Help sidebar ──────────────────────────────────────────────────────────
     /// User typed into the AI input field.
@@ -151,6 +220,20 @@ pub struct DesktopShell {
     /// Proximity observer for the right sidebar.
     pub right_proximity: MouseProximityObserver,
 
+    // ── Sidebar animation (smooth width lerp) ─────────────────────────────────
+    /// Animated pixel width of the left sidebar (interpolates toward target).
+    pub left_anim_width: f32,
+    /// Animated pixel width of the right sidebar.
+    pub right_anim_width: f32,
+
+    // ── Window / layout tracking ──────────────────────────────────────────────
+    /// Current logical window width — updated via `WindowResized` events.
+    pub window_width: f32,
+
+    // ── Theme ─────────────────────────────────────────────────────────────────
+    /// `true` = dark mode (default), `false` = light mode.
+    pub dark_mode: bool,
+
     // ── Clock ─────────────────────────────────────────────────────────────────
     pub clock_time: String,
     pub clock_date: String,
@@ -176,6 +259,11 @@ impl Default for DesktopShell {
             .first()
             .map_or(320, |s| s.size);
 
+        #[allow(clippy::cast_precision_loss)]
+        let left_start = SidebarState::COLLAPSED_WIDTH as f32;
+        #[allow(clippy::cast_precision_loss)]
+        let right_start = SidebarState::COLLAPSED_WIDTH as f32;
+
         Self {
             windows: WindowManager::default(),
             active_app: None,
@@ -195,6 +283,10 @@ impl Default for DesktopShell {
             help_sidebar: HelpSidebarState::default(),
             left_proximity: MouseProximityObserver::new(SidebarSide::Left, left_size),
             right_proximity: MouseProximityObserver::new(SidebarSide::Right, right_size),
+            left_anim_width: left_start,
+            right_anim_width: right_start,
+            window_width: 1280.0,
+            dark_mode: true,
             clock_time: Local::now().format("%H:%M").to_string(),
             clock_date: Local::now().format("%d.%m.%Y").to_string(),
         }
@@ -316,29 +408,51 @@ impl DesktopShell {
             }
 
             // ── Sidebar state machine ─────────────────────────────────────────
-            DesktopMessage::CursorMoved { x, window_width } => {
-                // Left sidebar
-                if let Some(t) = self
-                    .left_proximity
-                    .check(x, window_width, self.left_sidebar_state)
+            DesktopMessage::CursorMoved(x) => {
+                // Left sidebar — collapse/expand jumps directly to Open (animation handles visual)
+                if let Some(t) =
+                    self.left_proximity
+                        .check(x, self.window_width, self.left_sidebar_state)
                 {
                     self.left_sidebar_state = match t {
-                        SidebarTransition::StartExpand => SidebarState::Expanding,
-                        SidebarTransition::Open => SidebarState::Open,
+                        SidebarTransition::StartExpand | SidebarTransition::Open => {
+                            SidebarState::Open
+                        }
                         SidebarTransition::Collapse => SidebarState::Collapsed,
                     };
                 }
                 // Right sidebar
                 if let Some(t) =
                     self.right_proximity
-                        .check(x, window_width, self.help_sidebar.state)
+                        .check(x, self.window_width, self.help_sidebar.state)
                 {
                     self.help_sidebar.state = match t {
-                        SidebarTransition::StartExpand => SidebarState::Expanding,
-                        SidebarTransition::Open => SidebarState::Open,
+                        SidebarTransition::StartExpand | SidebarTransition::Open => {
+                            SidebarState::Open
+                        }
                         SidebarTransition::Collapse => SidebarState::Collapsed,
                     };
                 }
+            }
+            DesktopMessage::WindowResized(w) => {
+                self.window_width = w;
+            }
+            DesktopMessage::SidebarAnimTick => {
+                let left_target = self.left_sidebar_target();
+                let right_target = self.right_sidebar_target();
+                // Lerp factor: ~18% per tick at 30 fps ≈ smooth ~0.5 s expand
+                self.left_anim_width += (left_target - self.left_anim_width) * 0.22;
+                self.right_anim_width += (right_target - self.right_anim_width) * 0.22;
+                // Snap to target when close enough to avoid infinite tiny diffs
+                if (self.left_anim_width - left_target).abs() < 0.5 {
+                    self.left_anim_width = left_target;
+                }
+                if (self.right_anim_width - right_target).abs() < 0.5 {
+                    self.right_anim_width = right_target;
+                }
+            }
+            DesktopMessage::ToggleTheme => {
+                self.dark_mode = !self.dark_mode;
             }
             DesktopMessage::LeftSidebarTogglePin => {
                 self.left_sidebar_mode = match self.left_sidebar_mode {
@@ -397,6 +511,63 @@ impl DesktopShell {
         Task::none()
     }
 
+    // ── Sidebar animation helpers ─────────────────────────────────────────────
+
+    /// Target pixel width for the left sidebar (what the animation lerps toward).
+    #[allow(clippy::cast_precision_loss)]
+    fn left_sidebar_target(&self) -> f32 {
+        let full = self
+            .shell_layout
+            .sidebars_on_side(SidebarSide::Left)
+            .first()
+            .map_or(220, |s| s.size) as f32;
+        match self.left_sidebar_state {
+            SidebarState::Open | SidebarState::Expanding => full,
+            SidebarState::Collapsed => SidebarState::COLLAPSED_WIDTH as f32,
+        }
+    }
+
+    /// Target pixel width for the right sidebar.
+    #[allow(clippy::cast_precision_loss)]
+    fn right_sidebar_target(&self) -> f32 {
+        let full = self
+            .shell_layout
+            .sidebars_on_side(SidebarSide::Right)
+            .first()
+            .map_or(320, |s| s.size) as f32;
+        match self.help_sidebar.state {
+            SidebarState::Open | SidebarState::Expanding => full,
+            SidebarState::Collapsed => SidebarState::COLLAPSED_WIDTH as f32,
+        }
+    }
+
+    // ── Subscription ──────────────────────────────────────────────────────────
+
+    /// iced subscription: mouse cursor, window resize, animation tick, clock.
+    pub fn subscription(&self) -> Subscription<DesktopMessage> {
+        use std::time::Duration;
+
+        // Mouse cursor → sidebar proximity check.
+        let mouse_sub = event::listen_with(|evt, _status, _id| match evt {
+            iced::Event::Mouse(mouse::Event::CursorMoved { position }) => {
+                Some(DesktopMessage::CursorMoved(position.x))
+            }
+            iced::Event::Window(window::Event::Resized(size)) => {
+                Some(DesktopMessage::WindowResized(size.width))
+            }
+            _ => None,
+        });
+
+        // ~30 fps animation tick for smooth sidebar width lerp.
+        let anim_tick =
+            time::every(Duration::from_millis(33)).map(|_| DesktopMessage::SidebarAnimTick);
+
+        // Clock update every 30 seconds.
+        let clock_tick = time::every(Duration::from_secs(30)).map(|_| DesktopMessage::ClockTick);
+
+        Subscription::batch([mouse_sub, anim_tick, clock_tick])
+    }
+
     fn handle_menu_action(&mut self, id: &str) {
         self.header_state.open_menu = None;
         match id {
@@ -434,6 +605,33 @@ impl DesktopShell {
 
 #[cfg(feature = "iced")]
 impl DesktopShell {
+    /// Active color palette (dark or light mode).
+    fn palette(&self) -> Palette {
+        if self.dark_mode {
+            Palette::dark()
+        } else {
+            Palette::light()
+        }
+    }
+
+    /// Chrome container style (header / sidebars / taskbar).
+    fn chrome_style(p: &Palette, border_side_color: Color) -> container::Style {
+        container::Style {
+            background: Some(iced::Background::Color(p.bg_chrome)),
+            border: Border {
+                color: border_side_color,
+                width: 1.0,
+                radius: 0.0.into(),
+            },
+            shadow: Shadow {
+                color: Color::from_rgba(0.0, 0.0, 0.0, 0.25),
+                offset: Vector::new(0.0, 2.0),
+                blur_radius: 12.0,
+            },
+            ..container::Style::default()
+        }
+    }
+
     /// Render the full desktop shell.
     #[must_use]
     pub fn view(&self) -> Element<'_, DesktopMessage> {
@@ -456,38 +654,53 @@ impl DesktopShell {
             .height(Length::Fill)
             .width(Length::Fill);
 
+        let p = self.palette();
         container(shell)
             .width(Length::Fill)
             .height(Length::Fill)
+            .style(move |_| container::Style {
+                background: Some(iced::Background::Color(p.bg_content)),
+                ..container::Style::default()
+            })
             .into()
     }
 
     fn view_header(&self) -> Element<'_, DesktopMessage> {
-        let brand = text("FreeSynergy")
-            .size(15)
-            .color(iced::Color::from_rgb(0.02, 0.74, 0.84));
+        let p = self.palette();
 
-        let by_kal = text(" by KalEl")
-            .size(11)
-            .color(iced::Color::from_rgb(0.6, 0.6, 0.7));
+        let brand = text("FreeSynergy").size(15).color(p.cyan);
+
+        let by_kal = text(" by KalEl").size(11).color(p.muted);
 
         let brand_row = row![brand, by_kal].align_y(Alignment::Center);
 
         let menu_bar = Self::view_menu_bar();
 
+        // Theme toggle button
+        let theme_icon = if self.dark_mode { "☀" } else { "🌙" };
+        let theme_btn = button(text(theme_icon).size(14))
+            .on_press(DesktopMessage::ToggleTheme)
+            .padding([4, 8]);
+
         let clock = column![
             text(&self.clock_time).size(13),
-            text(&self.clock_date).size(10),
+            text(&self.clock_date).size(10).color(p.muted),
         ]
         .align_x(Alignment::Center);
 
         let notif_count = self.notification_history.unread_count();
-        let bell_label = if notif_count > 0 {
-            format!("🔔 {notif_count}")
+        let bell_handle = svg_icon(crate::icons::ICON_BELL, 18.0, p.icon_color);
+        let bell_label: Element<'_, DesktopMessage> = if notif_count > 0 {
+            row![
+                svg(bell_handle).width(18).height(18),
+                text(format!(" {notif_count}")).size(11).color(p.cyan),
+            ]
+            .align_y(Alignment::Center)
+            .into()
         } else {
-            "🔔".to_string()
+            svg(bell_handle).width(18).height(18).into()
         };
-        let bell_btn = button(text(bell_label).size(13))
+        let bell_btn = button(bell_label)
             .on_press(DesktopMessage::NotificationMarkRead)
             .padding([4, 8]);
 
@@ -497,15 +710,31 @@ impl DesktopShell {
             .chars()
             .next()
             .map_or_else(|| "?".to_string(), |c| c.to_uppercase().to_string());
-        let avatar_btn = button(text(avatar_initial).size(13))
-            .on_press(DesktopMessage::HeaderAvatarToggle)
-            .padding([4, 8]);
+        let avatar_btn = button(
+            container(text(avatar_initial).size(12))
+                .width(28)
+                .height(28)
+                .center_x(28)
+                .center_y(28)
+                .style(move |_| container::Style {
+                    background: Some(iced::Background::Color(p.cyan)),
+                    border: Border {
+                        radius: 14.0.into(),
+                        ..Border::default()
+                    },
+                    ..container::Style::default()
+                }),
+        )
+        .on_press(DesktopMessage::HeaderAvatarToggle)
+        .padding(0);
 
         let header_row = row![
             brand_row,
             Space::with_width(12),
             menu_bar,
             Space::with_width(Length::Fill),
+            theme_btn,
+            Space::with_width(4),
             bell_btn,
             Space::with_width(8),
             avatar_btn,
@@ -521,17 +750,7 @@ impl DesktopShell {
         container(header_row)
             .width(Length::Fill)
             .height(60)
-            .style(|_theme| container::Style {
-                background: Some(iced::Background::Color(iced::Color::from_rgb(
-                    0.04, 0.06, 0.10,
-                ))),
-                border: iced::Border {
-                    color: iced::Color::from_rgba(0.58, 0.67, 0.78, 0.18),
-                    width: 1.0,
-                    radius: 0.0.into(),
-                },
-                ..container::Style::default()
-            })
+            .style(move |_| Self::chrome_style(&p, p.border_accent))
             .into()
     }
 
@@ -559,15 +778,20 @@ impl DesktopShell {
     // ── Left sidebar (Taskbar) ────────────────────────────────────────────────
 
     fn view_left_sidebar(&self) -> Element<'_, DesktopMessage> {
-        let show_labels = self.left_sidebar_state.show_labels();
+        let p = self.palette();
+        // Use animated width (smooth lerp) — show labels when more than halfway open
+        let anim_w = self.left_anim_width;
         let full_width = self
             .shell_layout
             .sidebars_on_side(SidebarSide::Left)
             .first()
             .map_or(220, |s| s.size);
-        let width = self.left_sidebar_state.render_width(full_width);
+        #[allow(clippy::cast_precision_loss)]
+        let show_labels = anim_w > (full_width as f32) * 0.5;
+        #[allow(clippy::cast_precision_loss)]
+        let collapsed_w = SidebarState::COLLAPSED_WIDTH as f32;
 
-        // Pin toggle button (top-right of sidebar)
+        // Pin toggle button
         let pin_icon = match self.left_sidebar_mode {
             SidebarMode::Pinned => "📌",
             SidebarMode::Auto => "📍",
@@ -583,16 +807,20 @@ impl DesktopShell {
 
         // Launcher button
         let launcher_inner: Element<'_, DesktopMessage> = if show_labels {
-            text(format!("⊞  {}", tr("shell-launcher-title")))
-                .size(13)
-                .into()
+            row![
+                text("⊞").size(16),
+                Space::with_width(6),
+                text(tr("shell-launcher-title")).size(13),
+            ]
+            .align_y(Alignment::Center)
+            .into()
         } else {
-            text("⊞").size(16).into()
+            container(text("⊞").size(18)).center_x(Length::Fill).into()
         };
         let launcher_btn = button(launcher_inner)
             .on_press(DesktopMessage::LauncherToggle)
             .width(Length::Fill)
-            .padding([6, if show_labels { 12 } else { 0 }]);
+            .padding([8, if show_labels { 12 } else { 0 }]);
 
         let header_row = row![launcher_btn, pin_btn]
             .spacing(0)
@@ -600,12 +828,11 @@ impl DesktopShell {
 
         let mut items_col: Vec<Element<'_, DesktopMessage>> = vec![header_row.into()];
 
-        // Section label "Installed"
         if show_labels && !self.sidebar_sections.is_empty() {
             items_col.push(
                 text(tr("taskbar-installed-section"))
                     .size(9)
-                    .color(iced::Color::from_rgb(0.4, 0.5, 0.6))
+                    .color(p.muted)
                     .into(),
             );
         }
@@ -613,12 +840,7 @@ impl DesktopShell {
         for section in &self.sidebar_sections {
             if show_labels {
                 if let Some(title) = &section.title {
-                    items_col.push(
-                        text(title)
-                            .size(9)
-                            .color(iced::Color::from_rgb(0.4, 0.5, 0.6))
-                            .into(),
-                    );
+                    items_col.push(text(title).size(9).color(p.muted).into());
                 }
             }
             for item in &section.items {
@@ -627,123 +849,97 @@ impl DesktopShell {
         }
 
         let scrollable_section =
-            scrollable(column(items_col).spacing(2).padding([8, 4])).height(Length::Fill);
+            scrollable(column(items_col).spacing(1).padding([8, 4])).height(Length::Fill);
 
-        // Separator + pinned section
-        let sidebar_inner: Element<'_, DesktopMessage> = {
-            let separator = container(Space::with_height(1))
-                .width(Length::Fill)
-                .style(|_theme| container::Style {
-                    background: Some(iced::Background::Color(iced::Color::from_rgba(
-                        0.58, 0.67, 0.78, 0.12,
-                    ))),
-                    ..container::Style::default()
-                });
+        // Separator + pinned
+        let separator = container(Space::with_height(1))
+            .width(Length::Fill)
+            .style(move |_| container::Style {
+                background: Some(iced::Background::Color(p.border)),
+                ..container::Style::default()
+            });
 
-            let mut pinned_col: Vec<Element<'_, DesktopMessage>> = vec![separator.into()];
+        let mut pinned_col: Vec<Element<'_, DesktopMessage>> = vec![separator.into()];
 
-            // Section label "Pinned"
-            if show_labels && !self.pinned_items.is_empty() {
-                let pinned_items_without_settings: Vec<_> = self
-                    .pinned_items
-                    .iter()
-                    .filter(|p| p.id != "settings")
-                    .collect();
-                if !pinned_items_without_settings.is_empty() {
-                    pinned_col.push(
-                        text(tr("taskbar-pinned-section"))
-                            .size(9)
-                            .color(iced::Color::from_rgb(0.4, 0.5, 0.6))
-                            .into(),
-                    );
-                }
+        if show_labels && self.pinned_items.iter().any(|p| p.id != "settings") {
+            pinned_col.push(
+                text(tr("taskbar-pinned-section"))
+                    .size(9)
+                    .color(p.muted)
+                    .into(),
+            );
+        }
+
+        for item in &self.pinned_items {
+            if item.id == "settings" {
+                continue;
             }
+            pinned_col.push(self.view_sidebar_item(item, show_labels));
+        }
 
-            for item in &self.pinned_items {
-                if item.id == "settings" {
-                    continue; // settings rendered separately below
-                }
-                pinned_col.push(self.view_sidebar_item(item, show_labels));
-            }
-
-            // Settings — always visible at bottom
-            let settings_inner: Element<'_, DesktopMessage> = if show_labels {
-                text(format!("⚙  {}", tr("taskbar-settings-label")))
-                    .size(13)
-                    .into()
-            } else {
-                text("⚙").size(16).into()
-            };
-            let settings_btn = button(settings_inner)
-                .on_press(DesktopMessage::SidebarSelect("settings".into()))
-                .width(Length::Fill)
-                .padding([6, if show_labels { 12 } else { 0 }]);
-            pinned_col.push(settings_btn.into());
-
-            let pinned_section = column(pinned_col).spacing(2).padding([4, 4]);
-
-            column![scrollable_section, pinned_section]
-                .height(Length::Fill)
+        // Settings icon at bottom
+        let settings_handle = svg_icon(crate::icons::ICON_SETTINGS, 16.0, p.icon_color);
+        let settings_inner: Element<'_, DesktopMessage> = if show_labels {
+            row![
+                svg(settings_handle).width(16).height(16),
+                Space::with_width(8),
+                text(tr("taskbar-settings-label")).size(13),
+            ]
+            .align_y(Alignment::Center)
+            .into()
+        } else {
+            container(svg(settings_handle).width(18).height(18))
+                .center_x(Length::Fill)
                 .into()
         };
+        let settings_btn = button(settings_inner)
+            .on_press(DesktopMessage::SidebarSelect("settings".into()))
+            .width(Length::Fill)
+            .padding([6, if show_labels { 12 } else { 0 }]);
+        pinned_col.push(settings_btn.into());
+
+        let pinned_section = column(pinned_col).spacing(1).padding([4, 4]);
+
+        let sidebar_inner = column![scrollable_section, pinned_section].height(Length::Fill);
 
         container(sidebar_inner)
-            .width(px(width))
+            .width(pxf(anim_w.max(collapsed_w)))
             .height(Length::Fill)
-            .style(|_theme| container::Style {
-                background: Some(iced::Background::Color(iced::Color::from_rgb(
-                    0.04, 0.06, 0.10,
-                ))),
-                border: iced::Border {
-                    color: iced::Color::from_rgba(0.58, 0.67, 0.78, 0.12),
-                    width: 1.0,
-                    radius: 0.0.into(),
-                },
-                ..container::Style::default()
-            })
+            .style(move |_| Self::chrome_style(&p, p.border_accent))
             .into()
     }
 
     // ── Right sidebar (Help + AI) ─────────────────────────────────────────────
 
     fn view_right_sidebar(&self) -> Element<'_, DesktopMessage> {
-        let show_content = self.help_sidebar.state.show_labels();
+        let p = self.palette();
+        let anim_w = self.right_anim_width;
         let full_width = self
             .shell_layout
             .sidebars_on_side(SidebarSide::Right)
             .first()
             .map_or(320, |s| s.size);
-        let width = self.help_sidebar.state.render_width(full_width);
+        #[allow(clippy::cast_precision_loss)]
+        let show_content = anim_w > (full_width as f32) * 0.5;
+        #[allow(clippy::cast_precision_loss)]
+        let collapsed_w = SidebarState::COLLAPSED_WIDTH as f32;
 
-        // Always-visible icon strip (collapsed state)
-        let help_icon: Element<'_, DesktopMessage> = if show_content {
-            Space::with_height(0).into()
-        } else {
-            container(
-                button(text("?").size(18))
-                    .on_press(DesktopMessage::RightSidebarTogglePin)
-                    .padding([8, 0])
-                    .width(Length::Fill),
-            )
-            .center_x(Length::Fill)
-            .into()
-        };
-
+        // Collapsed strip: just a "?" button
         if !show_content {
-            return container(help_icon)
-                .width(px(SidebarState::COLLAPSED_WIDTH))
+            let help_handle = svg_icon(crate::icons::ICON_HELP, 18.0, p.icon_color);
+            let help_btn = button(
+                container(svg(help_handle).width(18).height(18))
+                    .center_x(Length::Fill)
+                    .center_y(Length::Fill),
+            )
+            .on_press(DesktopMessage::RightSidebarTogglePin)
+            .width(Length::Fill)
+            .padding([10, 0]);
+
+            return container(help_btn)
+                .width(pxf(anim_w.max(collapsed_w)))
                 .height(Length::Fill)
-                .style(|_theme| container::Style {
-                    background: Some(iced::Background::Color(iced::Color::from_rgb(
-                        0.04, 0.06, 0.10,
-                    ))),
-                    border: iced::Border {
-                        color: iced::Color::from_rgba(0.58, 0.67, 0.78, 0.12),
-                        width: 1.0,
-                        radius: 0.0.into(),
-                    },
-                    ..container::Style::default()
-                })
+                .style(move |_| Self::chrome_style(&p, p.border_accent))
                 .into();
         }
 
@@ -757,7 +953,7 @@ impl DesktopShell {
             .padding([2, 6]);
 
         let title_row = row![
-            text(tr("help-sidebar-title")).size(13),
+            text(tr("help-sidebar-title")).size(13).color(p.cyan),
             Space::with_width(Length::Fill),
             pin_btn,
         ]
@@ -800,24 +996,15 @@ impl DesktopShell {
         }
 
         container(column(col_items).spacing(0).height(Length::Fill))
-            .width(px(width))
+            .width(pxf(anim_w.max(collapsed_w)))
             .height(Length::Fill)
-            .style(|_theme| container::Style {
-                background: Some(iced::Background::Color(iced::Color::from_rgb(
-                    0.04, 0.06, 0.10,
-                ))),
-                border: iced::Border {
-                    color: iced::Color::from_rgba(0.58, 0.67, 0.78, 0.12),
-                    width: 1.0,
-                    radius: 0.0.into(),
-                },
-                ..container::Style::default()
-            })
+            .style(move |_| Self::chrome_style(&p, p.border_accent))
             .into()
     }
 
     fn view_help_content(&self) -> Element<'_, DesktopMessage> {
         use crate::help_sidebar::HelpContent;
+        let p = self.palette();
 
         let inner: Element<'_, DesktopMessage> = match &self.help_sidebar.content {
             HelpContent::Topic {
@@ -828,7 +1015,7 @@ impl DesktopShell {
                 let mut items: Vec<Element<'_, DesktopMessage>> = vec![
                     text(fs_i18n::t(title_key).to_string())
                         .size(14)
-                        .color(iced::Color::from_rgb(0.02, 0.74, 0.84))
+                        .color(p.cyan)
                         .into(),
                     Space::with_height(8).into(),
                     text(fs_i18n::t(content_key).to_string()).size(12).into(),
@@ -836,29 +1023,19 @@ impl DesktopShell {
                 if !links.is_empty() {
                     items.push(Space::with_height(8).into());
                     for link in links {
-                        items.push(
-                            text(link)
-                                .size(11)
-                                .color(iced::Color::from_rgb(0.02, 0.74, 0.84))
-                                .into(),
-                        );
+                        items.push(text(link).size(11).color(p.cyan).into());
                     }
                 }
                 column(items).spacing(2).into()
             }
             HelpContent::AiResponse(resp) => column![
-                text(tr("help-ai-response-label"))
-                    .size(11)
-                    .color(iced::Color::from_rgb(0.5, 0.5, 0.6)),
+                text(tr("help-ai-response-label")).size(11).color(p.muted),
                 Space::with_height(4),
                 text(resp.clone()).size(12),
             ]
             .spacing(2)
             .into(),
-            HelpContent::None => text(tr("help-no-content"))
-                .size(12)
-                .color(iced::Color::from_rgb(0.5, 0.5, 0.6))
-                .into(),
+            HelpContent::None => text(tr("help-no-content")).size(12).color(p.muted).into(),
         };
 
         scrollable(container(inner).padding([8, 12]).width(Length::Fill))
@@ -866,14 +1043,15 @@ impl DesktopShell {
             .into()
     }
 
-    /// Render one sidebar item.
+    /// Render one sidebar item with SVG icon.
     ///
-    /// `show_labels` — when `false` only the icon is shown (collapsed state).
+    /// `show_labels` — when `false` only the icon is shown (collapsed/animating state).
     fn view_sidebar_item<'a>(
         &'a self,
         item: &'a SidebarItem,
         show_labels: bool,
     ) -> Element<'a, DesktopMessage> {
+        let p = self.palette();
         let is_active = self
             .active_app
             .is_some_and(|a| a.name().to_lowercase() == item.id);
@@ -881,15 +1059,24 @@ impl DesktopShell {
         let is_pinned = self.pinned_items.iter().any(|p| p.id == item.id);
         let id = item.id.clone();
 
-        // Label or icon-only depending on sidebar state.
-        let btn_content: Element<'_, DesktopMessage> = if show_labels {
-            text(format!("{} {}", item.icon, item.label))
-                .size(13)
-                .into()
+        // Build icon: SVG if the string looks like SVG, else Unicode text fallback.
+        let icon_el: Element<'_, DesktopMessage> = if item.icon.starts_with('<') {
+            let handle = svg_icon(&item.icon, 16.0, p.icon_color);
+            svg(handle).width(16).height(16).into()
         } else {
-            container(text(item.icon.clone()).size(16))
-                .center_x(Length::Fill)
-                .into()
+            text(item.icon.clone()).size(16).into()
+        };
+
+        let btn_content: Element<'_, DesktopMessage> = if show_labels {
+            row![
+                icon_el,
+                Space::with_width(8),
+                text(item.label.clone()).size(13),
+            ]
+            .align_y(Alignment::Center)
+            .into()
+        } else {
+            container(icon_el).center_x(Length::Fill).into()
         };
 
         let app_btn = button(btn_content)
@@ -897,7 +1084,6 @@ impl DesktopShell {
             .width(Length::Fill)
             .padding([6, if show_labels { 12 } else { 0 }]);
 
-        // Pin/unpin toggle — only visible in expanded state, not for settings.
         let pin_btn: Element<'_, DesktopMessage> = if show_labels && item.id != "settings" {
             let (pin_icon, pin_msg): (&str, DesktopMessage) = if is_pinned {
                 ("📌", DesktopMessage::UnpinApp(id.clone()))
@@ -916,14 +1102,17 @@ impl DesktopShell {
 
         if is_active {
             container(item_row)
-                .style(|_theme| container::Style {
-                    background: Some(iced::Background::Color(iced::Color::from_rgba(
-                        0.02, 0.74, 0.84, 0.15,
-                    ))),
-                    border: iced::Border {
-                        color: iced::Color::from_rgb(0.02, 0.74, 0.84),
+                .style(move |_| container::Style {
+                    background: Some(iced::Background::Color(p.active_bg)),
+                    border: Border {
+                        color: p.active_border,
                         width: 2.0,
                         radius: 6.0.into(),
+                    },
+                    shadow: Shadow {
+                        color: Color::from_rgba(0.02, 0.74, 0.84, 0.20),
+                        offset: Vector::new(0.0, 0.0),
+                        blur_radius: 8.0,
                     },
                     ..container::Style::default()
                 })
@@ -934,21 +1123,23 @@ impl DesktopShell {
     }
 
     fn view_content(&self) -> Element<'_, DesktopMessage> {
+        let p = self.palette();
+
         let content: Element<'_, DesktopMessage> = match self.active_app {
             Some(app_id) => {
-                // Content placeholder for each app — sub-apps will be embedded
-                // once they are added as dependencies of fs-gui-workspace.
+                let icon_el: Element<'_, DesktopMessage> = if app_id.icon().starts_with('<') {
+                    let handle = svg_icon(app_id.icon(), 48.0, p.icon_color);
+                    svg(handle).width(48).height(48).into()
+                } else {
+                    text(app_id.icon()).size(48).into()
+                };
                 container(
                     column![
-                        text(format!("{} {}", app_id.icon(), app_id.name())).size(32),
+                        icon_el,
                         Space::with_height(16),
-                        text(app_id.name())
-                            .size(20)
-                            .color(iced::Color::from_rgb(0.02, 0.74, 0.84)),
+                        text(app_id.name()).size(20).color(p.cyan),
                         Space::with_height(8),
-                        text(tr("shell-app-opening"))
-                            .size(14)
-                            .color(iced::Color::from_rgb(0.6, 0.6, 0.7)),
+                        text(tr("shell-app-opening")).size(14).color(p.muted),
                     ]
                     .align_x(Alignment::Center)
                     .spacing(8),
@@ -957,61 +1148,60 @@ impl DesktopShell {
                 .center_y(Length::Fill)
                 .into()
             }
-            None => {
-                // Home screen
-                container(
-                    column![
-                        text("FreeSynergy")
-                            .size(36)
-                            .color(iced::Color::from_rgb(0.02, 0.74, 0.84)),
-                        text("by KalEl")
-                            .size(14)
-                            .color(iced::Color::from_rgb(0.5, 0.5, 0.6)),
-                        Space::with_height(32),
-                        text(tr("shell-home-hint"))
-                            .size(14)
-                            .color(iced::Color::from_rgb(0.6, 0.6, 0.7)),
-                        Space::with_height(16),
-                        button(text(format!("⊞  {}", tr("shell-launcher-open"))).size(14))
-                            .on_press(DesktopMessage::LauncherToggle)
-                            .padding([8, 20]),
-                    ]
-                    .align_x(Alignment::Center)
-                    .spacing(4),
-                )
-                .center_x(Length::Fill)
-                .center_y(Length::Fill)
-                .into()
-            }
+            None => container(
+                column![
+                    text("FreeSynergy").size(40).color(p.cyan),
+                    text("by KalEl").size(14).color(p.muted),
+                    Space::with_height(32),
+                    text(tr("shell-home-hint")).size(14).color(p.muted),
+                    Space::with_height(20),
+                    button(
+                        row![
+                            text("⊞").size(16),
+                            Space::with_width(6),
+                            text(tr("shell-launcher-open")).size(14),
+                        ]
+                        .align_y(Alignment::Center),
+                    )
+                    .on_press(DesktopMessage::LauncherToggle)
+                    .padding([10, 24]),
+                ]
+                .align_x(Alignment::Center)
+                .spacing(4),
+            )
+            .center_x(Length::Fill)
+            .center_y(Length::Fill)
+            .into(),
         };
 
         container(content)
             .width(Length::Fill)
             .height(Length::Fill)
-            .style(|_theme| container::Style {
-                background: Some(iced::Background::Color(iced::Color::from_rgb(
-                    0.05, 0.07, 0.12,
-                ))),
+            .style(move |_| container::Style {
+                background: Some(iced::Background::Color(p.bg_content)),
                 ..container::Style::default()
             })
             .into()
     }
 
     fn view_taskbar(&self) -> Element<'_, DesktopMessage> {
+        let p = self.palette();
+
         let launcher_btn = button(text("⊞").size(20))
             .on_press(DesktopMessage::LauncherToggle)
-            .padding([4, 8]);
+            .padding([4, 10]);
 
         let mut app_btns: Vec<Element<'_, DesktopMessage>> = vec![launcher_btn.into()];
 
         for app in &self.taskbar_apps {
             let id = app.id.clone();
-            let icon_text = if app.icon.starts_with('<') {
-                "●".to_string()
+            let icon_el: Element<'_, DesktopMessage> = if app.icon.starts_with('<') {
+                let handle = svg_icon(&app.icon, 20.0, p.icon_color);
+                svg(handle).width(20).height(20).into()
             } else {
-                app.icon.clone()
+                text(app.icon.clone()).size(18).into()
             };
-            let btn = button(text(icon_text).size(18))
+            let btn = button(icon_el)
                 .on_press(DesktopMessage::SidebarSelect(id))
                 .padding([4, 8]);
             app_btns.push(btn.into());
@@ -1021,7 +1211,7 @@ impl DesktopShell {
 
         let clock = column![
             text(&self.clock_time).size(13),
-            text(&self.clock_date).size(10),
+            text(&self.clock_date).size(10).color(p.muted),
         ]
         .align_x(Alignment::Center)
         .padding([0, 12]);
@@ -1036,17 +1226,7 @@ impl DesktopShell {
         container(taskbar_row)
             .width(Length::Fill)
             .height(48)
-            .style(|_theme| container::Style {
-                background: Some(iced::Background::Color(iced::Color::from_rgb(
-                    0.04, 0.06, 0.10,
-                ))),
-                border: iced::Border {
-                    color: iced::Color::from_rgba(0.58, 0.67, 0.78, 0.18),
-                    width: 1.0,
-                    radius: 0.0.into(),
-                },
-                ..container::Style::default()
-            })
+            .style(move |_| Self::chrome_style(&p, p.border_accent))
             .into()
     }
 
