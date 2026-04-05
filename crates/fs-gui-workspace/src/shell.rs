@@ -9,7 +9,7 @@
 #[cfg(feature = "iced")]
 use fs_gui_engine_iced::iced::{
     self, event, mouse, time,
-    widget::{button, column, container, row, scrollable, stack, svg, text, text_input, Space},
+    widget::{button, column, container, row, scrollable, svg, text, text_input, Space},
     window, Alignment, Border, Color, Element, Length, Shadow, Subscription, Task, Vector,
 };
 
@@ -112,22 +112,6 @@ use crate::sidebar_state::{
 };
 use crate::taskbar::{default_apps, AppEntry};
 use crate::window::{AppId, Window, WindowHost, WindowId, WindowManager};
-
-// ── CornerMenu ────────────────────────────────────────────────────────────────
-
-/// A single entry in the radial quarter-circle corner menu.
-///
-/// Items fan out from the top-left corner at their configured `angle_deg`.
-/// The action is dispatched when the user clicks the icon button.
-#[cfg(feature = "iced")]
-pub struct CornerMenuEntry {
-    /// Raw SVG string (from `crate::icons::*`).
-    pub icon: &'static str,
-    /// Message sent on click.
-    pub action: DesktopMessage,
-    /// Angle in degrees from horizontal (0° = right, 90° = down).
-    pub angle_deg: f32,
-}
 
 // ── DesktopMessage ────────────────────────────────────────────────────────────
 
@@ -249,12 +233,6 @@ pub struct DesktopShell {
     /// Current logical window width — updated via `WindowResized` events.
     pub window_width: f32,
 
-    // ── Corner menu (radial quarter-circle) ───────────────────────────────────
-    /// Whether the cursor is currently in the trigger zone (top-left corner).
-    pub corner_menu_open: bool,
-    /// Animated progress 0.0 (closed) → 1.0 (fully open), lerped each tick.
-    pub corner_menu_anim: f32,
-
     // ── Theme ─────────────────────────────────────────────────────────────────
     /// `true` = dark mode (default), `false` = light mode.
     pub dark_mode: bool,
@@ -311,8 +289,6 @@ impl Default for DesktopShell {
             left_anim_width: left_start,
             right_anim_width: right_start,
             window_width: 1280.0,
-            corner_menu_open: false,
-            corner_menu_anim: 0.0,
             dark_mode: true,
             clock_time: Local::now().format("%H:%M").to_string(),
             clock_date: Local::now().format("%d.%m.%Y").to_string(),
@@ -329,6 +305,7 @@ impl DesktopShell {
         match msg {
             // ── Window management ─────────────────────────────────────────────
             DesktopMessage::OpenApp(app_id) => {
+                Self::spawn_app(app_id);
                 self.lifecycle_bus
                     .app_opened(app_id.name().to_lowercase().as_str());
                 self.active_app = Some(app_id);
@@ -435,7 +412,7 @@ impl DesktopShell {
             }
 
             // ── Sidebar state machine ─────────────────────────────────────────
-            DesktopMessage::CursorMoved { x, y } => {
+            DesktopMessage::CursorMoved { x, y: _ } => {
                 // Left sidebar — collapse/expand jumps directly to Open (animation handles visual)
                 if let Some(t) =
                     self.left_proximity
@@ -460,11 +437,6 @@ impl DesktopShell {
                         SidebarTransition::Collapse => SidebarState::Collapsed,
                     };
                 }
-                // Corner menu: open when cursor enters top-left corner zone,
-                // stay open while cursor remains within the arc radius (200px).
-                let in_corner = x < 80.0 && y < 80.0;
-                let in_arc = self.corner_menu_open && (x * x + y * y).sqrt() < 200.0;
-                self.corner_menu_open = in_corner || in_arc;
             }
             DesktopMessage::WindowResized(w) => {
                 self.window_width = w;
@@ -481,16 +453,6 @@ impl DesktopShell {
                 }
                 if (self.right_anim_width - right_target).abs() < 0.5 {
                     self.right_anim_width = right_target;
-                }
-                // Corner menu animation lerp
-                let corner_target = if self.corner_menu_open {
-                    1.0_f32
-                } else {
-                    0.0_f32
-                };
-                self.corner_menu_anim += (corner_target - self.corner_menu_anim) * 0.22;
-                if (self.corner_menu_anim - corner_target).abs() < 0.01 {
-                    self.corner_menu_anim = corner_target;
                 }
             }
             DesktopMessage::ToggleTheme => {
@@ -637,12 +599,43 @@ impl DesktopShell {
             "ai" => Some(AppId::Ai),
             "container-app" => Some(AppId::Container),
             "managers" | "managers-folder" => Some(AppId::Managers),
-            "help" => Some(AppId::Help),
+            "help" => {
+                // Help opens the right sidebar rather than launching an external process.
+                self.help_sidebar.state = crate::sidebar_state::SidebarState::Open;
+                self.right_proximity.mode = crate::sidebar_state::SidebarMode::Pinned;
+                return;
+            }
             _ => None,
         };
         if let Some(app) = app_id {
+            Self::spawn_app(app);
             self.active_app = Some(app);
+            self.lifecycle_bus
+                .app_opened(app.name().to_lowercase().as_str());
         }
+    }
+
+    /// Launch an external app binary as a detached child process.
+    ///
+    /// Binary names follow the `fs-<name>` convention. If the binary is not on
+    /// `PATH` the call silently does nothing — the desktop does not crash.
+    fn spawn_app(app_id: AppId) {
+        let binary = match app_id {
+            AppId::Browser => "fs-browser",
+            AppId::Settings => "fs-settings",
+            AppId::Profile => "fs-profile",
+            AppId::Store => "fs-store",
+            AppId::Lenses => "fs-lenses",
+            AppId::Builder => "fs-builder",
+            AppId::Tasks => "fs-tasks",
+            AppId::Bots => "fs-bots",
+            AppId::Ai => "fs-ai",
+            AppId::Container => "fs-container",
+            AppId::Managers => "fs-managers",
+            AppId::Help => return,
+        };
+        // Detach: we do not wait for the child — it runs independently.
+        let _ = std::process::Command::new(binary).spawn();
     }
 }
 
@@ -709,166 +702,10 @@ impl DesktopShell {
             })
             .into();
 
-        // Overlay the corner menu whenever it is at least partially visible.
-        if self.corner_menu_anim > 0.01 {
-            stack([shell_el, self.view_corner_menu()])
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .into()
-        } else {
-            shell_el
-        }
+        shell_el
     }
 
     // ── Corner menu ───────────────────────────────────────────────────────────
-
-    /// The 5 items that fan out in the quarter-circle corner menu.
-    ///
-    /// Angles go from 15° (near-horizontal) to 75° (near-vertical) so that
-    /// all icons stay fully visible even at the very edge of the window.
-    fn corner_menu_entries() -> Vec<CornerMenuEntry> {
-        vec![
-            CornerMenuEntry {
-                icon: crate::icons::ICON_DESKTOP,
-                action: DesktopMessage::LauncherToggle,
-                angle_deg: 15.0,
-            },
-            CornerMenuEntry {
-                icon: crate::icons::ICON_STORE,
-                action: DesktopMessage::SidebarSelect("store".into()),
-                angle_deg: 30.0,
-            },
-            CornerMenuEntry {
-                icon: crate::icons::ICON_SETTINGS,
-                action: DesktopMessage::SidebarSelect("settings".into()),
-                angle_deg: 45.0,
-            },
-            CornerMenuEntry {
-                icon: crate::icons::ICON_BOTS,
-                action: DesktopMessage::SidebarSelect("bots".into()),
-                angle_deg: 60.0,
-            },
-            CornerMenuEntry {
-                icon: crate::icons::ICON_HELP,
-                action: DesktopMessage::RightSidebarTogglePin,
-                angle_deg: 75.0,
-            },
-        ]
-    }
-
-    /// Render the radial quarter-circle corner menu overlay.
-    ///
-    /// Uses a `stack` layer so it floats on top of the shell chrome.
-    /// The quarter-circle background is a square container with a large
-    /// bottom-right border radius that approximates the arc shape.
-    /// Each icon button is placed at its arc position via `container` padding.
-    fn view_corner_menu(&self) -> Element<'_, DesktopMessage> {
-        let p = self.palette();
-        let anim = self.corner_menu_anim;
-        // Full radius when open; shrinks to 0 when closed.
-        let radius = 160.0_f32 * anim;
-        // Circular icon button diameter.
-        let btn_d = 44.0_f32;
-
-        // Quarter-circle background: a square whose bottom-right corner is
-        // rounded by the full radius — this creates the fan/pie shape.
-        let arc_bg = container(Space::with_height(0))
-            .width(pxf(radius))
-            .height(pxf(radius))
-            .style(move |_| container::Style {
-                background: Some(iced::Background::Color(Color::from_rgba(
-                    0.02,
-                    0.74,
-                    0.84,
-                    0.10 * anim,
-                ))),
-                border: Border {
-                    color: Color::from_rgba(0.02, 0.74, 0.84, 0.45 * anim),
-                    width: 1.5,
-                    // top_left=0, top_right=0, bottom_right=radius, bottom_left=0
-                    radius: iced::border::Radius {
-                        top_left: 0.0,
-                        top_right: 0.0,
-                        bottom_right: radius,
-                        bottom_left: 0.0,
-                    },
-                },
-                shadow: Shadow {
-                    color: Color::from_rgba(0.02, 0.74, 0.84, 0.20 * anim),
-                    offset: Vector::new(4.0, 4.0),
-                    blur_radius: 24.0,
-                },
-                ..container::Style::default()
-            });
-
-        // Background layer: full-size transparent, arc bg pinned to top-left.
-        let bg_layer: Element<'_, DesktopMessage> = container(arc_bg)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .into();
-
-        // Icon layers: one per entry, positioned at (x, y) via padding.
-        let icon_layers: Vec<Element<'_, DesktopMessage>> = Self::corner_menu_entries()
-            .into_iter()
-            .map(|entry| {
-                let rad = entry.angle_deg.to_radians();
-                // Center of each icon on the arc.
-                let cx = radius * rad.cos();
-                let cy = radius * rad.sin();
-                // Top-left of the btn container, clamped ≥ 0.
-                let top = (cy - btn_d * 0.5).max(0.0);
-                let left = (cx - btn_d * 0.5).max(0.0);
-
-                let handle = svg_icon(entry.icon, 22.0, p.icon_color);
-                let icon_el = svg(handle).width(22).height(22);
-
-                // Circular glass button
-                let btn = button(
-                    container(icon_el)
-                        .width(pxf(btn_d))
-                        .height(pxf(btn_d))
-                        .center_x(pxf(btn_d))
-                        .center_y(pxf(btn_d))
-                        .style(move |_| container::Style {
-                            background: Some(iced::Background::Color(p.bg_chrome)),
-                            border: Border {
-                                color: p.border_accent,
-                                width: 1.5,
-                                radius: (btn_d * 0.5).into(),
-                            },
-                            shadow: Shadow {
-                                color: Color::from_rgba(0.02, 0.74, 0.84, 0.35 * anim),
-                                offset: Vector::new(0.0, 0.0),
-                                blur_radius: 10.0,
-                            },
-                            ..container::Style::default()
-                        }),
-                )
-                .on_press(entry.action)
-                .padding(0);
-
-                // Position the button at (left, top) via full-size container padding.
-                container(btn)
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .padding(iced::Padding {
-                        top,
-                        right: 0.0,
-                        bottom: 0.0,
-                        left,
-                    })
-                    .into()
-            })
-            .collect();
-
-        // Assemble all layers: background first, then one per icon.
-        let mut layers: Vec<Element<'_, DesktopMessage>> = vec![bg_layer];
-        layers.extend(icon_layers);
-        stack(layers)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .into()
-    }
 
     fn view_header(&self) -> Element<'_, DesktopMessage> {
         let p = self.palette();
@@ -882,8 +719,12 @@ impl DesktopShell {
         let menu_bar = Self::view_menu_bar();
 
         // Theme toggle button
-        let theme_icon = if self.dark_mode { "☀" } else { "🌙" };
-        let theme_btn = button(text(theme_icon).size(14))
+        let theme_svg = if self.dark_mode {
+            svg_icon(crate::icons::ICON_SUN, 16.0, p.icon_color)
+        } else {
+            svg_icon(crate::icons::ICON_MOON, 16.0, p.icon_color)
+        };
+        let theme_btn = button(svg(theme_svg).width(16).height(16))
             .on_press(DesktopMessage::ToggleTheme)
             .padding([4, 8]);
 
@@ -997,12 +838,12 @@ impl DesktopShell {
         let collapsed_w = SidebarState::COLLAPSED_WIDTH as f32;
 
         // Pin toggle button
-        let pin_icon = match self.left_sidebar_mode {
-            SidebarMode::Pinned => "📌",
-            SidebarMode::Auto => "📍",
+        let pin_svg = match self.left_sidebar_mode {
+            SidebarMode::Pinned => svg_icon(crate::icons::ICON_PIN, 14.0, p.icon_color),
+            SidebarMode::Auto => svg_icon(crate::icons::ICON_UNPIN, 14.0, p.icon_color),
         };
         let pin_btn: Element<'_, DesktopMessage> = if show_labels {
-            button(text(pin_icon).size(11))
+            button(svg(pin_svg).width(14).height(14))
                 .on_press(DesktopMessage::LeftSidebarTogglePin)
                 .padding([2, 6])
                 .into()
@@ -1011,16 +852,19 @@ impl DesktopShell {
         };
 
         // Launcher button
+        let launcher_icon = svg_icon(crate::icons::ICON_LAUNCHER, 16.0, p.icon_color);
         let launcher_inner: Element<'_, DesktopMessage> = if show_labels {
             row![
-                text("⊞").size(16),
+                svg(launcher_icon).width(16).height(16),
                 Space::with_width(6),
                 text(tr("shell-launcher-title")).size(13),
             ]
             .align_y(Alignment::Center)
             .into()
         } else {
-            container(text("⊞").size(18)).center_x(Length::Fill).into()
+            container(svg(launcher_icon).width(18).height(18))
+                .center_x(Length::Fill)
+                .into()
         };
         let launcher_btn = button(launcher_inner)
             .on_press(DesktopMessage::LauncherToggle)
@@ -1149,11 +993,11 @@ impl DesktopShell {
         }
 
         // Expanded: title + content + optional AI input
-        let pin_icon = match self.help_sidebar.mode {
-            SidebarMode::Pinned => "📌",
-            SidebarMode::Auto => "📍",
+        let pin_svg_r = match self.help_sidebar.mode {
+            SidebarMode::Pinned => svg_icon(crate::icons::ICON_PIN, 14.0, p.icon_color),
+            SidebarMode::Auto => svg_icon(crate::icons::ICON_UNPIN, 14.0, p.icon_color),
         };
-        let pin_btn = button(text(pin_icon).size(11))
+        let pin_btn = button(svg(pin_svg_r).width(14).height(14))
             .on_press(DesktopMessage::RightSidebarTogglePin)
             .padding([2, 6]);
 
@@ -1290,12 +1134,18 @@ impl DesktopShell {
             .padding([6, if show_labels { 12 } else { 0 }]);
 
         let pin_btn: Element<'_, DesktopMessage> = if show_labels && item.id != "settings" {
-            let (pin_icon, pin_msg): (&str, DesktopMessage) = if is_pinned {
-                ("📌", DesktopMessage::UnpinApp(id.clone()))
+            let (pin_svg_item, pin_msg) = if is_pinned {
+                (
+                    svg_icon(crate::icons::ICON_PIN, 12.0, p.icon_color),
+                    DesktopMessage::UnpinApp(id.clone()),
+                )
             } else {
-                ("📍", DesktopMessage::PinApp(id.clone()))
+                (
+                    svg_icon(crate::icons::ICON_UNPIN, 12.0, p.icon_color),
+                    DesktopMessage::PinApp(id.clone()),
+                )
             };
-            button(text(pin_icon).size(11))
+            button(svg(pin_svg_item).width(12).height(12))
                 .on_press(pin_msg)
                 .padding([6, 4])
                 .into()
@@ -1332,22 +1182,22 @@ impl DesktopShell {
 
         let content: Element<'_, DesktopMessage> = match self.active_app {
             Some(app_id) => {
-                let icon_el: Element<'_, DesktopMessage> = if app_id.icon().starts_with('<') {
-                    let handle = svg_icon(app_id.icon(), 48.0, p.icon_color);
-                    svg(handle).width(48).height(48).into()
-                } else {
-                    text(app_id.icon()).size(48).into()
-                };
+                let handle = svg_icon(app_id.icon(), 48.0, p.icon_color);
+                let icon_el: Element<'_, DesktopMessage> = svg(handle).width(48).height(48).into();
                 container(
                     column![
                         icon_el,
                         Space::with_height(16),
                         text(app_id.name()).size(20).color(p.cyan),
                         Space::with_height(8),
-                        text(tr("shell-app-opening")).size(14).color(p.muted),
+                        text(tr("shell-app-launched")).size(14).color(p.muted),
+                        Space::with_height(16),
+                        button(text(tr("shell-app-relaunch")).size(13))
+                            .on_press(DesktopMessage::OpenApp(app_id))
+                            .padding([8, 20]),
                     ]
                     .align_x(Alignment::Center)
-                    .spacing(8),
+                    .spacing(4),
                 )
                 .center_x(Length::Fill)
                 .center_y(Length::Fill)
@@ -1362,7 +1212,9 @@ impl DesktopShell {
                     Space::with_height(20),
                     button(
                         row![
-                            text("⊞").size(16),
+                            svg(svg_icon(crate::icons::ICON_LAUNCHER, 16.0, "#06b6d4"))
+                                .width(16)
+                                .height(16),
                             Space::with_width(6),
                             text(tr("shell-launcher-open")).size(14),
                         ]
@@ -1392,9 +1244,13 @@ impl DesktopShell {
     fn view_taskbar(&self) -> Element<'_, DesktopMessage> {
         let p = self.palette();
 
-        let launcher_btn = button(text("⊞").size(20))
-            .on_press(DesktopMessage::LauncherToggle)
-            .padding([4, 10]);
+        let launcher_btn = button(
+            svg(svg_icon(crate::icons::ICON_LAUNCHER, 20.0, p.icon_color))
+                .width(20)
+                .height(20),
+        )
+        .on_press(DesktopMessage::LauncherToggle)
+        .padding([4, 10]);
 
         let mut app_btns: Vec<Element<'_, DesktopMessage>> = vec![launcher_btn.into()];
 

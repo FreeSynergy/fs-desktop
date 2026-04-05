@@ -141,9 +141,20 @@ impl MouseProximityObserver {
         let threshold = SidebarState::PROXIMITY_THRESHOLD;
         #[allow(clippy::cast_precision_loss)]
         let full_w = self.full_width as f32;
-        let in_zone = match self.side {
-            SidebarSide::Left => cursor_x <= full_w + threshold,
-            SidebarSide::Right => cursor_x >= window_width - full_w - threshold,
+        #[allow(clippy::cast_precision_loss)]
+        let collapsed_w = SidebarState::COLLAPSED_WIDTH as f32;
+
+        // Hysteresis: expand triggers only when cursor is near the collapsed strip;
+        // once open, the sidebar stays open while the cursor is within the full width.
+        let in_zone = match (self.side, current) {
+            (SidebarSide::Left, SidebarState::Collapsed | SidebarState::Expanding) => {
+                cursor_x <= collapsed_w + threshold
+            }
+            (SidebarSide::Left, _) => cursor_x <= full_w + threshold,
+            (SidebarSide::Right, SidebarState::Collapsed | SidebarState::Expanding) => {
+                cursor_x >= window_width - collapsed_w - threshold
+            }
+            (SidebarSide::Right, _) => cursor_x >= window_width - full_w - threshold,
         };
 
         match (current, in_zone) {
@@ -201,8 +212,10 @@ mod tests {
 
     #[test]
     fn proximity_right_triggers_expand() {
+        // Expand triggers within collapsed_w + threshold = 48 + 16 = 64px of the right edge.
+        // window_width=1280 → trigger zone: cursor_x >= 1280 - 64 = 1216
         let obs = MouseProximityObserver::new(SidebarSide::Right, 300);
-        let t = obs.check(970.0, 1280.0, SidebarState::Collapsed);
+        let t = obs.check(1240.0, 1280.0, SidebarState::Collapsed);
         assert_eq!(t, Some(SidebarTransition::StartExpand));
     }
 

@@ -444,22 +444,22 @@ impl AppId {
         }
     }
 
-    /// Default icon emoji for the app.
+    /// SVG icon for the app (from `crate::icons`).
     #[must_use]
     pub fn icon(self) -> &'static str {
         match self {
-            Self::Browser => "🌐",
-            Self::Settings => "⚙",
-            Self::Profile => "👤",
-            Self::Store => "🏪",
-            Self::Lenses => "🔍",
-            Self::Builder => "🔧",
-            Self::Tasks => "✅",
-            Self::Bots => "🤖",
-            Self::Ai => "✨",
-            Self::Container => "📦",
-            Self::Managers => "🗂",
-            Self::Help => "❓",
+            Self::Browser => crate::icons::ICON_BROWSER,
+            Self::Settings => crate::icons::ICON_SETTINGS,
+            Self::Profile => crate::icons::ICON_PROFILE,
+            Self::Store => crate::icons::ICON_STORE,
+            Self::Lenses => crate::icons::ICON_LENSES,
+            Self::Builder => crate::icons::ICON_BUILDER,
+            Self::Tasks => crate::icons::ICON_TASKS,
+            Self::Bots => crate::icons::ICON_BOTS,
+            Self::Ai => crate::icons::ICON_AI,
+            Self::Container => crate::icons::ICON_CONTAINER,
+            Self::Managers => crate::icons::ICON_MANAGERS,
+            Self::Help => crate::icons::ICON_HELP,
         }
     }
 }
