@@ -3,7 +3,9 @@ pub mod ai_view;
 pub mod app_lifecycle;
 pub mod app_shell;
 pub mod builtin_apps;
+pub mod capability_observer;
 pub mod context_menu;
+pub mod corner_menus;
 pub mod db;
 pub mod header;
 pub mod help_sidebar;
@@ -12,6 +14,7 @@ pub mod icons;
 pub mod launcher;
 pub mod multiwindow;
 pub mod notification;
+pub mod search_component;
 pub mod shell;
 pub mod shell_layout;
 pub mod sidebar;
@@ -50,7 +53,9 @@ pub fn init_i18n() {
 
 pub use app_lifecycle::{AppLifecycleBus, AppLifecycleEvent, AppLifecycleObserver};
 pub use app_shell::AppMode;
+pub use capability_observer::CapabilityObserver;
 pub use context_menu::{ContextMenuItem, ContextMenuState};
+pub use corner_menus::{AiMenu, HelpMenu, SettingsMenu, TasksMenu};
 pub use header::{Breadcrumb, HeaderState};
 pub use help_sidebar::{
     ActiveWindowObserver, AiHelpSource, CapabilityCheck, HelpContent, HelpSidebarState, HelpSource,

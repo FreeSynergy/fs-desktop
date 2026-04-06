@@ -1,21 +1,25 @@
 //! `DesktopShell` — iced MVU root application for `FreeSynergy` Desktop.
 //!
-//! Architecture: Elm (MVU) pattern via iced 0.13.
-//!   - `DesktopShell`   — owns shell chrome state + active app routing
-//!   - `DesktopMessage` — flat enum wrapping all sub-app messages + shell actions
-//!   - `update()`       — state transitions
-//!   - `view()`         — shell chrome + active app content placeholder
+//! Architecture: Facade (`DesktopShell`) + State Machine (`CornerMenuState` per corner)
+//!               + Observer (`CapabilityObserver` for optional services)
+//!
+//! G1.5 changes:
+//!   - Left/right sidebars replaced by four corner menus.
+//!   - Wallpaper rendered as the content-area background.
+//!   - Titlebar extended: View-Buttons + Tiling-Toggle.
+//!   - `CapabilityObserver` hides the AI corner menu when `ai.chat` is absent.
+//!   - Desktop starts maximised by default (fullscreen flag in `main.rs`).
 
 #[cfg(feature = "iced")]
 use fs_gui_engine_iced::iced::{
-    self, event, mouse, time,
+    self, time,
     widget::{button, column, container, row, scrollable, stack, svg, text, text_input, Space},
-    window, Alignment, Border, Color, Element, Length, Shadow, Subscription, Task, Vector,
+    Alignment, Border, Color, Element, Length, Shadow, Subscription, Task, Vector,
 };
 
 use chrono::Local;
 
-/// Convenience: translate key to owned `String` for use in iced widgets.
+/// Convenience: translate a key to an owned `String`.
 fn tr(key: &str) -> String {
     fs_i18n::t(key).to_string()
 }
@@ -26,11 +30,9 @@ fn pxf(v: f32) -> Length {
     Length::Fixed(v)
 }
 
-/// Create an `iced` SVG handle from a raw SVG string.
+/// Create an iced SVG handle from a raw SVG string.
 ///
-/// `currentColor` only works in HTML/CSS context — we replace it with a
-/// concrete hex color before creating the memory handle so `resvg` renders it.
-/// The `_size` hint is informational (the SVG carries its own `width`/`height`).
+/// Replaces `currentColor` with a concrete hex value so `resvg` renders it.
 #[cfg(feature = "iced")]
 fn svg_icon(svg_str: &str, _size: f32, color: &str) -> svg::Handle {
     let data = svg_str
@@ -39,26 +41,22 @@ fn svg_icon(svg_str: &str, _size: f32, color: &str) -> svg::Handle {
     svg::Handle::from_memory(data.into_bytes())
 }
 
+// ── Palette ───────────────────────────────────────────────────────────────────
+
 /// Theme-aware color palette for the shell chrome.
 #[cfg(feature = "iced")]
 struct Palette {
-    /// Primary background (header, sidebars, taskbar).
     bg_chrome: Color,
-    /// Content area background.
     bg_content: Color,
-    /// Subtle border / divider.
+    #[allow(dead_code)]
     border: Color,
-    /// Accent border (bottom of header, right of sidebar).
     border_accent: Color,
-    /// Icon / label foreground color as hex string (for SVG replacement).
     icon_color: &'static str,
-    /// Muted text (section labels).
     muted: Color,
-    /// Active item highlight background.
+    #[allow(dead_code)]
     active_bg: Color,
-    /// Active item border.
+    #[allow(dead_code)]
     active_border: Color,
-    /// Accent (brand cyan).
     cyan: Color,
 }
 
@@ -93,25 +91,24 @@ impl Palette {
     }
 }
 
-/// Convenience: translate key with variables to owned `String`.
-fn tr_with(key: &str, args: &[(&str, &str)]) -> String {
-    fs_i18n::t_with(key, args).to_string()
-}
-
 use fs_render::{new_shared_registry, register_standard_components, SharedComponentRegistry};
 
 use crate::app_lifecycle::AppLifecycleBus;
+use crate::capability_observer::CapabilityObserver;
+use crate::corner_menus::{AiMenu, HelpMenu, SettingsMenu, TasksMenu};
 use crate::header::{default_menu, HeaderState};
-use crate::help_sidebar::HelpSidebarState;
 use crate::launcher::{AppGroup, LauncherState};
 use crate::notification::{NotificationHistory, NotificationManager};
 use crate::shell_layout::ShellLayout;
-use crate::sidebar::{default_pinned_items, default_sidebar_sections, SidebarItem, SidebarSection};
-use crate::sidebar_state::{
-    MouseProximityObserver, SidebarMode, SidebarSide, SidebarState, SidebarTransition,
-};
 use crate::taskbar::{default_apps, AppEntry};
+use crate::wallpaper::Wallpaper;
 use crate::window::{AppId, Window, WindowHost, WindowId, WindowManager};
+
+#[cfg(feature = "iced")]
+use fs_gui_engine_iced::{
+    navigation::{CornerMenuState, MenuConfig, NavMessage},
+    render_corner_menu,
+};
 
 // ── DesktopMessage ────────────────────────────────────────────────────────────
 
@@ -126,7 +123,6 @@ pub enum DesktopMessage {
 
     // ── Shell navigation ──────────────────────────────────────────────────────
     MenuAction(String),
-    SidebarSelect(String),
     NotificationDismiss(u64),
     NotificationMarkRead,
 
@@ -145,34 +141,26 @@ pub enum DesktopMessage {
     HeaderAvatarToggle,
 
     // ── Layout ───────────────────────────────────────────────────────────────
-    /// Toggle visibility of a shell section (Topbar/Sidebar/Bottombar).
+    /// Toggle visibility of a shell section (Topbar / Sidebar / Bottombar).
     LayoutToggleSection(fs_render::ShellKind),
-    /// Pin/unpin an app (persists to `PackageRegistry`).
-    PinApp(String),
-    UnpinApp(String),
 
-    // ── Sidebar state machine ─────────────────────────────────────────────────
-    /// Cursor moved — position needed for sidebar proximity + corner menu.
-    CursorMoved {
-        x: f32,
-        y: f32,
-    },
-    /// Window resized — new logical width.
-    WindowResized(f32),
-    /// Animation tick for sidebar width lerp (~30 fps).
-    SidebarAnimTick,
-    /// Toggle pin on the left sidebar (stays open / auto-collapse).
-    LeftSidebarTogglePin,
-    /// Toggle pin on the right help sidebar.
-    RightSidebarTogglePin,
+    // ── Corner menus (G1.5) ───────────────────────────────────────────────────
+    /// Wraps all `NavMessage` events emitted by the four corner menus.
+    CornerMenuNav(NavMessage),
+
+    // ── Titlebar extensions (G1.5) ────────────────────────────────────────────
+    /// Toggle the tiling layout for open windows.
+    TilingToggle,
+    /// Switch to a specific `ProgramView` for the active app.
+    ViewSwitch(fs_render::navigation::ProgramView),
+
+    // ── Capability observer (G1.5) ────────────────────────────────────────────
+    /// AI service appeared or disappeared in `fs-registry`.
+    AiCapabilityChanged(bool),
+
+    // ── Appearance ────────────────────────────────────────────────────────────
     /// Toggle light / dark mode.
     ToggleTheme,
-
-    // ── Help sidebar ──────────────────────────────────────────────────────────
-    /// User typed into the AI input field.
-    HelpAiInputChanged(String),
-    /// User submitted the AI query.
-    HelpAiSend,
 
     // ── Clock tick ────────────────────────────────────────────────────────────
     ClockTick,
@@ -195,7 +183,7 @@ pub struct DesktopShell {
     // ── Shell layout (Composite) ──────────────────────────────────────────────
     pub shell_layout: ShellLayout,
 
-    // ── Component registry (Phase 3 components) ────────────────────────────────
+    // ── Component registry (Phase 3 components) ───────────────────────────────
     pub components: SharedComponentRegistry,
 
     // ── Shell chrome ─────────────────────────────────────────────────────────
@@ -203,41 +191,34 @@ pub struct DesktopShell {
     pub taskbar_apps: Vec<AppEntry>,
     pub notifications: NotificationManager,
     pub notification_history: NotificationHistory,
-    pub sidebar_sections: Vec<SidebarSection>,
-    pub pinned_items: Vec<SidebarItem>,
     pub launcher_state: LauncherState,
     pub current_desktop: usize,
 
     // ── App lifecycle bus (Observer) ──────────────────────────────────────────
     pub lifecycle_bus: AppLifecycleBus,
 
-    // ── Sidebar state machines ────────────────────────────────────────────────
-    /// Visual state of the left (taskbar) sidebar.
-    pub left_sidebar_state: SidebarState,
-    /// Mode of the left sidebar (Auto | Pinned).
-    pub left_sidebar_mode: SidebarMode,
-    /// Visual state of the right (help) sidebar.
-    pub help_sidebar: HelpSidebarState,
-    /// Proximity observer for the left sidebar.
-    pub left_proximity: MouseProximityObserver,
-    /// Proximity observer for the right sidebar.
-    pub right_proximity: MouseProximityObserver,
+    // ── Corner menus (G1.5) — four screen corners ─────────────────────────────
+    /// Top-left: task/app launcher menu.
+    pub corner_tl: CornerMenuState,
+    /// Bottom-left: settings menu.
+    pub corner_bl: CornerMenuState,
+    /// Top-right: help menu.
+    pub corner_tr: CornerMenuState,
+    /// Bottom-right: AI menu (shown only when capability present).
+    pub corner_br: CornerMenuState,
 
-    // ── Sidebar animation (smooth width lerp) ─────────────────────────────────
-    /// Animated pixel width of the left sidebar (interpolates toward target).
-    pub left_anim_width: f32,
-    /// Animated pixel width of the right sidebar.
-    pub right_anim_width: f32,
+    // ── Capability observer (G1.5) ────────────────────────────────────────────
+    pub capability: CapabilityObserver,
 
-    // ── Window / layout tracking ──────────────────────────────────────────────
-    /// Current logical window width — updated via `WindowResized` events.
-    pub window_width: f32,
+    // ── Wallpaper (G1.5) ──────────────────────────────────────────────────────
+    pub wallpaper: Wallpaper,
 
-    // ── Corner menu (radial quarter-circle) ───────────────────────────────────
-    /// Whether the cursor is currently in the trigger zone (top-left corner).
-    pub corner_menu_open: bool,
-    /// Animated progress 0.0 (closed) → 1.0 (fully open), lerped each tick.
-    pub corner_menu_anim: f32,
+    // ── Tiling (G1.5) ────────────────────────────────────────────────────────
+    /// `true` = automatic tiling layout for open windows.
+    pub tiling_active: bool,
+
+    // ── Navigation icon size (from settings) ──────────────────────────────────
+    pub nav_icon_size: f32,
 
     // ── Theme ─────────────────────────────────────────────────────────────────
     /// `true` = dark mode (default), `false` = light mode.
@@ -259,19 +240,6 @@ impl Default for DesktopShell {
         }
 
         let layout = ShellLayout::load();
-        let left_size = layout
-            .sidebars_on_side(SidebarSide::Left)
-            .first()
-            .map_or(220, |s| s.size);
-        let right_size = layout
-            .sidebars_on_side(SidebarSide::Right)
-            .first()
-            .map_or(320, |s| s.size);
-
-        #[allow(clippy::cast_precision_loss)]
-        let left_start = SidebarState::COLLAPSED_WIDTH as f32;
-        #[allow(clippy::cast_precision_loss)]
-        let right_start = SidebarState::COLLAPSED_WIDTH as f32;
 
         Self {
             windows: WindowManager::default(),
@@ -282,21 +250,17 @@ impl Default for DesktopShell {
             taskbar_apps: default_apps(),
             notifications: NotificationManager::default(),
             notification_history: NotificationHistory::default(),
-            sidebar_sections: default_sidebar_sections(),
-            pinned_items: default_pinned_items(),
             launcher_state: LauncherState::default(),
             current_desktop: 0,
             lifecycle_bus: AppLifecycleBus::with_defaults("desktop"),
-            left_sidebar_state: SidebarState::Collapsed,
-            left_sidebar_mode: SidebarMode::Auto,
-            help_sidebar: HelpSidebarState::default(),
-            left_proximity: MouseProximityObserver::new(SidebarSide::Left, left_size),
-            right_proximity: MouseProximityObserver::new(SidebarSide::Right, right_size),
-            left_anim_width: left_start,
-            right_anim_width: right_start,
-            window_width: 1280.0,
-            corner_menu_open: false,
-            corner_menu_anim: 0.0,
+            corner_tl: CornerMenuState::default(),
+            corner_bl: CornerMenuState::default(),
+            corner_tr: CornerMenuState::default(),
+            corner_br: CornerMenuState::default(),
+            capability: CapabilityObserver::default(),
+            wallpaper: Wallpaper::default(),
+            tiling_active: false,
+            nav_icon_size: 32.0,
             dark_mode: true,
             clock_time: Local::now().format("%H:%M").to_string(),
             clock_date: Local::now().format("%d.%m.%Y").to_string(),
@@ -322,7 +286,6 @@ impl DesktopShell {
                 self.windows.open_window(open);
             }
             DesktopMessage::CloseWindow(id) => {
-                // Emit closed event for the window being removed.
                 if let Some(win) = self.windows.open_windows().iter().find(|w| w.id == id) {
                     self.lifecycle_bus
                         .app_closed(win.app.name().to_lowercase().as_str());
@@ -343,9 +306,6 @@ impl DesktopShell {
             DesktopMessage::MenuAction(id) => {
                 self.handle_menu_action(&id);
             }
-            DesktopMessage::SidebarSelect(id) => {
-                self.handle_sidebar_select(&id);
-            }
             DesktopMessage::NotificationDismiss(id) => {
                 self.notifications.dismiss(id);
             }
@@ -362,7 +322,7 @@ impl DesktopShell {
             }
             DesktopMessage::LauncherLaunch(id) => {
                 self.launcher_state.close();
-                self.handle_sidebar_select(&id);
+                self.handle_corner_action(&id);
             }
             DesktopMessage::LauncherClose => {
                 self.launcher_state.close();
@@ -400,123 +360,41 @@ impl DesktopShell {
             DesktopMessage::LayoutToggleSection(kind) => {
                 self.shell_layout.toggle_visibility(&kind);
                 self.shell_layout.save();
-                // Rebuild sidebar sections from registry after layout change.
-                self.sidebar_sections = default_sidebar_sections();
-                self.pinned_items = default_pinned_items();
-            }
-            DesktopMessage::PinApp(id) => {
-                use fs_db_desktop::package_registry::PackageRegistry;
-                let _ = PackageRegistry::set_pinned(&id, true);
-                self.lifecycle_bus.app_pinned(&id);
-                self.sidebar_sections = default_sidebar_sections();
-                self.pinned_items = default_pinned_items();
-            }
-            DesktopMessage::UnpinApp(id) => {
-                use fs_db_desktop::package_registry::PackageRegistry;
-                let _ = PackageRegistry::set_pinned(&id, false);
-                self.lifecycle_bus.app_unpinned(&id);
-                self.sidebar_sections = default_sidebar_sections();
-                self.pinned_items = default_pinned_items();
             }
 
-            // ── Sidebar state machine ─────────────────────────────────────────
-            DesktopMessage::CursorMoved { x, y } => {
-                // Left sidebar
-                if let Some(t) =
-                    self.left_proximity
-                        .check(x, self.window_width, self.left_sidebar_state)
-                {
-                    self.left_sidebar_state = match t {
-                        SidebarTransition::StartExpand | SidebarTransition::Open => {
-                            SidebarState::Open
-                        }
-                        SidebarTransition::Collapse => SidebarState::Collapsed,
-                    };
-                }
-                // Right sidebar
-                if let Some(t) =
-                    self.right_proximity
-                        .check(x, self.window_width, self.help_sidebar.state)
-                {
-                    self.help_sidebar.state = match t {
-                        SidebarTransition::StartExpand | SidebarTransition::Open => {
-                            SidebarState::Open
-                        }
-                        SidebarTransition::Collapse => SidebarState::Collapsed,
-                    };
-                }
-                // Corner menu: open when cursor enters top-left corner zone (80×80 px),
-                // stay open while cursor remains within the arc radius (200 px).
-                let in_corner = x < 80.0 && y < 80.0;
-                let in_arc = self.corner_menu_open && (x * x + y * y).sqrt() < 200.0;
-                self.corner_menu_open = in_corner || in_arc;
-            }
-            DesktopMessage::WindowResized(w) => {
-                self.window_width = w;
-            }
-            DesktopMessage::SidebarAnimTick => {
-                let left_target = self.left_sidebar_target();
-                let right_target = self.right_sidebar_target();
-                // Lerp factor: ~22% per tick at 30 fps ≈ smooth ~0.5 s expand
-                self.left_anim_width += (left_target - self.left_anim_width) * 0.22;
-                self.right_anim_width += (right_target - self.right_anim_width) * 0.22;
-                // Snap to avoid infinite tiny diffs
-                if (self.left_anim_width - left_target).abs() < 0.5 {
-                    self.left_anim_width = left_target;
-                }
-                if (self.right_anim_width - right_target).abs() < 0.5 {
-                    self.right_anim_width = right_target;
-                }
-                // Corner menu animation lerp
-                let corner_target = f32::from(self.corner_menu_open);
-                self.corner_menu_anim += (corner_target - self.corner_menu_anim) * 0.22;
-                if (self.corner_menu_anim - corner_target).abs() < 0.01 {
-                    self.corner_menu_anim = corner_target;
+            // ── Corner menus (G1.5) ───────────────────────────────────────────
+            DesktopMessage::CornerMenuNav(nav_msg) => {
+                use fs_gui_engine_iced::update_corner_menu;
+                use fs_render::navigation::Corner;
+                update_corner_menu(&mut self.corner_tl, Corner::TopLeft, &nav_msg);
+                update_corner_menu(&mut self.corner_bl, Corner::BottomLeft, &nav_msg);
+                update_corner_menu(&mut self.corner_tr, Corner::TopRight, &nav_msg);
+                update_corner_menu(&mut self.corner_br, Corner::BottomRight, &nav_msg);
+                // Dispatch corner actions to app / help / settings logic.
+                if let NavMessage::CornerMenuAction(_, action) = &nav_msg {
+                    self.handle_corner_action(action);
                 }
             }
+
+            // ── Titlebar extensions ────────────────────────────────────────────
+            DesktopMessage::TilingToggle => {
+                self.tiling_active = !self.tiling_active;
+            }
+            DesktopMessage::ViewSwitch(_view) => {
+                // G1.4: ProgramViewProvider per-app — wired when G1.4 lands.
+            }
+
+            // ── Capability observer ───────────────────────────────────────────
+            DesktopMessage::AiCapabilityChanged(available) => {
+                self.capability.set_ai_chat(available);
+            }
+
+            // ── Appearance ────────────────────────────────────────────────────
             DesktopMessage::ToggleTheme => {
                 self.dark_mode = !self.dark_mode;
             }
-            DesktopMessage::LeftSidebarTogglePin => {
-                self.left_sidebar_mode = match self.left_sidebar_mode {
-                    SidebarMode::Auto => {
-                        self.left_sidebar_state = SidebarState::Open;
-                        self.left_proximity.mode = SidebarMode::Pinned;
-                        SidebarMode::Pinned
-                    }
-                    SidebarMode::Pinned => {
-                        self.left_proximity.mode = SidebarMode::Auto;
-                        SidebarMode::Auto
-                    }
-                };
-            }
-            DesktopMessage::RightSidebarTogglePin => {
-                self.help_sidebar.mode = match self.help_sidebar.mode {
-                    SidebarMode::Auto => {
-                        self.help_sidebar.state = SidebarState::Open;
-                        self.right_proximity.mode = SidebarMode::Pinned;
-                        SidebarMode::Pinned
-                    }
-                    SidebarMode::Pinned => {
-                        self.right_proximity.mode = SidebarMode::Auto;
-                        SidebarMode::Auto
-                    }
-                };
-            }
 
-            // ── Help sidebar ──────────────────────────────────────────────────
-            DesktopMessage::HelpAiInputChanged(text) => {
-                self.help_sidebar.ai_input = text;
-            }
-            DesktopMessage::HelpAiSend => {
-                let query = std::mem::take(&mut self.help_sidebar.ai_input);
-                if !query.is_empty() {
-                    use crate::help_sidebar::{AiHelpSource, HelpSource};
-                    self.help_sidebar.content = AiHelpSource.resolve(&query);
-                }
-            }
-
-            // ── Clock tick ────────────────────────────────────────────────────
+            // ── Clock ─────────────────────────────────────────────────────────
             DesktopMessage::ClockTick => {
                 self.clock_time = Local::now().format("%H:%M").to_string();
                 self.clock_date = Local::now().format("%d.%m.%Y").to_string();
@@ -525,74 +403,16 @@ impl DesktopShell {
             DesktopMessage::Noop => {}
         }
 
-        // When the active app changes, update help context.
+        // Sync help context when active app changes.
         if let Some(app) = self.active_app {
-            self.help_sidebar
-                .on_active_window_changed(Some(app.name().to_lowercase().as_str()));
+            // Help context is handled by the help corner menu (G1.7 wiring).
+            let _ = app;
         }
 
         Task::none()
     }
 
-    // ── Sidebar animation helpers ─────────────────────────────────────────────
-
-    /// Target pixel width for the left sidebar (what the animation lerps toward).
-    #[allow(clippy::cast_precision_loss)]
-    fn left_sidebar_target(&self) -> f32 {
-        let full = self
-            .shell_layout
-            .sidebars_on_side(SidebarSide::Left)
-            .first()
-            .map_or(220, |s| s.size) as f32;
-        match self.left_sidebar_state {
-            SidebarState::Open | SidebarState::Expanding => full,
-            SidebarState::Collapsed => SidebarState::COLLAPSED_WIDTH as f32,
-        }
-    }
-
-    /// Target pixel width for the right sidebar.
-    #[allow(clippy::cast_precision_loss)]
-    fn right_sidebar_target(&self) -> f32 {
-        let full = self
-            .shell_layout
-            .sidebars_on_side(SidebarSide::Right)
-            .first()
-            .map_or(320, |s| s.size) as f32;
-        match self.help_sidebar.state {
-            SidebarState::Open | SidebarState::Expanding => full,
-            SidebarState::Collapsed => SidebarState::COLLAPSED_WIDTH as f32,
-        }
-    }
-
-    // ── Subscription ──────────────────────────────────────────────────────────
-
-    /// iced subscription: mouse cursor, window resize, animation tick, clock.
-    pub fn subscription(&self) -> Subscription<DesktopMessage> {
-        use std::time::Duration;
-
-        // Mouse cursor → sidebar proximity + corner menu detection.
-        let mouse_sub = event::listen_with(|evt, _status, _id| match evt {
-            iced::Event::Mouse(mouse::Event::CursorMoved { position }) => {
-                Some(DesktopMessage::CursorMoved {
-                    x: position.x,
-                    y: position.y,
-                })
-            }
-            iced::Event::Window(window::Event::Resized(size)) => {
-                Some(DesktopMessage::WindowResized(size.width))
-            }
-            _ => None,
-        });
-
-        // ~30 fps animation tick for smooth sidebar width lerp.
-        let anim_tick =
-            time::every(Duration::from_millis(33)).map(|_| DesktopMessage::SidebarAnimTick);
-
-        // Clock update every 30 seconds.
-        let clock_tick = time::every(Duration::from_secs(30)).map(|_| DesktopMessage::ClockTick);
-
-        Subscription::batch([mouse_sub, anim_tick, clock_tick])
-    }
+    // ── Action dispatch ───────────────────────────────────────────────────────
 
     fn handle_menu_action(&mut self, id: &str) {
         self.header_state.open_menu = None;
@@ -605,29 +425,34 @@ impl DesktopShell {
         }
     }
 
-    fn handle_sidebar_select(&mut self, id: &str) {
-        let app_id = match id {
-            "browser" => Some(AppId::Browser),
-            "settings" => Some(AppId::Settings),
-            "profile" => Some(AppId::Profile),
-            "store" => Some(AppId::Store),
-            "lenses" => Some(AppId::Lenses),
-            "builder" => Some(AppId::Builder),
-            "tasks" => Some(AppId::Tasks),
-            "bots" => Some(AppId::Bots),
-            "ai" => Some(AppId::Ai),
-            "container-app" => Some(AppId::Container),
-            "managers" | "managers-folder" => Some(AppId::Managers),
-            "help" => {
-                // Help opens the right sidebar rather than launching an external process.
-                self.help_sidebar.state = crate::sidebar_state::SidebarState::Open;
-                self.right_proximity.mode = crate::sidebar_state::SidebarMode::Pinned;
+    /// Handle an action string dispatched from any corner menu or launcher.
+    ///
+    /// Action format: `"<category>:<id>"`, e.g. `"open:browser"`.
+    fn handle_corner_action(&mut self, action: &str) {
+        let app_id = match action {
+            "open:launcher" => {
+                self.launcher_state.toggle();
                 return;
             }
+            "open:browser" => Some(AppId::Browser),
+            "open:store" => Some(AppId::Store),
+            "open:lenses" => Some(AppId::Lenses),
+            "open:tasks" => Some(AppId::Tasks),
+            "open:bots" => Some(AppId::Bots),
+            "open:managers" => Some(AppId::Managers),
+            "open:profile" => Some(AppId::Profile),
+            "open:ai" | "ai:chat" | "ai:suggest" => Some(AppId::Ai),
+            "open:container" => Some(AppId::Container),
+            "settings:appearance" | "settings:language" | "settings:desktop" => {
+                Some(AppId::Settings)
+            }
+            "help:general" | "help:focus" | "help:docs" => Some(AppId::Help),
             _ => None,
         };
         if let Some(app) = app_id {
-            Self::spawn_app(app);
+            if app != AppId::Help {
+                Self::spawn_app(app);
+            }
             self.active_app = Some(app);
             self.lifecycle_bus
                 .app_opened(app.name().to_lowercase().as_str());
@@ -635,9 +460,6 @@ impl DesktopShell {
     }
 
     /// Launch an external app binary as a detached child process.
-    ///
-    /// Binary names follow the `fs-<name>` convention. If the binary is not on
-    /// `PATH` the call silently does nothing — the desktop does not crash.
     fn spawn_app(app_id: AppId) {
         let binary = match app_id {
             AppId::Browser => "fs-browser",
@@ -653,8 +475,15 @@ impl DesktopShell {
             AppId::Managers => "fs-managers",
             AppId::Help => return,
         };
-        // Detach: we do not wait for the child — it runs independently.
         let _ = std::process::Command::new(binary).spawn();
+    }
+
+    // ── Subscription ──────────────────────────────────────────────────────────
+
+    /// iced subscription: clock update.
+    pub fn subscription(&self) -> Subscription<DesktopMessage> {
+        use std::time::Duration;
+        time::every(Duration::from_secs(30)).map(|_| DesktopMessage::ClockTick)
     }
 }
 
@@ -662,7 +491,6 @@ impl DesktopShell {
 
 #[cfg(feature = "iced")]
 impl DesktopShell {
-    /// Active color palette (dark or light mode).
     fn palette(&self) -> Palette {
         if self.dark_mode {
             Palette::dark()
@@ -671,7 +499,6 @@ impl DesktopShell {
         }
     }
 
-    /// Chrome container style (header / sidebars / taskbar).
     fn chrome_style(p: &Palette, border_side_color: Color) -> container::Style {
         container::Style {
             background: Some(iced::Background::Color(p.bg_chrome)),
@@ -690,189 +517,143 @@ impl DesktopShell {
     }
 
     /// Render the full desktop shell.
+    ///
+    /// Layout (G1.5):
+    /// ```text
+    /// ┌────────────────────────────┐
+    /// │         header (60px)      │
+    /// ├────────────────────────────┤
+    /// │                            │
+    /// │    content (wallpaper)     │
+    /// │                            │
+    /// ├────────────────────────────┤
+    /// │         taskbar (48px)     │
+    /// └────────────────────────────┘
+    ///  ↑ corner menus overlaid via stack
+    /// ```
     #[must_use]
     pub fn view(&self) -> Element<'_, DesktopMessage> {
         if self.launcher_state.open {
             return self.view_launcher();
         }
 
+        let p = self.palette();
+
         let header = self.view_header();
-        let left_sidebar = self.view_left_sidebar();
-        let right_sidebar = self.view_right_sidebar();
         let content = self.view_content();
         let taskbar = self.view_taskbar();
 
-        let main_row = row![left_sidebar, content, right_sidebar]
-            .spacing(0)
-            .height(Length::Fill);
-
-        let shell = column![header, main_row, taskbar]
+        let shell = column![header, content, taskbar]
             .spacing(0)
             .height(Length::Fill)
             .width(Length::Fill);
 
-        let p = self.palette();
+        let shell_bg_color = self.wallpaper_background_color(&p);
         let shell_el: Element<'_, DesktopMessage> = container(shell)
             .width(Length::Fill)
             .height(Length::Fill)
             .style(move |_| container::Style {
-                background: Some(iced::Background::Color(p.bg_content)),
+                background: Some(iced::Background::Color(shell_bg_color)),
                 ..container::Style::default()
             })
             .into();
 
-        // Overlay the corner menu whenever it is at least partially visible.
-        if self.corner_menu_anim > 0.01 {
-            stack([shell_el, self.view_corner_menu()])
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .into()
-        } else {
-            shell_el
-        }
-    }
+        // Overlay the four corner menus.
+        let overlays = self.view_corner_overlays();
 
-    // ── Corner menu ───────────────────────────────────────────────────────────
-
-    // ── Corner menu ───────────────────────────────────────────────────────────
-
-    fn corner_menu_entries() -> Vec<(&'static str, DesktopMessage, f32)> {
-        vec![
-            (
-                crate::icons::ICON_LAUNCHER,
-                DesktopMessage::LauncherToggle,
-                15.0,
-            ),
-            (
-                crate::icons::ICON_STORE,
-                DesktopMessage::SidebarSelect("store".into()),
-                30.0,
-            ),
-            (
-                crate::icons::ICON_SETTINGS,
-                DesktopMessage::SidebarSelect("settings".into()),
-                45.0,
-            ),
-            (
-                crate::icons::ICON_BOTS,
-                DesktopMessage::SidebarSelect("bots".into()),
-                60.0,
-            ),
-            (
-                crate::icons::ICON_HELP,
-                DesktopMessage::SidebarSelect("help".into()),
-                75.0,
-            ),
-        ]
-    }
-
-    fn view_corner_menu(&self) -> Element<'_, DesktopMessage> {
-        let p = self.palette();
-        let anim = self.corner_menu_anim;
-        let radius = 160.0_f32 * anim;
-        let btn_d = 40.0_f32;
-
-        // Quarter-circle background: square with only bottom-right radius = arc shape.
-        let arc_bg = container(Space::with_height(0))
-            .width(pxf(radius))
-            .height(pxf(radius))
-            .style(move |_| container::Style {
-                background: Some(iced::Background::Color(Color::from_rgba(
-                    0.02,
-                    0.74,
-                    0.84,
-                    0.12 * anim,
-                ))),
-                border: Border {
-                    color: Color::from_rgba(0.02, 0.74, 0.84, 0.50 * anim),
-                    width: 1.5,
-                    radius: iced::border::Radius {
-                        top_left: 0.0,
-                        top_right: 0.0,
-                        bottom_right: radius,
-                        bottom_left: 0.0,
-                    },
-                },
-                shadow: Shadow {
-                    color: Color::from_rgba(0.02, 0.74, 0.84, 0.25 * anim),
-                    offset: Vector::new(4.0, 4.0),
-                    blur_radius: 20.0,
-                },
-                ..container::Style::default()
-            });
-
-        let bg_layer: Element<'_, DesktopMessage> = container(arc_bg)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .into();
-
-        let icon_layers: Vec<Element<'_, DesktopMessage>> = Self::corner_menu_entries()
-            .into_iter()
-            .map(|(icon, action, angle_deg)| {
-                let rad = angle_deg.to_radians();
-                let cx = radius * rad.cos();
-                let cy = radius * rad.sin();
-                let top = (cy - btn_d * 0.5).max(2.0);
-                let left = (cx - btn_d * 0.5).max(2.0);
-
-                let handle = svg_icon(icon, 20.0, p.icon_color);
-                let btn = button(
-                    container(svg(handle).width(20).height(20))
-                        .width(pxf(btn_d))
-                        .height(pxf(btn_d))
-                        .center_x(pxf(btn_d))
-                        .center_y(pxf(btn_d))
-                        .style(move |_| container::Style {
-                            background: Some(iced::Background::Color(p.bg_chrome)),
-                            border: Border {
-                                color: Color::from_rgba(0.02, 0.74, 0.84, anim),
-                                width: 1.5,
-                                radius: (btn_d * 0.5).into(),
-                            },
-                            shadow: Shadow {
-                                color: Color::from_rgba(0.02, 0.74, 0.84, 0.30 * anim),
-                                offset: Vector::new(0.0, 0.0),
-                                blur_radius: 8.0,
-                            },
-                            ..container::Style::default()
-                        }),
-                )
-                .on_press(action)
-                .padding(0);
-
-                container(btn)
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .padding(iced::Padding {
-                        top,
-                        right: 0.0,
-                        bottom: 0.0,
-                        left,
-                    })
-                    .into()
-            })
-            .collect();
-
-        let mut layers: Vec<Element<'_, DesktopMessage>> = vec![bg_layer];
-        layers.extend(icon_layers);
+        let mut layers: Vec<Element<'_, DesktopMessage>> = vec![shell_el];
+        layers.extend(overlays);
         stack(layers)
             .width(Length::Fill)
             .height(Length::Fill)
             .into()
     }
 
+    // ── Wallpaper ─────────────────────────────────────────────────────────────
+
+    fn wallpaper_background_color(&self, p: &Palette) -> Color {
+        use crate::wallpaper::WallpaperSource;
+        match &self.wallpaper.source {
+            WallpaperSource::Color { hex } => parse_hex_color(hex).unwrap_or(p.bg_content),
+            _ => p.bg_content,
+        }
+    }
+
+    // ── Corner menus overlay ──────────────────────────────────────────────────
+
+    /// Build the four corner menu overlays (each fills the full viewport).
+    fn view_corner_overlays(&self) -> Vec<Element<'_, DesktopMessage>> {
+        use fs_render::navigation::Corner;
+
+        let config = MenuConfig {
+            icon_size: self.nav_icon_size,
+            max_icon_size: self.nav_icon_size * 1.5,
+            ..MenuConfig::default()
+        };
+
+        let mut overlays = Vec::new();
+
+        // Top-left: tasks / app launcher
+        let tl_desc = TasksMenu::default_entries();
+        let tl_el = render_corner_menu(&tl_desc, &self.corner_tl, &config)
+            .map(DesktopMessage::CornerMenuNav);
+        overlays.push(Self::corner_overlay(tl_el, Corner::TopLeft));
+
+        // Bottom-left: settings
+        let bl_desc = SettingsMenu::default_entries();
+        let bl_el = render_corner_menu(&bl_desc, &self.corner_bl, &config)
+            .map(DesktopMessage::CornerMenuNav);
+        overlays.push(Self::corner_overlay(bl_el, Corner::BottomLeft));
+
+        // Top-right: help
+        let help_desc = HelpMenu::default_entries();
+        let help_el = render_corner_menu(&help_desc, &self.corner_tr, &config)
+            .map(DesktopMessage::CornerMenuNav);
+        overlays.push(Self::corner_overlay(help_el, Corner::TopRight));
+
+        // Bottom-right: AI (only when capability present)
+        if self.capability.ai_chat_available() {
+            let ai_desc = AiMenu::default_entries();
+            let ai_el = render_corner_menu(&ai_desc, &self.corner_br, &config)
+                .map(DesktopMessage::CornerMenuNav);
+            overlays.push(Self::corner_overlay(ai_el, Corner::BottomRight));
+        }
+
+        overlays
+    }
+
+    /// Wrap a corner menu element in a full-viewport container aligned to `corner`.
+    fn corner_overlay(
+        el: Element<'_, DesktopMessage>,
+        corner: fs_render::navigation::Corner,
+    ) -> Element<'_, DesktopMessage> {
+        use fs_render::navigation::Corner as C;
+        let (h, v) = match corner {
+            C::TopLeft => (Alignment::Start, Alignment::Start),
+            C::TopRight => (Alignment::End, Alignment::Start),
+            C::BottomLeft => (Alignment::Start, Alignment::End),
+            C::BottomRight => (Alignment::End, Alignment::End),
+        };
+        container(el)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_x(h)
+            .align_y(v)
+            .into()
+    }
+
+    // ── Header ────────────────────────────────────────────────────────────────
+
     fn view_header(&self) -> Element<'_, DesktopMessage> {
         let p = self.palette();
 
         let brand = text("FreeSynergy").size(15).color(p.cyan);
-
         let by_kal = text(" by KalEl").size(11).color(p.muted);
-
         let brand_row = row![brand, by_kal].align_y(Alignment::Center);
 
         let menu_bar = Self::view_menu_bar();
 
-        // Theme toggle button
+        // Theme toggle
         let theme_svg = if self.dark_mode {
             svg_icon(crate::icons::ICON_SUN, 16.0, p.icon_color)
         } else {
@@ -882,12 +663,27 @@ impl DesktopShell {
             .on_press(DesktopMessage::ToggleTheme)
             .padding([4, 8]);
 
+        // Tiling toggle (G1.5)
+        let tiling_label = if self.tiling_active {
+            text("⊞").size(16).color(p.cyan)
+        } else {
+            text("⊞").size(16).color(p.muted)
+        };
+        let tiling_btn = button(tiling_label)
+            .on_press(DesktopMessage::TilingToggle)
+            .padding([4, 8]);
+
+        // View-buttons (G1.5): only when an app is active
+        let view_btns = self.view_program_view_buttons(&p);
+
+        // Clock
         let clock = column![
             text(&self.clock_time).size(13),
             text(&self.clock_date).size(10).color(p.muted),
         ]
         .align_x(Alignment::Center);
 
+        // Bell / notifications
         let notif_count = self.notification_history.unread_count();
         let bell_handle = svg_icon(crate::icons::ICON_BELL, 18.0, p.icon_color);
         let bell_label: Element<'_, DesktopMessage> = if notif_count > 0 {
@@ -904,6 +700,7 @@ impl DesktopShell {
             .on_press(DesktopMessage::NotificationMarkRead)
             .padding([4, 8]);
 
+        // Avatar
         let avatar_initial = self
             .header_state
             .user_name
@@ -933,30 +730,71 @@ impl DesktopShell {
             Space::with_width(12),
             menu_bar,
             Space::with_width(Length::Fill),
-            theme_btn,
-            Space::with_width(4),
-            bell_btn,
-            Space::with_width(8),
-            avatar_btn,
-            Space::with_width(12),
-            clock,
-            Space::with_width(8),
         ]
         .align_y(Alignment::Center)
         .spacing(4)
-        .padding([0, 8])
-        .height(60);
+        .padding([0, 8]);
 
-        container(header_row)
+        // Append view buttons + titlebar controls
+        let mut controls: Vec<Element<'_, DesktopMessage>> = vec![header_row.into()];
+        controls.extend(view_btns);
+        controls.push(Space::with_width(8).into());
+        controls.push(tiling_btn.into());
+        controls.push(Space::with_width(4).into());
+        controls.push(theme_btn.into());
+        controls.push(Space::with_width(4).into());
+        controls.push(bell_btn.into());
+        controls.push(Space::with_width(8).into());
+        controls.push(avatar_btn.into());
+        controls.push(Space::with_width(12).into());
+        controls.push(clock.into());
+        controls.push(Space::with_width(8).into());
+
+        let header_inner = row(controls)
+            .align_y(Alignment::Center)
+            .spacing(0)
+            .height(60);
+
+        container(header_inner)
             .width(Length::Fill)
             .height(60)
             .style(move |_| Self::chrome_style(&p, p.border_accent))
             .into()
     }
 
+    /// View-buttons: one button per supported `ProgramView` of the active app (G1.5).
+    ///
+    /// For G1.5 the available views are always `Start + Info + Manual + Settings`.
+    /// When G1.4 (`ProgramViewProvider` per-app) lands the set will be dynamic.
+    fn view_program_view_buttons(&self, p: &Palette) -> Vec<Element<'_, DesktopMessage>> {
+        use fs_render::navigation::ProgramView;
+        if self.active_app.is_none() {
+            return vec![];
+        }
+
+        let views = [
+            (ProgramView::Start, tr("desktop-titlebar-view-start")),
+            (ProgramView::Info, tr("desktop-titlebar-view-info")),
+            (ProgramView::Manual, tr("desktop-titlebar-view-manual")),
+            (
+                ProgramView::SettingsConfig,
+                tr("desktop-titlebar-view-settings"),
+            ),
+        ];
+
+        views
+            .into_iter()
+            .map(|(view, label)| {
+                button(text(label).size(11).color(p.muted))
+                    .on_press(DesktopMessage::ViewSwitch(view))
+                    .padding([3, 6])
+                    .into()
+            })
+            .collect()
+    }
+
     fn view_menu_bar() -> Element<'static, DesktopMessage> {
         let menus = default_menu();
-        // Collect owned labels first to avoid borrow-of-temporary issues.
         let labels: Vec<(usize, String)> = menus
             .iter()
             .enumerate()
@@ -971,365 +809,10 @@ impl DesktopShell {
                     .into()
             })
             .collect();
-
         row(buttons).spacing(2).into()
     }
 
-    // ── Left sidebar (Taskbar) ────────────────────────────────────────────────
-
-    fn view_left_sidebar(&self) -> Element<'_, DesktopMessage> {
-        let p = self.palette();
-        // Use animated width (smooth lerp) — show labels when more than halfway open
-        let anim_w = self.left_anim_width;
-        let full_width = self
-            .shell_layout
-            .sidebars_on_side(SidebarSide::Left)
-            .first()
-            .map_or(220, |s| s.size);
-        #[allow(clippy::cast_precision_loss)]
-        let show_labels = anim_w > (full_width as f32) * 0.5;
-        #[allow(clippy::cast_precision_loss)]
-        let collapsed_w = SidebarState::COLLAPSED_WIDTH as f32;
-
-        // Pin toggle button
-        let pin_svg = match self.left_sidebar_mode {
-            SidebarMode::Pinned => svg_icon(crate::icons::ICON_PIN, 14.0, p.icon_color),
-            SidebarMode::Auto => svg_icon(crate::icons::ICON_UNPIN, 14.0, p.icon_color),
-        };
-        let pin_btn: Element<'_, DesktopMessage> = if show_labels {
-            button(svg(pin_svg).width(14).height(14))
-                .on_press(DesktopMessage::LeftSidebarTogglePin)
-                .padding([2, 6])
-                .into()
-        } else {
-            Space::with_height(0).into()
-        };
-
-        // Launcher button
-        let launcher_icon = svg_icon(crate::icons::ICON_LAUNCHER, 16.0, p.icon_color);
-        let launcher_inner: Element<'_, DesktopMessage> = if show_labels {
-            row![
-                svg(launcher_icon).width(16).height(16),
-                Space::with_width(6),
-                text(tr("shell-launcher-title")).size(13),
-            ]
-            .align_y(Alignment::Center)
-            .into()
-        } else {
-            container(svg(launcher_icon).width(18).height(18))
-                .center_x(Length::Fill)
-                .into()
-        };
-        let launcher_btn = button(launcher_inner)
-            .on_press(DesktopMessage::LauncherToggle)
-            .width(Length::Fill)
-            .padding([8, if show_labels { 12 } else { 0 }]);
-
-        let header_row = row![launcher_btn, pin_btn]
-            .spacing(0)
-            .align_y(Alignment::Center);
-
-        let mut items_col: Vec<Element<'_, DesktopMessage>> = vec![header_row.into()];
-
-        if show_labels && !self.sidebar_sections.is_empty() {
-            items_col.push(
-                text(tr("taskbar-installed-section"))
-                    .size(9)
-                    .color(p.muted)
-                    .into(),
-            );
-        }
-
-        for section in &self.sidebar_sections {
-            if show_labels {
-                if let Some(title) = &section.title {
-                    items_col.push(text(title).size(9).color(p.muted).into());
-                }
-            }
-            for item in &section.items {
-                items_col.push(self.view_sidebar_item(item, show_labels));
-            }
-        }
-
-        let scrollable_section =
-            scrollable(column(items_col).spacing(1).padding([8, 4])).height(Length::Fill);
-
-        // Separator + pinned
-        let separator = container(Space::with_height(1))
-            .width(Length::Fill)
-            .style(move |_| container::Style {
-                background: Some(iced::Background::Color(p.border)),
-                ..container::Style::default()
-            });
-
-        let mut pinned_col: Vec<Element<'_, DesktopMessage>> = vec![separator.into()];
-
-        if show_labels && self.pinned_items.iter().any(|p| p.id != "settings") {
-            pinned_col.push(
-                text(tr("taskbar-pinned-section"))
-                    .size(9)
-                    .color(p.muted)
-                    .into(),
-            );
-        }
-
-        for item in &self.pinned_items {
-            if item.id == "settings" {
-                continue;
-            }
-            pinned_col.push(self.view_sidebar_item(item, show_labels));
-        }
-
-        // Settings icon at bottom
-        let settings_handle = svg_icon(crate::icons::ICON_SETTINGS, 16.0, p.icon_color);
-        let settings_inner: Element<'_, DesktopMessage> = if show_labels {
-            row![
-                svg(settings_handle).width(16).height(16),
-                Space::with_width(8),
-                text(tr("taskbar-settings-label")).size(13),
-            ]
-            .align_y(Alignment::Center)
-            .into()
-        } else {
-            container(svg(settings_handle).width(18).height(18))
-                .center_x(Length::Fill)
-                .into()
-        };
-        let settings_btn = button(settings_inner)
-            .on_press(DesktopMessage::SidebarSelect("settings".into()))
-            .width(Length::Fill)
-            .padding([6, if show_labels { 12 } else { 0 }]);
-        pinned_col.push(settings_btn.into());
-
-        let pinned_section = column(pinned_col).spacing(1).padding([4, 4]);
-
-        let sidebar_inner = column![scrollable_section, pinned_section].height(Length::Fill);
-
-        container(sidebar_inner)
-            .width(pxf(anim_w.max(collapsed_w)))
-            .height(Length::Fill)
-            .style(move |_| Self::chrome_style(&p, p.border_accent))
-            .into()
-    }
-
-    // ── Right sidebar (Help + AI) ─────────────────────────────────────────────
-
-    fn view_right_sidebar(&self) -> Element<'_, DesktopMessage> {
-        let p = self.palette();
-        let anim_w = self.right_anim_width;
-        let full_width = self
-            .shell_layout
-            .sidebars_on_side(SidebarSide::Right)
-            .first()
-            .map_or(320, |s| s.size);
-        #[allow(clippy::cast_precision_loss)]
-        let show_content = anim_w > (full_width as f32) * 0.5;
-        #[allow(clippy::cast_precision_loss)]
-        let collapsed_w = SidebarState::COLLAPSED_WIDTH as f32;
-
-        // Collapsed strip: just a "?" button
-        if !show_content {
-            let help_handle = svg_icon(crate::icons::ICON_HELP, 18.0, p.icon_color);
-            let help_btn = button(
-                container(svg(help_handle).width(18).height(18))
-                    .center_x(Length::Fill)
-                    .center_y(Length::Fill),
-            )
-            .on_press(DesktopMessage::RightSidebarTogglePin)
-            .width(Length::Fill)
-            .padding([10, 0]);
-
-            return container(help_btn)
-                .width(pxf(anim_w.max(collapsed_w)))
-                .height(Length::Fill)
-                .style(move |_| Self::chrome_style(&p, p.border_accent))
-                .into();
-        }
-
-        // Expanded: title + content + optional AI input
-        let pin_svg_r = match self.help_sidebar.mode {
-            SidebarMode::Pinned => svg_icon(crate::icons::ICON_PIN, 14.0, p.icon_color),
-            SidebarMode::Auto => svg_icon(crate::icons::ICON_UNPIN, 14.0, p.icon_color),
-        };
-        let pin_btn = button(svg(pin_svg_r).width(14).height(14))
-            .on_press(DesktopMessage::RightSidebarTogglePin)
-            .padding([2, 6]);
-
-        let title_row = row![
-            text(tr("help-sidebar-title")).size(13).color(p.cyan),
-            Space::with_width(Length::Fill),
-            pin_btn,
-        ]
-        .align_y(Alignment::Center)
-        .padding([4, 8]);
-
-        let content_area = self.view_help_content();
-
-        let mut col_items: Vec<Element<'_, DesktopMessage>> = vec![title_row.into(), content_area];
-
-        // AI input bar (only when AI capability is present)
-        if self.help_sidebar.ai_available {
-            let ai_input = text_input(&tr("help-ai-placeholder"), &self.help_sidebar.ai_input)
-                .on_input(DesktopMessage::HelpAiInputChanged)
-                .on_submit(DesktopMessage::HelpAiSend)
-                .padding([6, 8])
-                .size(12)
-                .width(Length::Fill);
-
-            let send_btn = button(text(tr("help-ai-send")).size(12))
-                .on_press(DesktopMessage::HelpAiSend)
-                .padding([6, 10]);
-
-            let ai_bar = row![ai_input, send_btn]
-                .spacing(4)
-                .padding([4, 8])
-                .align_y(Alignment::Center);
-
-            col_items.push(
-                container(ai_bar)
-                    .width(Length::Fill)
-                    .style(|_theme| container::Style {
-                        background: Some(iced::Background::Color(iced::Color::from_rgba(
-                            0.08, 0.08, 0.12, 0.96,
-                        ))),
-                        ..container::Style::default()
-                    })
-                    .into(),
-            );
-        }
-
-        container(column(col_items).spacing(0).height(Length::Fill))
-            .width(pxf(anim_w.max(collapsed_w)))
-            .height(Length::Fill)
-            .style(move |_| Self::chrome_style(&p, p.border_accent))
-            .into()
-    }
-
-    fn view_help_content(&self) -> Element<'_, DesktopMessage> {
-        use crate::help_sidebar::HelpContent;
-        let p = self.palette();
-
-        let inner: Element<'_, DesktopMessage> = match &self.help_sidebar.content {
-            HelpContent::Topic {
-                title_key,
-                content_key,
-                links,
-            } => {
-                let mut items: Vec<Element<'_, DesktopMessage>> = vec![
-                    text(fs_i18n::t(title_key).to_string())
-                        .size(14)
-                        .color(p.cyan)
-                        .into(),
-                    Space::with_height(8).into(),
-                    text(fs_i18n::t(content_key).to_string()).size(12).into(),
-                ];
-                if !links.is_empty() {
-                    items.push(Space::with_height(8).into());
-                    for link in links {
-                        items.push(text(link).size(11).color(p.cyan).into());
-                    }
-                }
-                column(items).spacing(2).into()
-            }
-            HelpContent::AiResponse(resp) => column![
-                text(tr("help-ai-response-label")).size(11).color(p.muted),
-                Space::with_height(4),
-                text(resp.clone()).size(12),
-            ]
-            .spacing(2)
-            .into(),
-            HelpContent::None => text(tr("help-no-content")).size(12).color(p.muted).into(),
-        };
-
-        scrollable(container(inner).padding([8, 12]).width(Length::Fill))
-            .height(Length::Fill)
-            .into()
-    }
-
-    /// Render one sidebar item with SVG icon.
-    ///
-    /// `show_labels` — when `false` only the icon is shown (collapsed/animating state).
-    fn view_sidebar_item<'a>(
-        &'a self,
-        item: &'a SidebarItem,
-        show_labels: bool,
-    ) -> Element<'a, DesktopMessage> {
-        let p = self.palette();
-        let is_active = self
-            .active_app
-            .is_some_and(|a| a.name().to_lowercase() == item.id);
-
-        let is_pinned = self.pinned_items.iter().any(|p| p.id == item.id);
-        let id = item.id.clone();
-
-        // Build icon: SVG if the string looks like SVG, else Unicode text fallback.
-        let icon_el: Element<'_, DesktopMessage> = if item.icon.starts_with('<') {
-            let handle = svg_icon(&item.icon, 16.0, p.icon_color);
-            svg(handle).width(16).height(16).into()
-        } else {
-            text(item.icon.clone()).size(16).into()
-        };
-
-        let btn_content: Element<'_, DesktopMessage> = if show_labels {
-            row![
-                icon_el,
-                Space::with_width(8),
-                text(item.label.clone()).size(13),
-            ]
-            .align_y(Alignment::Center)
-            .into()
-        } else {
-            container(icon_el).center_x(Length::Fill).into()
-        };
-
-        let app_btn = button(btn_content)
-            .on_press(DesktopMessage::SidebarSelect(id.clone()))
-            .width(Length::Fill)
-            .padding([6, if show_labels { 12 } else { 0 }]);
-
-        let pin_btn: Element<'_, DesktopMessage> = if show_labels && item.id != "settings" {
-            let (pin_svg_item, pin_msg) = if is_pinned {
-                (
-                    svg_icon(crate::icons::ICON_PIN, 12.0, p.icon_color),
-                    DesktopMessage::UnpinApp(id.clone()),
-                )
-            } else {
-                (
-                    svg_icon(crate::icons::ICON_UNPIN, 12.0, p.icon_color),
-                    DesktopMessage::PinApp(id.clone()),
-                )
-            };
-            button(svg(pin_svg_item).width(12).height(12))
-                .on_press(pin_msg)
-                .padding([6, 4])
-                .into()
-        } else {
-            Space::with_width(0).into()
-        };
-
-        let item_row = row![app_btn, pin_btn].spacing(0).align_y(Alignment::Center);
-
-        if is_active {
-            container(item_row)
-                .style(move |_| container::Style {
-                    background: Some(iced::Background::Color(p.active_bg)),
-                    border: Border {
-                        color: p.active_border,
-                        width: 2.0,
-                        radius: 6.0.into(),
-                    },
-                    shadow: Shadow {
-                        color: Color::from_rgba(0.02, 0.74, 0.84, 0.20),
-                        offset: Vector::new(0.0, 0.0),
-                        blur_radius: 8.0,
-                    },
-                    ..container::Style::default()
-                })
-                .into()
-        } else {
-            item_row.into()
-        }
-    }
+    // ── Content area ──────────────────────────────────────────────────────────
 
     fn view_content(&self) -> Element<'_, DesktopMessage> {
         let p = self.palette();
@@ -1395,6 +878,8 @@ impl DesktopShell {
             .into()
     }
 
+    // ── Taskbar ───────────────────────────────────────────────────────────────
+
     fn view_taskbar(&self) -> Element<'_, DesktopMessage> {
         let p = self.palette();
 
@@ -1417,7 +902,7 @@ impl DesktopShell {
                 text(app.icon.clone()).size(18).into()
             };
             let btn = button(icon_el)
-                .on_press(DesktopMessage::SidebarSelect(id))
+                .on_press(DesktopMessage::LauncherLaunch(id))
                 .padding([4, 8]);
             app_btns.push(btn.into());
         }
@@ -1445,12 +930,15 @@ impl DesktopShell {
             .into()
     }
 
+    // ── Launcher overlay ──────────────────────────────────────────────────────
+
     fn view_launcher(&self) -> Element<'_, DesktopMessage> {
+        use fs_i18n::t_with;
+
         let query = self.launcher_state.query.clone();
         let groups = AppGroup::filtered(&self.taskbar_apps, &query);
         let total_pages = AppGroup::total_pages(&groups);
         let cur_page = self.launcher_state.page.min(total_pages - 1);
-        // Clone the page slice to avoid borrow-of-local issues when building elements.
         let page_groups: Vec<AppGroup> = AppGroup::page_slice(&groups, cur_page).to_vec();
 
         let search_placeholder = tr("shell-launcher-search-placeholder");
@@ -1465,121 +953,200 @@ impl DesktopShell {
         if groups.is_empty() {
             group_items.push(
                 container(
-                    text(tr_with(
-                        "shell-launcher-no-apps",
-                        &[("query", query.as_str())],
-                    ))
+                    text(
+                        t_with("shell-launcher-no-apps", &[("query", query.as_str())]).to_string(),
+                    )
                     .size(14)
                     .color(iced::Color::from_rgb(0.6, 0.6, 0.7)),
                 )
                 .center_x(Length::Fill)
-                .padding(48)
+                .padding([20, 0])
                 .into(),
             );
-        } else {
-            for group in page_groups {
-                // Move group fields to avoid borrow-of-local-variable issues.
-                let group_label = group.label.clone();
-                let label = text(group_label)
-                    .size(11)
-                    .color(iced::Color::from_rgb(0.5, 0.5, 0.6));
-
-                let tiles: Vec<Element<'_, DesktopMessage>> = group
-                    .apps
-                    .into_iter()
-                    .map(|app| {
-                        let id = app.id.clone();
-                        let icon = if app.icon.starts_with('<') {
-                            "●".to_string()
-                        } else {
-                            app.icon.clone()
-                        };
-                        let label_key = app.label_key.clone();
-                        button(
-                            column![text(icon).size(28), text(label_key).size(11),]
-                                .align_x(Alignment::Center)
-                                .spacing(4),
-                        )
-                        .on_press(DesktopMessage::LauncherLaunch(id))
-                        .padding([12, 8])
-                        .width(100)
-                        .into()
-                    })
-                    .collect();
-
-                let tile_row = row(tiles).spacing(8).wrap();
-
-                group_items.push(
-                    column![label, Space::with_height(4), tile_row]
-                        .spacing(0)
-                        .padding([8, 12])
-                        .into(),
-                );
-            }
         }
 
-        let mut pagination: Vec<Element<'_, DesktopMessage>> = vec![];
+        for group in &page_groups {
+            let group_label = text(group.label.clone())
+                .size(11)
+                .color(iced::Color::from_rgb(0.5, 0.6, 0.7));
+            group_items.push(group_label.into());
+
+            let mut row_items: Vec<Element<'_, DesktopMessage>> = vec![];
+            for entry in &group.apps {
+                let icon_el: Element<'_, DesktopMessage> = if entry.icon.starts_with('<') {
+                    let handle = svg_icon(&entry.icon, 32.0, "#94a3b8");
+                    svg(handle).width(32).height(32).into()
+                } else {
+                    text(entry.icon.clone()).size(28).into()
+                };
+                let id_clone = entry.id.clone();
+                let app_btn = button(
+                    column![
+                        icon_el,
+                        text(fs_i18n::t(&entry.label_key).to_string()).size(11),
+                    ]
+                    .align_x(Alignment::Center)
+                    .spacing(4),
+                )
+                .on_press(DesktopMessage::LauncherLaunch(id_clone))
+                .padding([8, 12]);
+                row_items.push(app_btn.into());
+            }
+            group_items.push(row(row_items).spacing(8).into());
+            group_items.push(Space::with_height(12).into());
+        }
+
+        // Pagination
         if total_pages > 1 {
-            let prev_btn = button(text("◄").size(13))
-                .on_press(DesktopMessage::LauncherPrevPage)
-                .padding([2, 10]);
-            let next_btn = button(text("►").size(13))
-                .on_press(DesktopMessage::LauncherNextPage)
-                .padding([2, 10]);
-            let page_label = text(format!("{} / {}", cur_page + 1, total_pages)).size(12);
+            let page_label = text(
+                fs_i18n::t_with(
+                    "shell-launcher-page",
+                    &[
+                        ("n", &(cur_page + 1).to_string()),
+                        ("total", &total_pages.to_string()),
+                    ],
+                )
+                .to_string(),
+            )
+            .size(12)
+            .color(iced::Color::from_rgb(0.5, 0.6, 0.7));
 
-            pagination.push(prev_btn.into());
-            pagination.push(page_label.into());
-            for i in 0..total_pages {
-                let dot = button(text(if i == cur_page { "●" } else { "○" }).size(8))
-                    .on_press(DesktopMessage::LauncherGotoPage(i))
-                    .padding([2, 4]);
-                pagination.push(dot.into());
-            }
-            pagination.push(next_btn.into());
+            let prev_btn = button(text("←").size(14))
+                .on_press(DesktopMessage::LauncherPrevPage)
+                .padding([4, 10]);
+            let next_btn = button(text("→").size(14))
+                .on_press(DesktopMessage::LauncherNextPage)
+                .padding([4, 10]);
+            let page_row = row![
+                prev_btn,
+                Space::with_width(8),
+                page_label,
+                Space::with_width(8),
+                next_btn
+            ]
+            .align_y(Alignment::Center);
+            group_items.push(
+                container(page_row)
+                    .center_x(Length::Fill)
+                    .padding([8, 0])
+                    .into(),
+            );
         }
 
-        let close_btn = button(text(tr("actions.close")).size(13))
+        let close_btn = button(text("✕").size(16))
             .on_press(DesktopMessage::LauncherClose)
-            .padding([6, 16]);
+            .padding([6, 10]);
 
-        let panel = column![
-            text("FreeSynergy")
-                .size(18)
-                .color(iced::Color::from_rgb(0.02, 0.74, 0.84)),
-            Space::with_height(16),
+        let launcher_content = column![
+            row![
+                text(tr("shell-launcher-title")).size(16),
+                Space::with_width(Length::Fill),
+                close_btn,
+            ]
+            .align_y(Alignment::Center)
+            .padding([0, 4]),
+            Space::with_height(8),
             search,
             Space::with_height(12),
-            scrollable(column(group_items).spacing(8)).height(400),
-            Space::with_height(8),
-            row(pagination).spacing(4).align_y(Alignment::Center),
-            Space::with_height(8),
-            close_btn,
+            scrollable(column(group_items).spacing(4)).height(Length::Fill),
         ]
-        .spacing(0)
-        .padding(24)
-        .width(700)
-        .max_width(800);
+        .padding([16, 16])
+        .spacing(0);
 
-        container(panel)
-            .center_x(Length::Fill)
-            .center_y(Length::Fill)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .style(|_theme| container::Style {
-                background: Some(iced::Background::Color(iced::Color::from_rgba(
-                    0.0, 0.0, 0.0, 0.85,
+        container(launcher_content)
+            .width(pxf(540.0))
+            .height(pxf(480.0))
+            .style(|_| container::Style {
+                background: Some(iced::Background::Color(Color::from_rgba(
+                    0.04, 0.06, 0.14, 0.97,
                 ))),
+                border: Border {
+                    color: Color::from_rgba(0.02, 0.74, 0.84, 0.30),
+                    width: 1.0,
+                    radius: 12.0.into(),
+                },
+                shadow: Shadow {
+                    color: Color::from_rgba(0.0, 0.0, 0.0, 0.50),
+                    offset: Vector::new(0.0, 8.0),
+                    blur_radius: 32.0,
+                },
                 ..container::Style::default()
             })
             .into()
     }
 }
 
-// ── Non-iced stub ─────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-#[cfg(not(feature = "iced"))]
-impl DesktopShell {
-    pub fn update(&mut self, _msg: DesktopMessage) {}
-    pub fn view(&self) {}
+/// Parse a CSS hex color string (`"#rrggbb"` or `"#rgb"`) into an iced `Color`.
+///
+/// Returns `None` on parse failure so callers can fall back to a default.
+fn parse_hex_color(hex: &str) -> Option<Color> {
+    let hex = hex.trim_start_matches('#');
+    let (r, g, b) = match hex.len() {
+        6 => {
+            let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+            let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+            let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+            (r, g, b)
+        }
+        3 => {
+            let r = u8::from_str_radix(&hex[0..1].repeat(2), 16).ok()?;
+            let g = u8::from_str_radix(&hex[1..2].repeat(2), 16).ok()?;
+            let b = u8::from_str_radix(&hex[2..3].repeat(2), 16).ok()?;
+            (r, g, b)
+        }
+        _ => return None,
+    };
+    #[allow(clippy::cast_lossless)]
+    Some(Color::from_rgb(
+        r as f32 / 255.0,
+        g as f32 / 255.0,
+        b as f32 / 255.0,
+    ))
+}
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_hex_color_six_digits() {
+        let c = parse_hex_color("#0bbed4").unwrap();
+        assert!((c.r - 11.0 / 255.0).abs() < 0.01);
+        assert!((c.g - 190.0 / 255.0).abs() < 0.01);
+        assert!((c.b - 212.0 / 255.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn parse_hex_color_three_digits() {
+        let c = parse_hex_color("#0bd").unwrap();
+        assert!((c.r - 0.0 / 255.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn parse_hex_color_invalid_returns_none() {
+        assert!(parse_hex_color("#xyz").is_none());
+        assert!(parse_hex_color("#12").is_none());
+    }
+
+    #[test]
+    fn desktop_shell_default_dark_mode() {
+        let shell = DesktopShell::default();
+        assert!(shell.dark_mode);
+    }
+
+    #[test]
+    fn desktop_shell_default_no_active_app() {
+        let shell = DesktopShell::default();
+        assert!(shell.active_app.is_none());
+    }
+
+    #[test]
+    fn desktop_shell_default_tiling_off() {
+        let shell = DesktopShell::default();
+        assert!(!shell.tiling_active);
+    }
 }

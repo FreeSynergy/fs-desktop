@@ -1,6 +1,8 @@
 #![deny(clippy::all, clippy::pedantic, warnings)]
 // Standalone launcher binary for fs-gui-workspace (iced).
 // The primary launcher is fs-app — this binary exists for development convenience.
+//
+// G1.5: Desktop starts at a large default size (fullscreen via OS window manager).
 
 fn main() {
     fs_gui_workspace::init_i18n();

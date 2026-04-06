@@ -57,6 +57,7 @@ pub trait LayoutSectionStrategy {
                     SlotKind::Top => fs_i18n::t("shell-layout-slot-top"),
                     SlotKind::Fill => fs_i18n::t("shell-layout-slot-fill"),
                     SlotKind::Bottom => fs_i18n::t("shell-layout-slot-bottom"),
+                    SlotKind::Sidebar => fs_i18n::t("shell-layout-sidebar"),
                 };
                 let components_str = if component_ids.is_empty() {
                     "—".to_string()
