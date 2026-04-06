@@ -150,8 +150,8 @@ pub fn view_packages(app: &SettingsApp) -> Element<'_, Message> {
 
     if state.packages.is_empty() {
         return column![
-            text("Package Settings").size(16),
-            text("No packages with configurable settings installed.").size(13),
+            text(fs_i18n::t("settings-packages-title").to_string()).size(16),
+            text(fs_i18n::t("settings-packages-empty").to_string()).size(13),
         ]
         .spacing(12)
         .into();
@@ -169,10 +169,13 @@ pub fn view_packages(app: &SettingsApp) -> Element<'_, Message> {
         .collect();
 
     // Left sidebar: package list
-    let search_input = text_input("Search packages...", &state.search)
-        .on_input(Message::PackageSearchChanged)
-        .padding([6, 10])
-        .width(Length::Fill);
+    let search_input = text_input(
+        fs_i18n::t("settings-packages-search-placeholder").as_ref(),
+        &state.search,
+    )
+    .on_input(Message::PackageSearchChanged)
+    .padding([6, 10])
+    .width(Length::Fill);
 
     let pkg_btns: Vec<Element<Message>> = filtered
         .iter()
@@ -213,7 +216,9 @@ pub fn view_packages(app: &SettingsApp) -> Element<'_, Message> {
         if let Some(pkg) = state.packages.iter().find(|p| p.id == state.selected_id) {
             view_package_detail(pkg)
         } else {
-            text("Select a package.").size(13).into()
+            text(fs_i18n::t("settings-packages-select-hint").to_string())
+                .size(13)
+                .into()
         };
 
     row![
@@ -239,9 +244,12 @@ fn view_package_detail(pkg: &PackageSettingsEntry) -> Element<'_, Message> {
     .spacing(8);
 
     if pkg.fields.is_empty() {
-        return column![header, text("No configurable settings.").size(12)]
-            .spacing(12)
-            .into();
+        return column![
+            header,
+            text(fs_i18n::t("settings-packages-none-configured").to_string()).size(12),
+        ]
+        .spacing(12)
+        .into();
     }
 
     let field_rows: Vec<Element<Message>> = pkg
@@ -310,7 +318,9 @@ fn view_field_row<'a>(pkg_id: &'a str, field: &'a SettingsFieldView) -> Element<
     };
 
     let help: Element<Message> = if field.help.is_empty() {
-        text("No help text defined.").size(11).into()
+        text(fs_i18n::t("settings-packages-no-help").to_string())
+            .size(11)
+            .into()
     } else {
         text(field.help.as_str()).size(11).into()
     };

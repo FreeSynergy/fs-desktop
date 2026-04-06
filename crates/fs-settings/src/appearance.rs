@@ -1,36 +1,100 @@
 // fs-settings/src/appearance.rs — Appearance settings section (iced).
 //
-// State: AppearanceState
+// State: AppearanceState — loads theme list from ThemeRegistry + custom themes dir.
 // View:  view_appearance(&SettingsApp) -> Element<Message>
+
+use std::path::PathBuf;
 
 use fs_gui_engine_iced::iced::{
     widget::{button, checkbox, column, container, row, scrollable, text},
     Alignment, Element, Length,
 };
 use fs_i18n;
+use fs_theme::{ThemeEngine, ThemeRegistry};
 
 use crate::app::{Message, SettingsApp};
+
+// ── Persistence helpers ───────────────────────────────────────────────────────
+
+fn themes_dir() -> PathBuf {
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
+    PathBuf::from(home)
+        .join(".local")
+        .join("share")
+        .join("freesynergy")
+        .join("themes")
+}
+
+fn load_persisted_theme() -> Option<String> {
+    let path = crate::config_path("appearance.toml");
+    let content = std::fs::read_to_string(path).ok()?;
+    let val: toml::Value = toml::from_str(&content).ok()?;
+    val.get("theme")?.as_str().map(str::to_string)
+}
+
+fn load_animations_enabled() -> bool {
+    let path = crate::config_path("appearance.toml");
+    let content = std::fs::read_to_string(path).unwrap_or_default();
+    let Ok(val) = toml::from_str::<toml::Value>(&content) else {
+        return true;
+    };
+    val.get("animations_enabled")
+        .and_then(toml::Value::as_bool)
+        .unwrap_or(true)
+}
+
+// ── Theme loading ─────────────────────────────────────────────────────────────
+
+/// Build a `ThemeRegistry` populated with the built-in theme + any .toml files
+/// found in `~/.local/share/freesynergy/themes/`.
+fn build_registry() -> ThemeRegistry {
+    let mut reg = ThemeRegistry::default();
+    let dir = themes_dir();
+    if !dir.exists() {
+        return reg;
+    }
+    let Ok(entries) = std::fs::read_dir(&dir) else {
+        return reg;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().is_some_and(|e| e == "toml") {
+            if let Ok(engine) = ThemeEngine::from_toml(&path) {
+                reg.register(engine.theme().clone());
+            }
+        }
+    }
+    reg
+}
 
 // ── AppearanceState ───────────────────────────────────────────────────────────
 
 /// State for the Appearance settings section.
 #[derive(Debug, Clone)]
 pub struct AppearanceState {
+    /// Currently selected theme name.
     pub selected_theme: String,
     pub animations_enabled: bool,
+    /// All available theme names (built-in + installed from themes dir).
+    pub available_themes: Vec<String>,
 }
 
 impl AppearanceState {
     #[must_use]
     pub fn new() -> Self {
+        let reg = build_registry();
+        let available_themes: Vec<String> = reg.names().iter().map(|&s| s.to_string()).collect();
+        let selected_theme = load_persisted_theme()
+            .filter(|n| available_themes.contains(n))
+            .unwrap_or_else(|| reg.active().name.clone());
         Self {
-            selected_theme: "midnight-blue".to_string(),
-            animations_enabled: true,
+            selected_theme,
+            animations_enabled: load_animations_enabled(),
+            available_themes,
         }
     }
 
     pub fn save(&self) {
-        // Persist to ~/.config/fsn/appearance.toml (best-effort).
         let path = crate::config_path("appearance.toml");
         if let Some(dir) = path.parent() {
             let _ = std::fs::create_dir_all(dir);
@@ -49,29 +113,18 @@ impl Default for AppearanceState {
     }
 }
 
-// ── Built-in themes ───────────────────────────────────────────────────────────
-
-/// Built-in theme entries: (id, label).
-const BUILTIN_THEMES: &[(&str, &str)] = &[
-    ("midnight-blue", "Midnight Blue"),
-    ("ocean", "Ocean"),
-    ("forest", "Forest"),
-    ("sunset", "Sunset"),
-    ("light", "Light"),
-];
-
 // ── view_appearance ───────────────────────────────────────────────────────────
 
 /// Render the Appearance settings section.
 pub fn view_appearance(app: &SettingsApp) -> Element<'_, Message> {
     let state = &app.appearance;
 
-    // Theme selection buttons
-    let theme_buttons: Vec<Element<Message>> = BUILTIN_THEMES
+    let theme_buttons: Vec<Element<Message>> = state
+        .available_themes
         .iter()
-        .map(|(id, label)| {
-            let is_active = state.selected_theme == *id;
-            button(text(*label).size(13))
+        .map(|name| {
+            let is_active = state.selected_theme == *name;
+            button(text(name.as_str()).size(13))
                 .width(Length::Fill)
                 .padding([8, 12])
                 .style(if is_active {
@@ -79,7 +132,7 @@ pub fn view_appearance(app: &SettingsApp) -> Element<'_, Message> {
                 } else {
                     fs_gui_engine_iced::iced::widget::button::secondary
                 })
-                .on_press(Message::ThemeSelected((*id).to_string()))
+                .on_press(Message::ThemeSelected(name.clone()))
                 .into()
         })
         .collect();

@@ -16,12 +16,14 @@
 //   Main    → fill: <active app content>
 //   Bottombar → (hidden by default)
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use fs_i18n;
 use serde::{Deserialize, Serialize};
 
-use fs_render::layout::{ShellKind, SlotKind};
+use fs_render::layout::{
+    ComponentRef, LayoutDescriptor, ShellConfig, ShellKind, SlotConfig, SlotKind,
+};
 
 pub use crate::sidebar_state::SidebarSide;
 
@@ -300,6 +302,33 @@ impl ShellLayout {
         }
     }
 
+    // ── Conversion ────────────────────────────────────────────────────────────
+
+    /// Convert this `ShellLayout` into a `LayoutDescriptor` suitable for
+    /// the `IcedLayoutInterpreter`.
+    ///
+    /// Component IDs from each section's slots are mapped to lightweight
+    /// `ComponentRef` entries (no WASM path — in-process registered components).
+    #[must_use]
+    pub fn to_layout_descriptor(&self) -> LayoutDescriptor {
+        let mut desc = LayoutDescriptor::default();
+
+        for section in &self.sections {
+            if !section.visible {
+                continue;
+            }
+            let shell_cfg = section_to_shell_config(section);
+            match section.kind {
+                ShellKind::Topbar => desc.topbar = shell_cfg,
+                ShellKind::Sidebar => desc.sidebar = shell_cfg,
+                ShellKind::Bottombar => desc.bottombar = shell_cfg,
+                ShellKind::Main => desc.main = shell_cfg,
+            }
+        }
+
+        desc
+    }
+
     // ── Mutations ─────────────────────────────────────────────────────────────
 
     /// Toggle visibility of the section with the given kind.
@@ -325,6 +354,39 @@ impl ShellLayout {
                 });
             }
         }
+    }
+}
+
+// ── Conversion helpers ────────────────────────────────────────────────────────
+
+fn section_to_shell_config(section: &ShellSection) -> ShellConfig {
+    let mut slot_cfg = SlotConfig::default();
+
+    for slot_entry in &section.slots {
+        let refs: Vec<ComponentRef> = slot_entry
+            .component_ids
+            .iter()
+            .map(|id| ComponentRef {
+                id: id.clone(),
+                slot: slot_entry.kind.clone(),
+                // In-process components have no WASM path.
+                wasm: Path::new("").to_path_buf(),
+                config: None,
+                bounds: fs_render::layout::SlotBounds::default(),
+            })
+            .collect();
+
+        match slot_entry.kind {
+            SlotKind::Top => slot_cfg.top.extend(refs),
+            SlotKind::Fill | SlotKind::Sidebar => slot_cfg.fill.extend(refs),
+            SlotKind::Bottom => slot_cfg.bottom.extend(refs),
+        }
+    }
+
+    ShellConfig {
+        enabled: section.visible,
+        size: section.size,
+        slots: slot_cfg,
     }
 }
 

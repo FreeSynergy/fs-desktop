@@ -332,7 +332,9 @@ pub fn view_service_roles(app: &SettingsApp) -> Element<'_, Message> {
                 .collect();
 
             let providers_row: Element<Message> = if provider_btns.is_empty() {
-                text("(no providers installed)").size(11).into()
+                text(fs_i18n::t("settings-roles-no-providers").to_string())
+                    .size(11)
+                    .into()
             } else {
                 row(provider_btns).spacing(4).into()
             };

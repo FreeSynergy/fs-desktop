@@ -134,6 +134,11 @@ pub enum Message {
     // Language
     LanguageSelected(String),
     SaveLanguage,
+    LanguageOverridesToggled,
+    LanguageAppIdChanged(String),
+    LanguageAppLangSelected(String),
+    LanguageAppOverrideAdd,
+    LanguageAppOverrideRemove(String),
 
     // Service Roles
     ServiceRoleChanged(String, String),
@@ -307,7 +312,29 @@ impl SettingsApp {
                 self.language.selected = code;
             }
             Message::SaveLanguage => {
-                self.language.save();
+                self.language.save_global();
+                self.status_msg = Some(fs_i18n::t("settings-saved").into());
+            }
+            Message::LanguageOverridesToggled => {
+                self.language.overrides_expanded = !self.language.overrides_expanded;
+            }
+            Message::LanguageAppIdChanged(v) => {
+                self.language.override_form.app_id = v;
+            }
+            Message::LanguageAppLangSelected(code) => {
+                self.language.override_form.lang_code = code;
+            }
+            Message::LanguageAppOverrideAdd => {
+                let form = self.language.override_form.clone();
+                if form.is_valid() {
+                    self.language
+                        .set_app_override(form.app_id.trim(), &form.lang_code);
+                    self.language.override_form = crate::language::AppOverrideForm::default();
+                    self.status_msg = Some(fs_i18n::t("settings-saved").into());
+                }
+            }
+            Message::LanguageAppOverrideRemove(app_id) => {
+                self.language.remove_app_override(&app_id);
                 self.status_msg = Some(fs_i18n::t("settings-saved").into());
             }
 

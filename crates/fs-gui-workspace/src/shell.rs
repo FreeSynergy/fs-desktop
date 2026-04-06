@@ -9,6 +9,13 @@
 //!   - Titlebar extended: View-Buttons + Tiling-Toggle.
 //!   - `CapabilityObserver` hides the AI corner menu when `ai.chat` is absent.
 //!   - Desktop starts maximised by default (fullscreen flag in `main.rs`).
+//!
+//! G1.9 UX-Extras:
+//!   - `WindowLayoutMode` (Normal/Tiling/FocusMode) replaces the bool tiling flag.
+//!   - Notification Center overlay aggregates all past notifications.
+//!   - Quick Switch overlay (Alt+Tab replacement) shows open windows.
+//!   - `AutoThemeSchedule`: light/dark theme switches automatically by time of day.
+//!   - `SnapConfig`: window snap grid (2–4 cols) for auto-arrange.
 
 #[cfg(feature = "iced")]
 use fs_gui_engine_iced::iced::{
@@ -17,7 +24,7 @@ use fs_gui_engine_iced::iced::{
     Alignment, Border, Color, Element, Length, Shadow, Subscription, Task, Vector,
 };
 
-use chrono::Local;
+use chrono::{Local, Timelike};
 
 /// Convenience: translate a key to an owned `String`.
 fn tr(key: &str) -> String {
@@ -91,7 +98,10 @@ impl Palette {
     }
 }
 
-use fs_render::{new_shared_registry, register_standard_components, SharedComponentRegistry};
+use fs_render::{
+    new_shared_registry, register_standard_components, AutoThemeSchedule, InMemorySnapManager,
+    LayoutInterpreter, SharedComponentRegistry, TimeOfDay, WindowLayoutMode, WindowSnapManager,
+};
 
 use crate::app_lifecycle::AppLifecycleBus;
 use crate::capability_observer::CapabilityObserver;
@@ -106,9 +116,13 @@ use crate::window::{AppId, Window, WindowHost, WindowId, WindowManager};
 
 #[cfg(feature = "iced")]
 use fs_gui_engine_iced::{
+    layout::{IcedLayoutInterpreter, LayoutMessage},
     navigation::{CornerMenuState, MenuConfig, NavMessage},
     render_corner_menu,
 };
+
+#[cfg(feature = "iced")]
+use fs_render::ComponentCtx;
 
 // ── DesktopMessage ────────────────────────────────────────────────────────────
 
@@ -148,9 +162,9 @@ pub enum DesktopMessage {
     /// Wraps all `NavMessage` events emitted by the four corner menus.
     CornerMenuNav(NavMessage),
 
-    // ── Titlebar extensions (G1.5) ────────────────────────────────────────────
-    /// Toggle the tiling layout for open windows.
-    TilingToggle,
+    // ── Titlebar extensions (G1.5 + G1.9) ───────────────────────────────────
+    /// Cycle through `Normal → Tiling → FocusMode → Normal` (G1.9).
+    LayoutModeNext,
     /// Switch to a specific `ProgramView` for the active app.
     ViewSwitch(fs_render::navigation::ProgramView),
 
@@ -161,9 +175,29 @@ pub enum DesktopMessage {
     // ── Appearance ────────────────────────────────────────────────────────────
     /// Toggle light / dark mode.
     ToggleTheme,
+    /// Toggle automatic dark/light theme schedule (G1.9).
+    AutoThemeToggle,
+
+    // ── Quick Switch overlay (G1.9) ───────────────────────────────────────────
+    /// Show / hide the Quick Switch window overlay.
+    QuickSwitchToggle,
+    /// Activate (focus) the window with the given ID from the Quick Switch overlay.
+    QuickSwitchActivate(String),
+
+    // ── Notification Center (G1.9) ────────────────────────────────────────────
+    /// Show / hide the aggregated Notification Center panel.
+    NotificationCenterToggle,
+
+    // ── Window Snap (G1.9) ────────────────────────────────────────────────────
+    /// Toggle window snap on/off.
+    SnapToggle,
 
     // ── Clock tick ────────────────────────────────────────────────────────────
     ClockTick,
+
+    // ── Layout hot-reload ─────────────────────────────────────────────────────
+    /// Fired by the `HotReloadWatcher` when `desktop-layout.toml` changes on disk.
+    LayoutReloaded,
 
     // ── No-op / async completion ──────────────────────────────────────────────
     Noop,
@@ -213,9 +247,12 @@ pub struct DesktopShell {
     // ── Wallpaper (G1.5) ──────────────────────────────────────────────────────
     pub wallpaper: Wallpaper,
 
-    // ── Tiling (G1.5) ────────────────────────────────────────────────────────
-    /// `true` = automatic tiling layout for open windows.
-    pub tiling_active: bool,
+    // ── Layout mode (G1.9: replaces tiling_active bool) ──────────────────────
+    /// Current window layout mode: Normal | Tiling | `FocusMode`.
+    pub layout_mode: WindowLayoutMode,
+
+    // ── Window Snap (G1.9) ────────────────────────────────────────────────────
+    pub snap_manager: InMemorySnapManager,
 
     // ── Navigation icon size (from settings) ──────────────────────────────────
     pub nav_icon_size: f32,
@@ -223,6 +260,14 @@ pub struct DesktopShell {
     // ── Theme ─────────────────────────────────────────────────────────────────
     /// `true` = dark mode (default), `false` = light mode.
     pub dark_mode: bool,
+    /// When `Some`, the theme switches automatically according to the schedule.
+    pub auto_theme_schedule: Option<AutoThemeSchedule>,
+
+    // ── Quick Switch overlay (G1.9) ───────────────────────────────────────────
+    pub quick_switch_open: bool,
+
+    // ── Notification Center (G1.9) ────────────────────────────────────────────
+    pub notification_center_open: bool,
 
     // ── Clock ─────────────────────────────────────────────────────────────────
     pub clock_time: String,
@@ -259,9 +304,13 @@ impl Default for DesktopShell {
             corner_br: CornerMenuState::default(),
             capability: CapabilityObserver::default(),
             wallpaper: Wallpaper::default(),
-            tiling_active: false,
+            layout_mode: WindowLayoutMode::default(),
+            snap_manager: InMemorySnapManager::default(),
             nav_icon_size: 32.0,
             dark_mode: true,
+            auto_theme_schedule: None,
+            quick_switch_open: false,
+            notification_center_open: false,
             clock_time: Local::now().format("%H:%M").to_string(),
             clock_date: Local::now().format("%d.%m.%Y").to_string(),
         }
@@ -361,6 +410,9 @@ impl DesktopShell {
                 self.shell_layout.toggle_visibility(&kind);
                 self.shell_layout.save();
             }
+            DesktopMessage::LayoutReloaded => {
+                self.shell_layout = ShellLayout::load();
+            }
 
             // ── Corner menus (G1.5) ───────────────────────────────────────────
             DesktopMessage::CornerMenuNav(nav_msg) => {
@@ -376,9 +428,9 @@ impl DesktopShell {
                 }
             }
 
-            // ── Titlebar extensions ────────────────────────────────────────────
-            DesktopMessage::TilingToggle => {
-                self.tiling_active = !self.tiling_active;
+            // ── Layout mode (G1.9) ────────────────────────────────────────────
+            DesktopMessage::LayoutModeNext => {
+                self.layout_mode = self.layout_mode.next();
             }
             DesktopMessage::ViewSwitch(_view) => {
                 // G1.4: ProgramViewProvider per-app — wired when G1.4 lands.
@@ -392,12 +444,62 @@ impl DesktopShell {
             // ── Appearance ────────────────────────────────────────────────────
             DesktopMessage::ToggleTheme => {
                 self.dark_mode = !self.dark_mode;
+                // Manual toggle disables auto-theme until re-enabled.
+                self.auto_theme_schedule = None;
+            }
+            DesktopMessage::AutoThemeToggle => {
+                if self.auto_theme_schedule.is_some() {
+                    self.auto_theme_schedule = None;
+                } else {
+                    self.auto_theme_schedule = Some(AutoThemeSchedule::default_schedule());
+                }
+            }
+
+            // ── Quick Switch (G1.9) ───────────────────────────────────────────
+            DesktopMessage::QuickSwitchToggle => {
+                self.quick_switch_open = !self.quick_switch_open;
+            }
+            DesktopMessage::QuickSwitchActivate(window_id) => {
+                if let Ok(n) = window_id.parse::<u64>() {
+                    let id = WindowId(n);
+                    self.windows.focus_window(id);
+                    // Update active app from the focused window.
+                    self.active_app = self
+                        .windows
+                        .open_windows()
+                        .iter()
+                        .find(|w| w.meta.id == id)
+                        .map(|w| w.app);
+                }
+                self.quick_switch_open = false;
+            }
+
+            // ── Notification Center (G1.9) ────────────────────────────────────
+            DesktopMessage::NotificationCenterToggle => {
+                self.notification_center_open = !self.notification_center_open;
+                if self.notification_center_open {
+                    self.notification_history.mark_all_read();
+                }
+            }
+
+            // ── Window Snap (G1.9) ────────────────────────────────────────────
+            DesktopMessage::SnapToggle => {
+                let mut cfg = self.snap_manager.config().clone();
+                cfg.enabled = !cfg.enabled;
+                self.snap_manager.set_config(cfg);
             }
 
             // ── Clock ─────────────────────────────────────────────────────────
             DesktopMessage::ClockTick => {
-                self.clock_time = Local::now().format("%H:%M").to_string();
-                self.clock_date = Local::now().format("%d.%m.%Y").to_string();
+                let now = Local::now();
+                self.clock_time = now.format("%H:%M").to_string();
+                self.clock_date = now.format("%d.%m.%Y").to_string();
+                // Auto dark/light theme.
+                if let Some(schedule) = &self.auto_theme_schedule {
+                    #[allow(clippy::cast_possible_truncation)]
+                    let tod = TimeOfDay::new(now.hour() as u8, now.minute() as u8);
+                    self.dark_mode = !schedule.is_light_at(tod);
+                }
             }
 
             DesktopMessage::Noop => {}
@@ -480,10 +582,51 @@ impl DesktopShell {
 
     // ── Subscription ──────────────────────────────────────────────────────────
 
-    /// iced subscription: clock update.
+    /// iced subscriptions: clock tick + layout hot-reload via `HotReloadWatcher`.
     pub fn subscription(&self) -> Subscription<DesktopMessage> {
         use std::time::Duration;
-        time::every(Duration::from_secs(30)).map(|_| DesktopMessage::ClockTick)
+
+        let clock = time::every(Duration::from_secs(30)).map(|_| DesktopMessage::ClockTick);
+
+        let hot_reload = Subscription::run(|| {
+            use fs_render::{HotReloadEvent, HotReloadWatcher};
+            use iced::futures::{SinkExt, StreamExt};
+
+            iced::stream::channel(16, |mut tx| async move {
+                // The sync notify Receiver is !Send, so we bridge via a futures mpsc channel.
+                let (bridge_tx, mut bridge_rx) = iced::futures::channel::mpsc::channel::<bool>(16);
+
+                let layout_path = ShellLayout::config_path();
+
+                std::thread::spawn(move || {
+                    let Ok((mut watcher, rx)) = HotReloadWatcher::new() else {
+                        return;
+                    };
+                    if let Some(dir) = layout_path.parent() {
+                        let _ = watcher.watch(dir);
+                    }
+                    let _watcher = watcher;
+                    let mut bridge = bridge_tx;
+                    for event in rx {
+                        let is_layout = matches!(
+                            &event,
+                            HotReloadEvent::LayoutChanged(p)
+                            if p.file_name().and_then(|n| n.to_str())
+                                == Some("desktop-layout.toml")
+                        );
+                        if is_layout && bridge.try_send(true).is_err() {
+                            break;
+                        }
+                    }
+                });
+
+                while bridge_rx.next().await.is_some() {
+                    let _ = tx.send(DesktopMessage::LayoutReloaded).await;
+                }
+            })
+        });
+
+        Subscription::batch([clock, hot_reload])
     }
 }
 
@@ -538,6 +681,31 @@ impl DesktopShell {
         }
 
         let p = self.palette();
+        let shell_bg_color = self.wallpaper_background_color(&p);
+
+        // ── Focus Mode (G1.9): show only the active-app content area ─────────
+        if self.layout_mode == WindowLayoutMode::FocusMode {
+            let content = self.view_content();
+            let exit_btn = button(
+                text(tr("desktop-layout-mode-focus-exit"))
+                    .size(11)
+                    .color(p.muted),
+            )
+            .on_press(DesktopMessage::LayoutModeNext)
+            .padding([2, 8]);
+            let shell = column![content, exit_btn]
+                .spacing(0)
+                .height(Length::Fill)
+                .width(Length::Fill);
+            return container(shell)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .style(move |_| container::Style {
+                    background: Some(iced::Background::Color(shell_bg_color)),
+                    ..container::Style::default()
+                })
+                .into();
+        }
 
         let header = self.view_header();
         let content = self.view_content();
@@ -548,7 +716,6 @@ impl DesktopShell {
             .height(Length::Fill)
             .width(Length::Fill);
 
-        let shell_bg_color = self.wallpaper_background_color(&p);
         let shell_el: Element<'_, DesktopMessage> = container(shell)
             .width(Length::Fill)
             .height(Length::Fill)
@@ -558,14 +725,169 @@ impl DesktopShell {
             })
             .into();
 
-        // Overlay the four corner menus.
-        let overlays = self.view_corner_overlays();
+        // Overlay corner menus + optional G1.9 overlays.
+        let corner_overlays = self.view_corner_overlays();
 
         let mut layers: Vec<Element<'_, DesktopMessage>> = vec![shell_el];
-        layers.extend(overlays);
+        layers.extend(corner_overlays);
+
+        // Quick Switch overlay (G1.9)
+        if self.quick_switch_open {
+            layers.push(self.view_quick_switch_overlay());
+        }
+
+        // Notification Center overlay (G1.9)
+        if self.notification_center_open {
+            layers.push(self.view_notification_center_overlay());
+        }
+
         stack(layers)
             .width(Length::Fill)
             .height(Length::Fill)
+            .into()
+    }
+
+    // ── Quick Switch overlay (G1.9) ───────────────────────────────────────────
+
+    fn view_quick_switch_overlay(&self) -> Element<'_, DesktopMessage> {
+        let p = self.palette();
+        let open_windows: Vec<Element<'_, DesktopMessage>> = self
+            .windows
+            .open_windows()
+            .iter()
+            .map(|ow| {
+                let wid = ow.meta.id.0.to_string();
+                let title = tr(&ow.meta.title_key);
+                button(
+                    column![
+                        text(title).size(12),
+                        text(ow.app.name()).size(9).color(p.muted),
+                    ]
+                    .spacing(2),
+                )
+                .on_press(DesktopMessage::QuickSwitchActivate(wid))
+                .padding([8, 12])
+                .into()
+            })
+            .collect();
+
+        let title = text(tr("quick-switch-title")).size(16).color(p.cyan);
+        let hint = text(tr("quick-switch-hint")).size(11).color(p.muted);
+        let close_btn = button(text("✕").size(14))
+            .on_press(DesktopMessage::QuickSwitchToggle)
+            .padding([4, 8]);
+
+        let cards_row: Element<'_, DesktopMessage> = if open_windows.is_empty() {
+            column![text(tr("quick-switch-empty")).size(13).color(p.muted)]
+                .spacing(0)
+                .into()
+        } else {
+            row(open_windows).spacing(8).into()
+        };
+
+        let overlay_content = column![
+            row![title, Space::with_width(Length::Fill), close_btn].align_y(Alignment::Center),
+            hint,
+            Space::with_height(12),
+            cards_row,
+        ]
+        .spacing(8)
+        .padding([16, 20]);
+
+        container(overlay_content)
+            .width(Length::Fill)
+            .height(Length::Shrink)
+            .style(move |_| container::Style {
+                background: Some(iced::Background::Color(Color::from_rgba(
+                    0.04, 0.06, 0.14, 0.97,
+                ))),
+                border: Border {
+                    color: Color::from_rgba(0.02, 0.74, 0.84, 0.30),
+                    width: 1.0,
+                    radius: 0.0.into(),
+                },
+                ..container::Style::default()
+            })
+            .into()
+    }
+
+    // ── Notification Center overlay (G1.9) ────────────────────────────────────
+
+    fn view_notification_center_overlay(&self) -> Element<'_, DesktopMessage> {
+        let p = self.palette();
+        let entries: Vec<Element<'_, DesktopMessage>> = self
+            .notification_history
+            .entries()
+            .iter()
+            .take(20)
+            .map(|e| {
+                let dismiss_id = e.id;
+                row![
+                    text(e.title.as_str()).size(12),
+                    Space::with_width(Length::Fill),
+                    button(text("×").size(12))
+                        .on_press(DesktopMessage::NotificationDismiss(dismiss_id))
+                        .padding([2, 6]),
+                ]
+                .align_y(Alignment::Center)
+                .spacing(4)
+                .into()
+            })
+            .collect();
+
+        let title = text(tr("notification-center-title")).size(16).color(p.cyan);
+        let close_btn = button(text("✕").size(14))
+            .on_press(DesktopMessage::NotificationCenterToggle)
+            .padding([4, 8]);
+        let mark_all_btn = button(text(tr("notification-center-mark-all-read")).size(11))
+            .on_press(DesktopMessage::NotificationMarkRead)
+            .padding([4, 8]);
+
+        let body: Element<'_, DesktopMessage> = if entries.is_empty() {
+            text(tr("notification-center-empty"))
+                .size(13)
+                .color(p.muted)
+                .into()
+        } else {
+            scrollable(column(entries).spacing(4))
+                .height(pxf(320.0))
+                .into()
+        };
+
+        let overlay_content = column![
+            row![
+                title,
+                Space::with_width(Length::Fill),
+                mark_all_btn,
+                close_btn
+            ]
+            .align_y(Alignment::Center)
+            .spacing(4),
+            Space::with_height(8),
+            body,
+        ]
+        .spacing(4)
+        .padding([16, 20]);
+
+        container(overlay_content)
+            .width(pxf(360.0))
+            .height(Length::Shrink)
+            .style(move |_| container::Style {
+                background: Some(iced::Background::Color(Color::from_rgba(
+                    0.04, 0.06, 0.14, 0.97,
+                ))),
+                border: Border {
+                    color: Color::from_rgba(0.02, 0.74, 0.84, 0.30),
+                    width: 1.0,
+                    radius: 8.0.into(),
+                },
+                shadow: Shadow {
+                    color: Color::from_rgba(0.0, 0.0, 0.0, 0.40),
+                    offset: Vector::new(0.0, 8.0),
+                    blur_radius: 24.0,
+                },
+                ..container::Style::default()
+            })
             .into()
     }
 
@@ -663,14 +985,14 @@ impl DesktopShell {
             .on_press(DesktopMessage::ToggleTheme)
             .padding([4, 8]);
 
-        // Tiling toggle (G1.5)
-        let tiling_label = if self.tiling_active {
-            text("⊞").size(16).color(p.cyan)
-        } else {
-            text("⊞").size(16).color(p.muted)
+        // Layout mode toggle (G1.9 — cycles Normal → Tiling → FocusMode)
+        let layout_icon = match self.layout_mode {
+            WindowLayoutMode::Normal => text("⊡").size(16).color(p.muted),
+            WindowLayoutMode::Tiling => text("⊞").size(16).color(p.cyan),
+            WindowLayoutMode::FocusMode => text("⊟").size(16).color(p.cyan),
         };
-        let tiling_btn = button(tiling_label)
-            .on_press(DesktopMessage::TilingToggle)
+        let tiling_btn = button(layout_icon)
+            .on_press(DesktopMessage::LayoutModeNext)
             .padding([4, 8]);
 
         // View-buttons (G1.5): only when an app is active
@@ -817,21 +1139,65 @@ impl DesktopShell {
     fn view_content(&self) -> Element<'_, DesktopMessage> {
         let p = self.palette();
 
-        let content: Element<'_, DesktopMessage> = match self.active_app {
-            Some(app_id) => {
-                let handle = svg_icon(app_id.icon(), 48.0, p.icon_color);
-                let icon_el: Element<'_, DesktopMessage> = svg(handle).width(48).height(48).into();
+        let content: Element<'_, DesktopMessage> = if let Some(app_id) = self.active_app {
+            let handle = svg_icon(app_id.icon(), 48.0, p.icon_color);
+            let icon_el: Element<'_, DesktopMessage> = svg(handle).width(48).height(48).into();
+            container(
+                column![
+                    icon_el,
+                    Space::with_height(16),
+                    text(app_id.name()).size(20).color(p.cyan),
+                    Space::with_height(8),
+                    text(tr("shell-app-launched")).size(14).color(p.muted),
+                    Space::with_height(16),
+                    button(text(tr("shell-app-relaunch")).size(13))
+                        .on_press(DesktopMessage::OpenApp(app_id))
+                        .padding([8, 20]),
+                ]
+                .align_x(Alignment::Center)
+                .spacing(4),
+            )
+            .center_x(Length::Fill)
+            .center_y(Length::Fill)
+            .into()
+        } else {
+            // Render the shell layout via IcedLayoutInterpreter when available.
+            let descriptor = self.shell_layout.to_layout_descriptor();
+            let has_components = descriptor.sidebar.slots.all_components().next().is_some()
+                || descriptor.topbar.slots.all_components().next().is_some();
+
+            if has_components {
+                let reg = self.components.lock().unwrap();
+                let ctx = ComponentCtx::test(
+                    fs_render::ShellKind::Main,
+                    fs_render::layout::SlotKind::Fill,
+                );
+                let interpreter = IcedLayoutInterpreter::new(&reg, ctx);
+                // Map LayoutMessage → DesktopMessage.
+                interpreter.interpret(&descriptor).map(|msg| match msg {
+                    LayoutMessage::Action(action) => DesktopMessage::MenuAction(action),
+                })
+            } else {
+                // Fallback home screen when no components registered.
                 container(
                     column![
-                        icon_el,
-                        Space::with_height(16),
-                        text(app_id.name()).size(20).color(p.cyan),
-                        Space::with_height(8),
-                        text(tr("shell-app-launched")).size(14).color(p.muted),
-                        Space::with_height(16),
-                        button(text(tr("shell-app-relaunch")).size(13))
-                            .on_press(DesktopMessage::OpenApp(app_id))
-                            .padding([8, 20]),
+                        text("FreeSynergy").size(40).color(p.cyan),
+                        text("by KalEl").size(14).color(p.muted),
+                        Space::with_height(32),
+                        text(tr("shell-home-hint")).size(14).color(p.muted),
+                        Space::with_height(20),
+                        button(
+                            row![
+                                svg(svg_icon(crate::icons::ICON_LAUNCHER, 16.0, "#06b6d4"))
+                                    .width(16)
+                                    .height(16),
+                                Space::with_width(6),
+                                text(tr("shell-launcher-open")).size(14),
+                            ]
+                            .align_y(Alignment::Center),
+                        )
+                        .on_press(DesktopMessage::LauncherToggle)
+                        .padding([10, 24]),
                     ]
                     .align_x(Alignment::Center)
                     .spacing(4),
@@ -840,32 +1206,6 @@ impl DesktopShell {
                 .center_y(Length::Fill)
                 .into()
             }
-            None => container(
-                column![
-                    text("FreeSynergy").size(40).color(p.cyan),
-                    text("by KalEl").size(14).color(p.muted),
-                    Space::with_height(32),
-                    text(tr("shell-home-hint")).size(14).color(p.muted),
-                    Space::with_height(20),
-                    button(
-                        row![
-                            svg(svg_icon(crate::icons::ICON_LAUNCHER, 16.0, "#06b6d4"))
-                                .width(16)
-                                .height(16),
-                            Space::with_width(6),
-                            text(tr("shell-launcher-open")).size(14),
-                        ]
-                        .align_y(Alignment::Center),
-                    )
-                    .on_press(DesktopMessage::LauncherToggle)
-                    .padding([10, 24]),
-                ]
-                .align_x(Alignment::Center)
-                .spacing(4),
-            )
-            .center_x(Length::Fill)
-            .center_y(Length::Fill)
-            .into(),
         };
 
         container(content)
@@ -1145,8 +1485,39 @@ mod tests {
     }
 
     #[test]
-    fn desktop_shell_default_tiling_off() {
+    fn desktop_shell_default_layout_mode_normal() {
         let shell = DesktopShell::default();
-        assert!(!shell.tiling_active);
+        assert_eq!(shell.layout_mode, WindowLayoutMode::Normal);
+    }
+
+    #[test]
+    fn desktop_shell_layout_mode_cycles() {
+        assert_eq!(WindowLayoutMode::Normal.next(), WindowLayoutMode::Tiling);
+        assert_eq!(WindowLayoutMode::Tiling.next(), WindowLayoutMode::FocusMode);
+        assert_eq!(WindowLayoutMode::FocusMode.next(), WindowLayoutMode::Normal);
+    }
+
+    #[test]
+    fn desktop_shell_default_quick_switch_closed() {
+        let shell = DesktopShell::default();
+        assert!(!shell.quick_switch_open);
+    }
+
+    #[test]
+    fn desktop_shell_default_notification_center_closed() {
+        let shell = DesktopShell::default();
+        assert!(!shell.notification_center_open);
+    }
+
+    #[test]
+    fn desktop_shell_default_auto_theme_off() {
+        let shell = DesktopShell::default();
+        assert!(shell.auto_theme_schedule.is_none());
+    }
+
+    #[test]
+    fn desktop_shell_default_snap_enabled() {
+        let shell = DesktopShell::default();
+        assert!(shell.snap_manager.config().enabled);
     }
 }
